@@ -301,14 +301,14 @@ const StudentDashboard = ({ onSelectBook }) => {
                   {user?.fullName || user?.username}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                  {user?.rollNo || 'Enrolled Student'}
+                  {user?.rollNumber || user?.roll_number || user?.rollNo || 'Enrolled Student'}
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-glass)', paddingTop: '8px' }}>
               <span>{user?.branchName || 'Engineering'}</span>
-              <span>Yr {user?.year || '1'} • Sem {user?.semester || '1'}</span>
+              <span>{user?.year || '1st Year'} • {user?.semester || '1st Sem'}</span>
             </div>
 
             {/* Current Study Desk Session */}
@@ -896,7 +896,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                     {user?.fullName || user?.username}
                   </h4>
                   <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    {user?.rollNo || 'SISTec Student'} • {user?.branchName}
+                    {user?.rollNumber || user?.roll_number || user?.rollNo || 'SISTec Student'} • {user?.branchName}
                   </p>
                 </div>
               </div>

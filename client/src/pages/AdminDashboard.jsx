@@ -1142,7 +1142,20 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredBooks.map(b => (
+                        {filteredBooks.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center' }}>
+                              <EmptyState
+                                icon={BookOpen}
+                                title="No Books Found"
+                                subtitle={searchQuery ? `No catalog books match "${searchQuery}"` : "The library catalog is currently empty."}
+                                actionLabel={!searchQuery ? "Catalog New Book" : undefined}
+                                onAction={!searchQuery ? () => openBookModal(null) : undefined}
+                              />
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredBooks.map(b => (
                           <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                             <td style={{ padding: '16px', textAlign: 'center' }}>
                               <input
@@ -1186,7 +1199,7 @@ const AdminDashboard = () => {
                               </div>
                             </td>
                           </tr>
-                        ))}
+                        )))}
                       </tbody>
                     </table>
                   </div>
