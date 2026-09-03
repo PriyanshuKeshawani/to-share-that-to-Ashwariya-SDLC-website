@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { BookOpen, UserPlus, ArrowLeft } from 'lucide-react';
+
+const FALLBACK_BRANCHES = [
+  { id: 1, name: 'Computer Science & Engineering' },
+  { id: 2, name: 'Information Technology' },
+  { id: 3, name: 'Mechanical Engineering' },
+  { id: 4, name: 'Civil Engineering' },
+  { id: 5, name: 'Electrical & Electronics Engineering' },
+  { id: 6, name: 'Electronics & Communication' },
+  { id: 7, name: 'Artificial Intelligence & Data Science' }
+];
 
 const Register = ({ onToggleView }) => {
   const { register, apiCall } = useAuth();
@@ -9,7 +20,7 @@ const Register = ({ onToggleView }) => {
     password: '',
     fullName: '',
     rollNumber: '',
-    branchName: '',
+    branchName: FALLBACK_BRANCHES[0].name,
     year: '1st Year',
     semester: '1st Semester',
     btNumber: ''
@@ -17,7 +28,7 @@ const Register = ({ onToggleView }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [branches, setBranches] = useState([]);
+  const [branches, setBranches] = useState(FALLBACK_BRANCHES);
   const [branchesLoading, setBranchesLoading] = useState(true);
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
@@ -31,22 +42,21 @@ const Register = ({ onToggleView }) => {
 
     const fetchBranches = async () => {
       try {
-        setBranchesLoading(true);
-        const data = await apiCall('/auth/branches');
-        setBranches(data);
-        if (data.length > 0) {
+        const { data, error } = await supabase.from('branches').select('*').order('name', { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setBranches(data);
           setFormData(prev => ({ ...prev, branchName: data[0].name }));
         }
       } catch (err) {
-        console.error('Failed to load branches:', err);
-        setError('Failed to fetch departments from server.');
+        console.warn('Using fallback branches:', err);
       } finally {
         setBranchesLoading(false);
       }
     };
 
     fetchBranches();
-  }, [apiCall]);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -157,7 +167,7 @@ const Register = ({ onToggleView }) => {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'var(--grid-cols-2, 1fr 1fr)', gap: '16px' }}>
+          <div className="grid-responsive-2col">
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Username
@@ -203,7 +213,7 @@ const Register = ({ onToggleView }) => {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'var(--grid-cols-2, 1fr 1fr)', gap: '16px' }}>
+          <div className="grid-responsive-2col">
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Roll Number
@@ -255,7 +265,7 @@ const Register = ({ onToggleView }) => {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'var(--grid-cols-2, 1fr 1fr)', gap: '16px' }}>
+          <div className="grid-responsive-2col">
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Year

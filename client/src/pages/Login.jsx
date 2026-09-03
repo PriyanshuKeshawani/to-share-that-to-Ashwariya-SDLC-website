@@ -63,33 +63,10 @@ const Login = ({ onToggleView }) => {
       justifyContent: 'center',
       padding: '20px'
     }}>
-      <div style={{
-        display: 'flex',
-        width: '100%',
-        maxWidth: '1020px',
-        minHeight: '600px',
-        borderRadius: '20px',
-        overflow: 'hidden',
-        boxShadow: 'var(--shadow-glass)',
-        border: '1px solid var(--border-glass)',
-        background: 'var(--bg-card)',
-        backdropFilter: 'blur(20px)'
-      }}>
+      <div className="login-split-card">
         
         {/* ── Left Hero Side (Desktop/Tablet) ── */}
-        <div style={{
-          flex: '1 1 48%',
-          padding: '44px 40px',
-          background: 'linear-gradient(145deg, #091124 0%, #101c38 100%)',
-          borderRight: '1px solid var(--border-glass)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          position: 'relative',
-          color: '#ffffff'
-        }}
-        className="login-hero-desktop"
-        >
+        <div className="login-hero-side">
           {/* Subtle Ambient Radial Glow */}
           <div style={{
             position: 'absolute',
@@ -160,15 +137,9 @@ const Login = ({ onToggleView }) => {
         </div>
 
         {/* ── Right Form Side (Login Card) ── */}
-        <div style={{
-          flex: '1 1 52%',
-          padding: '40px 36px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
+        <div className="login-form-side">
           {/* Mobile-Only Header */}
-          <div className="login-mobile-header" style={{ textAlign: 'center', marginBottom: '20px', display: 'none' }}>
+          <div className="login-mobile-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
             <img
               src="/logo.png"
               alt="SISTec Logo"
