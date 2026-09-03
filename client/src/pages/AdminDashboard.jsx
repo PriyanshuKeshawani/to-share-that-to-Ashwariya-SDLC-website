@@ -6,6 +6,9 @@ import {
   Upload, Layers, CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
   Menu, ArrowLeftRight, MapPin, Settings, Package
 } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
+import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/StatusBadge';
 
 const AdminDashboard = () => {
   const { logout, apiCall } = useAuth();
@@ -960,24 +963,24 @@ const AdminDashboard = () => {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {pendingUsers.map(u => (
-                      <div key={u.id} className="glass-panel" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <h3 style={{ fontSize: '1.2rem' }}>{u.full_name}</h3>
-                            <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{u.status}</span>
+                      <div key={u.id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ flex: '1 1 300px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>{u.full_name}</h3>
+                            <StatusBadge status={u.status} />
                           </div>
                           
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px 24px', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '12px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px 18px', fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '10px' }}>
                             <div><strong>Username:</strong> {u.username}</div>
-                            <div><strong>Roll Number:</strong> {u.roll_number}</div>
+                            <div><strong>Roll No:</strong> {u.roll_number}</div>
                             <div><strong>Branch:</strong> {u.branch_name}</div>
-                            <div><strong>Year / Sem:</strong> {u.year} - {u.semester}</div>
-                            <div><strong>BT Number:</strong> {u.bt_number}</div>
+                            <div><strong>Year/Sem:</strong> Yr {u.year} • Sem {u.semester}</div>
+                            <div><strong>BT No:</strong> {u.bt_number || 'N/A'}</div>
                             <div><strong>Registered:</strong> {new Date(u.created_at).toLocaleDateString()}</div>
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => handleUserApproval(u.id, 'approved')}
                             className="btn btn-success"
@@ -1009,45 +1012,45 @@ const AdminDashboard = () => {
                 </div>
 
                 {pendingRequests.length === 0 ? (
-                  <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
-                    <Key size={40} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-                    <h4>All branch requests reviewed!</h4>
-                    <p style={{ marginTop: '8px' }}>There are no pending cross-branch access requests.</p>
-                  </div>
+                  <EmptyState
+                    icon={Key}
+                    title="All branch requests reviewed!"
+                    description="There are no pending cross-branch access requests from students."
+                  />
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {pendingRequests.map(r => (
-                      <div key={r.id} className="glass-panel responsive-grid-1col" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div key={r.id} className="glass-panel" style={{ padding: '18px 20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <h4 style={{ fontSize: '1.15rem' }}>{r.full_name}</h4>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({r.roll_number})</span>
+                            <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{r.full_name}</h4>
+                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>({r.roll_number})</span>
                           </div>
-                          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            Home Branch: <strong>{r.student_branch}</strong> ➔ Requested Access to:{' '}
-                            <span className="badge badge-secondary" style={{ fontSize: '0.75rem', textTransform: 'none' }}>
+                          <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                            Home Branch: <strong>{r.student_branch}</strong> → Requested Access to:{' '}
+                            <span className="badge badge-secondary" style={{ fontSize: '0.74rem', textTransform: 'none' }}>
                               {r.requested_branch_name}
                             </span>
                           </p>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginTop: '5px' }}>
                             Requested: {new Date(r.created_at).toLocaleString()}
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => handleBranchApproval(r.id, 'approved')}
                             className="btn btn-success"
-                            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                            style={{ padding: '8px 16px', fontSize: '0.84rem' }}
                           >
-                            <Check size={16} /> Grant Access
+                            <Check size={15} /> Grant Access
                           </button>
                           <button
                             onClick={() => handleBranchApproval(r.id, 'rejected')}
                             className="btn btn-danger"
-                            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                            style={{ padding: '8px 16px', fontSize: '0.84rem' }}
                           >
-                            <X size={16} /> Deny Access
+                            <X size={15} /> Deny Access
                           </button>
                         </div>
                       </div>
@@ -1580,62 +1583,76 @@ const AdminDashboard = () => {
                   </button>
                 </div>
 
-                <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.1)' }}>
-                          <th style={{ padding: '16px' }}>Book</th>
-                          <th style={{ padding: '16px' }}>Borrower</th>
-                          <th style={{ padding: '16px' }}>Issued</th>
-                          <th style={{ padding: '16px' }}>Due Date</th>
-                          <th style={{ padding: '16px' }}>Status</th>
-                          <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loans.filter(l => {
-                          const q = loanSearch.toLowerCase();
-                          const matchSearch = !q || l.book_title?.toLowerCase().includes(q) || l.borrower_name?.toLowerCase().includes(q);
-                          let matchStatus = true;
-                          if (loanStatusFilter === 'issued') matchStatus = l.status === 'issued';
-                          else if (loanStatusFilter === 'returned') matchStatus = l.status === 'returned';
-                          else if (loanStatusFilter === 'overdue') matchStatus = l.status === 'issued' && new Date(l.due_date) < new Date();
-                          return matchSearch && matchStatus;
-                        }).map(loan => (
-                          <tr key={loan.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <td style={{ padding: '16px' }}>
-                              <div style={{ fontWeight: 600 }}>{loan.book_title}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{loan.book_author}</div>
-                            </td>
-                            <td style={{ padding: '16px' }}>
-                              <div style={{ fontWeight: 600 }}>{loan.borrower_name}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{loan.borrower_roll}</div>
-                            </td>
-                            <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{new Date(loan.issued_at).toLocaleDateString()}</td>
-                            <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{new Date(loan.due_date).toLocaleDateString()}</td>
-                            <td style={{ padding: '16px' }}>
-                              <span className={`badge ${loan.status === 'issued' ? 'badge-primary' : loan.status === 'overdue' ? 'badge-danger' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>
-                                {loan.status}
-                              </span>
-                            </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              {loan.status === 'issued' && (
-                                <button
-                                  onClick={() => setReturnModal(loan)}
-                                  className="btn btn-success"
-                                  style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                                >
-                                  Return
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                {(() => {
+                  const filtered = loans.filter(l => {
+                    const q = loanSearch.toLowerCase();
+                    const matchSearch = !q || l.book_title?.toLowerCase().includes(q) || l.borrower_name?.toLowerCase().includes(q);
+                    let matchStatus = true;
+                    if (loanStatusFilter === 'issued') matchStatus = l.status === 'issued';
+                    else if (loanStatusFilter === 'returned') matchStatus = l.status === 'returned';
+                    else if (loanStatusFilter === 'overdue') matchStatus = l.status === 'issued' && new Date(l.due_date) < new Date();
+                    return matchSearch && matchStatus;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <EmptyState
+                        icon={ArrowLeftRight}
+                        title="No circulation records found"
+                        description="No book loans match your current search query or status filter."
+                      />
+                    );
+                  }
+
+                  return (
+                    <div className="glass-panel" style={{ overflow: 'hidden' }}>
+                      <div className="table-responsive-wrapper">
+                        <table className="custom-table">
+                          <thead>
+                            <tr>
+                              <th>Book Details</th>
+                              <th>Borrower (Student)</th>
+                              <th>Issued Date</th>
+                              <th>Due Date</th>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'center' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map(loan => (
+                              <tr key={loan.id}>
+                                <td>
+                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loan.book_title}</div>
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{loan.book_author}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loan.borrower_name}</div>
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{loan.borrower_roll}</div>
+                                </td>
+                                <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{new Date(loan.issued_at).toLocaleDateString()}</td>
+                                <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{new Date(loan.due_date).toLocaleDateString()}</td>
+                                <td>
+                                  <StatusBadge status={loan.status} />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  {loan.status === 'issued' && (
+                                    <button
+                                      onClick={() => setReturnModal(loan)}
+                                      className="btn btn-success"
+                                      style={{ padding: '5px 12px', fontSize: '0.78rem' }}
+                                    >
+                                      Return
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -2408,64 +2425,78 @@ const AdminDashboard = () => {
 
       {/* Mobile Top Header */}
       <header className="mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <BookOpen size={20} color="var(--primary)" />
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Admin Panel
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src="/logo.png" alt="SISTec Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
+          <div>
+            <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', lineHeight: 1.15 }}>
+              SISTec Admin
+            </span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+              System Console
+            </span>
+          </div>
         </div>
-        <button 
-          onClick={() => setShowMenuDrawer(true)}
-          className="btn btn-secondary"
-          style={{ padding: '6px', borderRadius: '50%', width: '32px', height: '32px', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Menu size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <NotificationBell />
+          <button 
+            onClick={() => setShowMenuDrawer(true)}
+            className="btn btn-secondary"
+            style={{ padding: '6px', borderRadius: '50%', width: '34px', height: '34px', minWidth: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            aria-label="Open Navigation Menu"
+          >
+            <Menu size={17} />
+          </button>
+        </div>
       </header>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation (5 core items) */}
       <nav className="mobile-bottom-nav">
         <button 
           onClick={() => setActiveTab('overview')}
-          className={`mobile-nav-item ${activeTab === 'overview' ? 'active' : ''}`}
+          className={`bottom-nav-item ${activeTab === 'overview' ? 'active' : ''}`}
         >
-          <BarChart3 size={18} />
+          <BarChart3 size={19} />
           <span>Stats</span>
         </button>
         <button 
           onClick={() => setActiveTab('users')}
-          className={`mobile-nav-item ${activeTab === 'users' ? 'active' : ''}`}
+          className={`bottom-nav-item ${activeTab === 'users' ? 'active' : ''}`}
         >
-          <Users size={18} />
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <Users size={19} />
+            {pendingUsers.length > 0 && (
+              <span style={{
+                position: 'absolute', top: '-4px', right: '-8px',
+                background: 'var(--primary)', color: '#fff',
+                fontSize: '0.62rem', fontWeight: 700, width: '15px', height: '15px',
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                {pendingUsers.length}
+              </span>
+            )}
+          </div>
           <span>Approvals</span>
         </button>
         <button 
-          onClick={() => setActiveTab('permissions')}
-          className={`mobile-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
-        >
-          <Key size={18} />
-          <span>Requests</span>
-        </button>
-        <button 
           onClick={() => setActiveTab('loans')}
-          className={`mobile-nav-item ${activeTab === 'loans' ? 'active' : ''}`}
+          className={`bottom-nav-item ${activeTab === 'loans' ? 'active' : ''}`}
         >
-          <ArrowLeftRight size={18} />
+          <ArrowLeftRight size={19} />
           <span>Circulation</span>
         </button>
         <button 
           onClick={() => setActiveTab('books')}
-          className={`mobile-nav-item ${activeTab === 'books' ? 'active' : ''}`}
+          className={`bottom-nav-item ${activeTab === 'books' ? 'active' : ''}`}
         >
-          <BookOpen size={18} />
-          <span>Books</span>
+          <BookOpen size={19} />
+          <span>Inventory</span>
         </button>
         <button 
-          onClick={() => setActiveTab('students')}
-          className={`mobile-nav-item ${activeTab === 'students' ? 'active' : ''}`}
+          onClick={() => setShowMenuDrawer(true)}
+          className="bottom-nav-item"
         >
-          <UserCheck size={18} />
-          <span>Students</span>
+          <Menu size={19} />
+          <span>More</span>
         </button>
       </nav>
 
@@ -2474,25 +2505,24 @@ const AdminDashboard = () => {
         <div className="mobile-drawer-overlay" onClick={() => setShowMenuDrawer(false)}>
           <div className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-drawer-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <BookOpen size={18} color="var(--primary)" />
-                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Admin Operations</h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="/logo.png" alt="SISTec Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
+                <div>
+                  <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem' }}>SISTec Admin Console</h4>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Root Operations</span>
+                </div>
               </div>
               <button 
                 onClick={() => setShowMenuDrawer(false)}
                 className="btn btn-secondary"
                 style={{ padding: '4px', borderRadius: '50%', width: '28px', height: '28px', minWidth: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                aria-label="Close Drawer"
               >
                 <X size={14} />
               </button>
             </div>
-            
-            <div className="mobile-drawer-content" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="student-profile-info" style={{ marginBottom: '12px' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Root Admin Account</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>System Administrator</div>
-              </div>
 
+            <div className="mobile-drawer-content" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 0' }}>
               <button 
                 onClick={() => { setActiveTab('overview'); setShowMenuDrawer(false); }}
                 className={`btn ${activeTab === 'overview' ? 'btn-primary' : 'btn-secondary'}`}

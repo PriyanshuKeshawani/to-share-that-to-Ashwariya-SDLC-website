@@ -5,15 +5,13 @@ import { createContext, useContext, useState, useEffect } from 'react';
 // Predefined colour palettes
 // ─────────────────────────────────────────
 export const COLOR_PALETTES = [
-  { id: 'indigo-cyan',    label: 'Indigo × Cyan',    primary: '#6366f1', secondary: '#06b6d4' },
-  { id: 'violet-pink',   label: 'Violet × Pink',    primary: '#8b5cf6', secondary: '#ec4899' },
-  { id: 'rose-orange',   label: 'Rose × Orange',    primary: '#f43f5e', secondary: '#f97316' },
-  { id: 'emerald-teal',  label: 'Emerald × Teal',   primary: '#10b981', secondary: '#14b8a6' },
-  { id: 'amber-yellow',  label: 'Amber × Yellow',   primary: '#f59e0b', secondary: '#eab308' },
-  { id: 'sky-blue',      label: 'Sky × Blue',       primary: '#0ea5e9', secondary: '#3b82f6' },
-  { id: 'fuchsia-purple',label: 'Fuchsia × Purple', primary: '#d946ef', secondary: '#a855f7' },
-  { id: 'lime-green',    label: 'Lime × Green',     primary: '#84cc16', secondary: '#22c55e' },
-  { id: 'custom',        label: 'Custom',            primary: '#6366f1', secondary: '#06b6d4' },
+  { id: 'sistec-navy',   label: 'SISTec Blue × Sky', primary: '#2563eb', secondary: '#0ea5e9' },
+  { id: 'indigo-cyan',   label: 'Indigo × Cyan',     primary: '#6366f1', secondary: '#06b6d4' },
+  { id: 'sky-blue',      label: 'Sky × Blue',        primary: '#0ea5e9', secondary: '#3b82f6' },
+  { id: 'emerald-teal',  label: 'Emerald × Teal',    primary: '#10b981', secondary: '#14b8a6' },
+  { id: 'amber-yellow',  label: 'Amber × Gold',      primary: '#f59e0b', secondary: '#eab308' },
+  { id: 'violet-pink',   label: 'Violet × Pink',     primary: '#8b5cf6', secondary: '#ec4899' },
+  { id: 'custom',        label: 'Custom',            primary: '#2563eb', secondary: '#0ea5e9' },
 ];
 
 // Derive glow/shadow colours from a hex value
@@ -90,9 +88,9 @@ const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
   const [mode, setMode] = useState(() => localStorage.getItem('theme-mode') || 'dark');
-  const [paletteId, setPaletteId] = useState(() => localStorage.getItem('theme-palette') || 'indigo-cyan');
-  const [customPrimary, setCustomPrimary] = useState(() => localStorage.getItem('theme-custom-primary') || '#6366f1');
-  const [customSecondary, setCustomSecondary] = useState(() => localStorage.getItem('theme-custom-secondary') || '#06b6d4');
+  const [paletteId, setPaletteId] = useState(() => localStorage.getItem('theme-palette') || 'sistec-navy');
+  const [customPrimary, setCustomPrimary] = useState(() => localStorage.getItem('theme-custom-primary') || '#2563eb');
+  const [customSecondary, setCustomSecondary] = useState(() => localStorage.getItem('theme-custom-secondary') || '#0ea5e9');
 
   const activePalette = COLOR_PALETTES.find(p => p.id === paletteId) || COLOR_PALETTES[0];
   const primary = paletteId === 'custom' ? customPrimary : activePalette.primary;
