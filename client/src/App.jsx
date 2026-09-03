@@ -48,9 +48,15 @@ const AppContent = () => {
   // Not Logged In
   if (!user) {
     return isRegistering ? (
-      <Register onToggleView={() => setIsRegistering(false)} />
+      <>
+        <Register onToggleView={() => setIsRegistering(false)} />
+        <ThemeToggle />
+      </>
     ) : (
-      <Login onToggleView={() => setIsRegistering(true)} />
+      <>
+        <Login onToggleView={() => setIsRegistering(true)} />
+        <ThemeToggle />
+      </>
     );
   }
 

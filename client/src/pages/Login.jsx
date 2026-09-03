@@ -2,6 +2,30 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Shield, UserCheck, AlertCircle, Sparkles, BookOpen, GraduationCap, CheckCircle2 } from 'lucide-react';
 
+// High-resolution WebP library wallpapers fetched directly from CDN (not stored locally)
+const LIBRARY_WALLPAPERS = [
+  {
+    url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1920&q=80&fm=webp',
+    name: 'SISTec Central Library'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1920&q=80&fm=webp',
+    name: 'Academic Knowledge Repository'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1507842229451-76b1e60058ec?auto=format&fit=crop&w=1920&q=80&fm=webp',
+    name: 'Reference & Archives Hall'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1568667256549-094345857637?auto=format&fit=crop&w=1920&q=80&fm=webp',
+    name: 'Digital & Research Commons'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1920&q=80&fm=webp',
+    name: 'Departmental Study Stacks'
+  }
+];
+
 const Login = ({ onToggleView }) => {
   const { login, loginWithGoogle, bypassLogin } = useAuth();
   const [username, setUsername] = useState('');
@@ -9,9 +33,23 @@ const Login = ({ onToggleView }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [currentBgIndex, setCurrentBgIndex] = useState(0);
 
   useEffect(() => {
     document.title = 'Login - SISTec Library Portal';
+
+    // Preload WebP images for instant seamless crossfade
+    LIBRARY_WALLPAPERS.forEach((item) => {
+      const img = new Image();
+      img.src = item.url;
+    });
+
+    // Continuously cycle through library wallpapers every 6.5 seconds
+    const interval = setInterval(() => {
+      setCurrentBgIndex((prev) => (prev + 1) % LIBRARY_WALLPAPERS.length);
+    }, 6500);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSubmit = async (e) => {
@@ -58,12 +96,73 @@ const Login = ({ onToggleView }) => {
       display: 'flex',
       minHeight: '100vh',
       width: '100%',
-      backgroundColor: 'var(--bg-main)',
+      position: 'relative',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '20px'
+      padding: '20px',
+      overflow: 'hidden'
     }}>
-      <div className="login-split-card">
+      {/* ── Continuously Changing WebP Library Wallpapers (Internet CDN, not stored) ── */}
+      <div className="login-bg-container">
+        {LIBRARY_WALLPAPERS.map((wallpaper, index) => {
+          const isActive = currentBgIndex === index;
+          return (
+            <div
+              key={wallpaper.url}
+              className="login-bg-slide"
+              style={{
+                backgroundImage: `url(${wallpaper.url})`,
+                opacity: isActive ? 1 : 0,
+                transform: isActive ? 'scale(1.06)' : 'scale(1.0)',
+                zIndex: isActive ? 1 : 0
+              }}
+            />
+          );
+        })}
+
+        {/* ── Adaptive Multi-Theme Vignette & Color Overlay ── */}
+        <div className="login-backdrop-overlay" style={{ zIndex: 2 }} />
+      </div>
+
+      {/* ── Active Library Wallpaper Indicator Pill ── */}
+      <div style={{
+        position: 'fixed',
+        bottom: '20px',
+        left: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        zIndex: 10,
+        pointerEvents: 'none',
+        background: 'rgba(10, 15, 29, 0.55)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid var(--border-glass)',
+        padding: '6px 14px',
+        borderRadius: '999px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+      }}
+      className="login-hero-desktop"
+      >
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {LIBRARY_WALLPAPERS.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: currentBgIndex === i ? '16px' : '6px',
+                height: '5px',
+                borderRadius: '3px',
+                backgroundColor: currentBgIndex === i ? 'var(--primary)' : 'rgba(255, 255, 255, 0.3)',
+                transition: 'all 0.4s ease'
+              }}
+            />
+          ))}
+        </div>
+        <span style={{ fontSize: '0.72rem', color: '#cbd5e1', fontWeight: 500 }}>
+          {LIBRARY_WALLPAPERS[currentBgIndex].name}
+        </span>
+      </div>
+
+      <div className="login-split-card" style={{ position: 'relative', zIndex: 5 }}>
         
         {/* ── Left Hero Side (Desktop/Tablet) ── */}
         <div className="login-hero-side">
