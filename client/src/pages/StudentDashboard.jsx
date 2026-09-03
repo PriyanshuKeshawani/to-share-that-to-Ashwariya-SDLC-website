@@ -425,13 +425,14 @@ const StudentDashboard = ({ onSelectBook }) => {
       <main className="main-content">
         {/* Toast Feedback */}
         {feedbackMsg.text && (
-          <div className="animate-fade-in" style={{
+          <div className="animate-fade-in toast-notification" style={{
             position: 'fixed',
-            top: '20px',
+            top: '72px',
             right: '20px',
+            left: '20px',
             zIndex: 3000,
             padding: '12px 18px',
-            borderRadius: '10px',
+            borderRadius: '12px',
             background: feedbackMsg.type === 'error' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)',
             backdropFilter: 'blur(10px)',
             color: '#ffffff',
@@ -447,76 +448,78 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         )}
 
-        {/* Welcome Section & Quick Stats */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>
-                Welcome back, {user?.fullName || user?.username}!
-              </h2>
-              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                SISTec Central Digital Library • {user?.branchName || 'All Departments'}
-              </p>
-            </div>
-
-            {/* Desktop Quick Desk Status */}
-            {currentSession && (
-              <div className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
-                <MapPin size={14} /> Currently seated at Table {currentSession.table_number}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Metrics Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-            gap: '14px',
-            marginTop: '18px'
-          }}>
-            <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BookOpen size={20} />
-              </div>
+        {/* Welcome Section & Quick Stats - Only visible on All Catalog tab */}
+        {activeTab === 'all' && (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Library Catalog</div>
+                <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>
+                  Welcome back, {user?.fullName || user?.username}!
+                </h2>
+                <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                  SISTec Central Digital Library • {user?.branchName || 'All Departments'}
+                </p>
               </div>
-            </div>
 
-            <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(14, 165, 233, 0.12)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BookMarked size={20} />
-              </div>
-              <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{myLoans.length}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Borrowed Books</div>
-              </div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: totalFines > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', color: totalFines > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <DollarSign size={20} />
-              </div>
-              <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: totalFines > 0 ? '#ef4444' : 'var(--text-primary)' }}>
-                  ₹{totalFines}
+              {/* Desktop Quick Desk Status */}
+              {currentSession && (
+                <div className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
+                  <MapPin size={14} /> Currently seated at Table {currentSession.table_number}
                 </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Pending Fine</div>
-              </div>
+              )}
             </div>
 
-            <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--sistec-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Activity size={20} />
+            {/* Quick Metrics Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '14px',
+              marginTop: '18px'
+            }}>
+              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Library Catalog</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Reading Sessions</div>
+
+              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(14, 165, 233, 0.12)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BookMarked size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{myLoans.length}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Borrowed Books</div>
+                </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: totalFines > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', color: totalFines > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: totalFines > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                    ₹{totalFines}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Pending Fine</div>
+                </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--sistec-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Activity size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Reading Sessions</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* ── Content Switcher based on activeTab ── */}
         {loading ? (
