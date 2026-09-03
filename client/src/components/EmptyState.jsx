@@ -10,8 +10,8 @@ const EmptyState = ({
 }) => {
   return (
     <div className="empty-state-box animate-fade-in">
-      <div className="empty-state-icon">
-        <Icon size={26} strokeWidth={1.8} />
+      <div className="empty-state-icon animate-float" style={{ boxShadow: '0 8px 24px var(--primary-glow)' }}>
+        <Icon size={28} strokeWidth={1.8} />
       </div>
       <h4 style={{ 
         fontSize: '1.05rem', 
@@ -34,7 +34,7 @@ const EmptyState = ({
       {actionLabel && onAction && (
         <button 
           onClick={onAction} 
-          className="btn btn-primary" 
+          className="btn btn-primary btn-shine" 
           style={{ 
             padding: '10px 20px', 
             fontSize: '0.84rem',

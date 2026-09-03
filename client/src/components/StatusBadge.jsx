@@ -36,17 +36,15 @@ const StatusBadge = ({ status, customLabel }) => {
   const normStatus = (status || '').toLowerCase();
   const config = STATUS_MAP[normStatus] || { label: status || 'Unknown', className: 'badge-secondary' };
   const dotColor = STATUS_COLORS[normStatus] || 'var(--secondary)';
+  const isPulsing = ['available', 'active', 'issued', 'borrowed', 'overdue'].includes(normStatus);
 
   return (
-    <span className={`badge ${config.className}`}>
-      <span style={{
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        backgroundColor: dotColor,
-        display: 'inline-block',
-        boxShadow: `0 0 6px ${dotColor}40`
-      }} />
+    <span className={`badge ${config.className}`} style={{ gap: '6px' }}>
+      <span className="status-live-dot" style={{ backgroundColor: dotColor, boxShadow: `0 0 8px ${dotColor}60` }}>
+        {isPulsing && (
+          <span className="status-live-ping" style={{ backgroundColor: dotColor }} />
+        )}
+      </span>
       {customLabel || config.label}
     </span>
   );

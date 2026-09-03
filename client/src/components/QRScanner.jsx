@@ -151,28 +151,48 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
               justifyContent: 'center',
               gap: '14px'
             }}>
-              <div style={{
+              <div className="animate-float" style={{
                 width: '64px', height: '64px', borderRadius: '16px',
-                background: 'rgba(59, 130, 246, 0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                background: 'rgba(59, 130, 246, 0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 8px 24px rgba(59, 130, 246, 0.2)'
               }}>
-                <Camera size={32} style={{ color: 'var(--text-muted)' }} />
+                <Camera size={32} style={{ color: 'var(--primary)' }} />
               </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 500 }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', fontWeight: 500 }}>
                 Tap below to start scanning
               </p>
             </div>
           )}
 
           {isActive && (
-            <div style={{
-              position: 'absolute',
-              top: '50%', left: '10%', right: '10%',
-              height: '2px',
-              background: 'var(--primary)',
-              boxShadow: '0 0 16px var(--primary)',
-              animation: 'scanLine 2s ease-in-out infinite'
-            }} />
+            <>
+              {/* Scanner Reticle Frame */}
+              <div style={{
+                position: 'absolute',
+                inset: '16%',
+                border: '1.5px dashed rgba(6, 182, 212, 0.35)',
+                borderRadius: '16px',
+                pointerEvents: 'none'
+              }}>
+                <div style={{ position: 'absolute', top: -2, left: -2, width: '18px', height: '18px', borderTop: '3px solid var(--secondary)', borderLeft: '3px solid var(--secondary)', borderTopLeftRadius: '6px' }} />
+                <div style={{ position: 'absolute', top: -2, right: -2, width: '18px', height: '18px', borderTop: '3px solid var(--secondary)', borderRight: '3px solid var(--secondary)', borderTopRightRadius: '6px' }} />
+                <div style={{ position: 'absolute', bottom: -2, left: -2, width: '18px', height: '18px', borderBottom: '3px solid var(--secondary)', borderLeft: '3px solid var(--secondary)', borderBottomLeftRadius: '6px' }} />
+                <div style={{ position: 'absolute', bottom: -2, right: -2, width: '18px', height: '18px', borderBottom: '3px solid var(--secondary)', borderRight: '3px solid var(--secondary)', borderBottomRightRadius: '6px' }} />
+              </div>
+
+              {/* Glowing Laser Scan Motion Graphic */}
+              <div style={{
+                position: 'absolute',
+                left: '12%',
+                right: '12%',
+                height: '3px',
+                background: 'linear-gradient(90deg, transparent, #22d3ee, #38bdf8, transparent)',
+                boxShadow: '0 0 16px #06b6d4, 0 0 30px #06b6d4',
+                animation: 'scanLine 2.2s ease-in-out infinite alternate',
+                pointerEvents: 'none'
+              }} />
+            </>
           )}
 
           {error && (

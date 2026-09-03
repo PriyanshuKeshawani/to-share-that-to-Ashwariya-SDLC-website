@@ -450,8 +450,8 @@ const StudentDashboard = ({ onSelectBook }) => {
 
         {/* Welcome Section & Quick Stats - Only visible on All Catalog tab */}
         {activeTab === 'all' && (
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="motion-ambient-banner animate-fade-in" style={{ marginBottom: '26px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', position: 'relative', zIndex: 1 }}>
               <div>
                 <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>
                   Welcome back, {user?.fullName || user?.username}!
@@ -461,59 +461,64 @@ const StudentDashboard = ({ onSelectBook }) => {
                 </p>
               </div>
 
-              {/* Desktop Quick Desk Status */}
+              {/* Desktop Quick Desk Status with Live Pulse */}
               {currentSession && (
-                <div className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
-                  <MapPin size={14} /> Currently seated at Table {currentSession.table_number}
+                <div className="badge badge-success" style={{ padding: '7px 14px', fontSize: '0.78rem', gap: '8px' }}>
+                  <span className="status-live-dot" style={{ backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }}>
+                    <span className="status-live-ping" style={{ backgroundColor: '#10b981' }} />
+                  </span>
+                  <MapPin size={13} /> Seated at Table {currentSession.table_number}
                 </div>
               )}
             </div>
 
-            {/* Quick Metrics Grid */}
+            {/* Quick Metrics Grid with Interactive Micro-Motions */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
               gap: '14px',
-              marginTop: '18px'
+              marginTop: '20px',
+              position: 'relative',
+              zIndex: 1
             }}>
-              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="glass-panel motion-stat-card animate-stagger-in stagger-1" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.14)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <BookOpen size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Library Catalog</div>
                 </div>
               </div>
 
-              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(14, 165, 233, 0.12)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="glass-panel motion-stat-card animate-stagger-in stagger-2" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.14)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <BookMarked size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{myLoans.length}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{myLoans.length}</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Borrowed Books</div>
                 </div>
               </div>
 
-              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: totalFines > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', color: totalFines > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="glass-panel motion-stat-card animate-stagger-in stagger-3" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: totalFines > 0 ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)', color: totalFines > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <DollarSign size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: totalFines > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: totalFines > 0 ? '#ef4444' : 'var(--text-primary)' }}>
                     ₹{totalFines}
                   </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Pending Fine</div>
                 </div>
               </div>
 
-              <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--sistec-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="glass-panel motion-stat-card animate-stagger-in stagger-4" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.14)', color: 'var(--sistec-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Activity size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Reading Sessions</div>
                 </div>
               </div>
@@ -550,15 +555,16 @@ const StudentDashboard = ({ onSelectBook }) => {
               />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {loansWithFines.map(loan => (
-                  <div key={loan.id} className="glass-panel" style={{
+                {loansWithFines.map((loan, idx) => (
+                  <div key={loan.id} className="glass-panel glass-panel-hover animate-stagger-in" style={{
                     padding: '16px 20px',
                     borderLeft: loan.isOverdue ? '3px solid #ef4444' : '3px solid #10b981',
                     display: 'flex',
                     flexWrap: 'wrap',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: '12px'
+                    gap: '12px',
+                    animationDelay: `${Math.min(idx * 0.05, 0.4)}s`
                   }}>
                     <div>
                       <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '3px' }}>
@@ -589,7 +595,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       {/* Read Button if book is available */}
                       <button
                         onClick={() => onSelectBook({ id: loan.book_id, title: loan.book_title, author: loan.book_author })}
-                        className="btn btn-primary"
+                        className="btn btn-primary btn-shine"
                         style={{ padding: '7px 14px', fontSize: '0.8rem' }}
                       >
                         <BookOpen size={14} /> Read
@@ -754,16 +760,17 @@ const StudentDashboard = ({ onSelectBook }) => {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                 gap: '18px'
               }}>
-                {filteredBooks.map(book => (
+                {filteredBooks.map((book, idx) => (
                   <div
                     key={book.id}
-                    className="glass-panel glass-panel-hover"
+                    className="glass-panel glass-panel-hover animate-stagger-in"
                     style={{
                       padding: '18px',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
-                      minHeight: '260px'
+                      minHeight: '260px',
+                      animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
                     }}
                   >
                     <div>
@@ -799,15 +806,17 @@ const StudentDashboard = ({ onSelectBook }) => {
                         by {book.author || 'Author not specified'}
                       </p>
 
-                      {/* Copies Availability Indicator */}
+                      {/* Copies Availability Indicator with live radar pulse */}
                       {book.totalCopies > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                          <span style={{
-                            width: '7px',
-                            height: '7px',
-                            borderRadius: '50%',
-                            backgroundColor: book.availableCopies > 0 ? '#10b981' : '#ef4444'
-                          }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                          <span className="status-live-dot" style={{
+                            backgroundColor: book.availableCopies > 0 ? '#10b981' : '#ef4444',
+                            boxShadow: book.availableCopies > 0 ? '0 0 6px #10b981' : 'none'
+                          }}>
+                            {book.availableCopies > 0 && (
+                              <span className="status-live-ping" style={{ backgroundColor: '#10b981' }} />
+                            )}
+                          </span>
                           <span>{book.availableCopies} available / {book.totalCopies} total copies</span>
                         </div>
                       )}
@@ -824,7 +833,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                           <>
                             <button
                               onClick={() => onSelectBook(book)}
-                              className="btn btn-primary"
+                              className="btn btn-primary btn-shine"
                               style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem' }}
                             >
                               <BookOpen size={14} /> Read

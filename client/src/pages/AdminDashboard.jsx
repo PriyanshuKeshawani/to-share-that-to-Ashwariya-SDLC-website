@@ -762,8 +762,8 @@ const AdminDashboard = () => {
                   gap: '20px',
                   marginBottom: '32px'
                 }}>
-                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>
+                  <div className="glass-panel motion-stat-card animate-stagger-in stagger-1" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="motion-card-icon" style={{ padding: '12px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>
                       <BookOpen size={24} />
                     </div>
                     <div>
@@ -772,8 +772,8 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--secondary)' }}>
+                  <div className="glass-panel motion-stat-card animate-stagger-in stagger-2" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="motion-card-icon" style={{ padding: '12px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--secondary)' }}>
                       <Users size={24} />
                     </div>
                     <div>
@@ -782,8 +782,8 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                  <div className="glass-panel motion-stat-card animate-stagger-in stagger-3" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="motion-card-icon" style={{ padding: '12px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
                       <FileText size={24} />
                     </div>
                     <div>
@@ -792,8 +792,8 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
+                  <div className="glass-panel motion-stat-card animate-stagger-in stagger-4" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="motion-card-icon" style={{ padding: '12px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
                       <Download size={24} />
                     </div>
                     <div>
@@ -806,10 +806,12 @@ const AdminDashboard = () => {
                 {/* Champion Records (Best Book, Top Reader) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }} className="responsive-grid-1col">
                   {/* Best Book */}
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--secondary)' }}>
+                  <div className="glass-panel glass-panel-hover animate-stagger-in stagger-3" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--secondary)' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <Award size={20} color="var(--secondary)" />
+                        <div className="animate-float-bob" style={{ display: 'flex', alignItems: 'center' }}>
+                          <Award size={22} color="var(--secondary)" />
+                        </div>
                         <h4 style={{ textTransform: 'uppercase', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Best Performing Book Overall</h4>
                       </div>
                       {dashboardData.bestBook ? (
@@ -831,10 +833,12 @@ const AdminDashboard = () => {
                   </div>
 
                   {/* Top Student */}
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--primary)' }}>
+                  <div className="glass-panel glass-panel-hover animate-stagger-in stagger-4" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--primary)' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <TrendingUp size={20} color="var(--primary)" />
+                        <div className="animate-float-bob" style={{ display: 'flex', alignItems: 'center' }}>
+                          <TrendingUp size={22} color="var(--primary)" />
+                        </div>
                         <h4 style={{ textTransform: 'uppercase', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Top Student Reader</h4>
                       </div>
                       {dashboardData.topUser ? (
@@ -853,6 +857,8 @@ const AdminDashboard = () => {
                         <div><strong>{dashboardData.topUser.unique_books_accessed}</strong> unique books accessed</div>
                       </div>
                     )}
+                  </div>
+                </div>
                   </div>
                 </div>
 

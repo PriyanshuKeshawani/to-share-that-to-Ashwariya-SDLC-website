@@ -66,10 +66,11 @@ const NotificationBell = () => {
           height: '38px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
         }}
       >
-        <Bell size={18} strokeWidth={1.8} />
+        <Bell size={18} strokeWidth={1.8} className={unreadCount > 0 ? 'animate-bell-wiggle' : ''} />
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute',
