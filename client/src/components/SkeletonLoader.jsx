@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const SkeletonBox = ({ width = '100%', height = '20px', borderRadius = '6px', style = {} }) => (
+export const SkeletonBox = ({ width = '100%', height = '20px', borderRadius = '8px', style = {} }) => (
   <div
     className="skeleton-box"
     style={{
@@ -13,26 +13,32 @@ export const SkeletonBox = ({ width = '100%', height = '20px', borderRadius = '6
 );
 
 export const SkeletonStatCard = () => (
-  <div className="glass-panel" style={{ padding: '18px 20px', display: 'flex', gap: '14px', alignItems: 'center' }}>
-    <SkeletonBox width="44px" height="44px" borderRadius="10px" />
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <SkeletonBox width="60%" height="14px" />
-      <SkeletonBox width="40%" height="24px" />
+  <div className="glass-panel stat-card" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+    <SkeletonBox width="48px" height="48px" borderRadius="12px" />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <SkeletonBox width="55%" height="12px" />
+      <SkeletonBox width="35%" height="26px" />
     </div>
   </div>
 );
 
 export const SkeletonTable = ({ rows = 5, cols = 4 }) => (
-  <div className="glass-panel" style={{ padding: '16px', overflow: 'hidden' }}>
-    <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+  <div className="glass-panel" style={{ padding: '20px', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', gap: '14px', marginBottom: '20px' }}>
       {Array.from({ length: cols }).map((_, i) => (
-        <SkeletonBox key={i} width={`${100 / cols}%`} height="16px" />
+        <SkeletonBox key={i} width={`${100 / cols}%`} height="14px" borderRadius="4px" />
       ))}
     </div>
     {Array.from({ length: rows }).map((_, r) => (
-      <div key={r} style={{ display: 'flex', gap: '12px', padding: '10px 0', borderTop: '1px solid var(--border-glass)' }}>
+      <div key={r} style={{ 
+        display: 'flex', 
+        gap: '14px', 
+        padding: '14px 0', 
+        borderTop: r === 0 ? '1px solid var(--border-glass)' : 'none',
+        borderBottom: '1px solid var(--border-glass)'
+      }}>
         {Array.from({ length: cols }).map((_, c) => (
-          <SkeletonBox key={c} width={`${100 / cols}%`} height="20px" />
+          <SkeletonBox key={c} width={`${100 / cols}%`} height="18px" />
         ))}
       </div>
     ))}
@@ -40,13 +46,13 @@ export const SkeletonTable = ({ rows = 5, cols = 4 }) => (
 );
 
 export const SkeletonCard = () => (
-  <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-    <SkeletonBox width="100%" height="120px" borderRadius="8px" />
-    <SkeletonBox width="70%" height="18px" />
-    <SkeletonBox width="50%" height="14px" />
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-      <SkeletonBox width="30%" height="26px" borderRadius="6px" />
-      <SkeletonBox width="30%" height="26px" borderRadius="6px" />
+  <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <SkeletonBox width="100%" height="140px" borderRadius="12px" />
+    <SkeletonBox width="65%" height="20px" />
+    <SkeletonBox width="40%" height="14px" />
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+      <SkeletonBox width="28%" height="30px" borderRadius="8px" />
+      <SkeletonBox width="28%" height="30px" borderRadius="8px" />
     </div>
   </div>
 );

@@ -719,17 +719,18 @@ const AdminDashboard = () => {
       <main className="main-content">
         {/* Floating Toast Notification */}
         {feedback.text && (
-          <div className="animate-fade-in" style={{
+          <div className="animate-fade-in toast-notification" style={{
             position: 'fixed',
-            top: '24px',
-            right: '24px',
-            zIndex: 1000,
+            top: '72px',
+            right: '20px',
+            left: '20px',
+            zIndex: 3000,
             padding: '14px 20px',
-            borderRadius: '10px',
+            borderRadius: '12px',
             background: feedback.type === 'error' ? '#7f1d1d' : '#064e3b',
             border: `1px solid ${feedback.type === 'error' ? '#ef4444' : '#10b981'}`,
             color: '#ffffff',
-            boxShadow: 'var(--shadow-glass)',
+            boxShadow: 'var(--shadow-elevated)',
             display: 'flex',
             alignItems: 'center',
             gap: '10px'
@@ -867,7 +868,7 @@ const AdminDashboard = () => {
                       const dwnPct = Math.min(100, (bp.total_downloads / max) * 100);
 
                       return (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', gap: '16px' }}>
+                        <div key={i} className="admin-chart-row" style={{ display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', gap: '16px' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{bp.branch_name}</span>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {/* Accesses bar (Indigo) */}

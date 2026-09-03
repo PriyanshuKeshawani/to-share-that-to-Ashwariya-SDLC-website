@@ -265,17 +265,18 @@ const Dashboard = ({ onSelectBook }) => {
       <main className="main-content">
         {/* Floating Toast Notification */}
         {feedbackMsg.text && (
-          <div className="animate-fade-in" style={{
+          <div className="animate-fade-in toast-notification" style={{
             position: 'fixed',
-            top: '24px',
-            right: '24px',
-            zIndex: 1000,
+            top: '72px',
+            right: '20px',
+            left: '20px',
+            zIndex: 3000,
             padding: '14px 20px',
-            borderRadius: '10px',
+            borderRadius: '12px',
             background: feedbackMsg.type === 'error' ? '#7f1d1d' : '#064e3b',
             border: `1px solid ${feedbackMsg.type === 'error' ? '#ef4444' : '#10b981'}`,
             color: '#ffffff',
-            boxShadow: 'var(--shadow-glass)',
+            boxShadow: 'var(--shadow-elevated)',
             display: 'flex',
             alignItems: 'center',
             gap: '10px'

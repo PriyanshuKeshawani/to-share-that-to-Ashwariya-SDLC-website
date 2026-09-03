@@ -36,11 +36,9 @@ const GoogleProfileCompletion = () => {
   ];
 
   useEffect(() => {
-    // Pre-fill name and suggested username from Google
     const name = pendingGoogleUser?.user_metadata?.full_name || pendingGoogleUser?.user_metadata?.name || '';
     const email = pendingGoogleUser?.email || '';
     const suggestedUsername = email ? email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_') : '';
-
     setFormData(prev => ({
       ...prev,
       fullName: name || prev.fullName,
@@ -108,43 +106,43 @@ const GoogleProfileCompletion = () => {
       <div className="glass-panel animate-fade-in" style={{
         width: '100%',
         maxWidth: '560px',
-        padding: '32px 28px',
-        boxShadow: 'var(--shadow-glass)'
+        padding: '36px 32px',
+        boxShadow: 'var(--shadow-elevated)',
+        borderRadius: '20px'
       }}>
-        {/* Header with Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <img
             src="/logo.png"
             alt="SISTec Logo"
             style={{
-              height: '64px',
+              height: '68px',
               width: 'auto',
               objectFit: 'contain',
-              marginBottom: '10px'
+              marginBottom: '14px',
+              filter: 'drop-shadow(0 6px 16px rgba(0, 0, 0, 0.3))'
             }}
           />
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Complete Student Profile
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Complete Your Profile
           </h2>
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-            Enter your college academic credentials to access the library portal
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+            Enter your college academic details to access the library portal
           </p>
 
-          {/* Verified Google Account Pill */}
           {pendingGoogleUser?.email && (
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              marginTop: '12px',
-              padding: '4px 12px',
+              gap: '8px',
+              marginTop: '14px',
+              padding: '6px 14px',
               borderRadius: '999px',
-              background: 'rgba(37, 99, 235, 0.08)',
-              border: '1px solid rgba(37, 99, 235, 0.2)',
-              fontSize: '0.78rem',
+              background: 'rgba(59, 130, 246, 0.06)',
+              border: '1px solid rgba(59, 130, 246, 0.15)',
+              fontSize: '0.8rem',
               color: 'var(--text-secondary)'
             }}>
-              <CheckCircle2 size={13} color="var(--primary)" />
+              <CheckCircle2 size={14} color="var(--primary)" />
               <span>Signed in as <strong>{pendingGoogleUser.email}</strong></span>
             </div>
           )}
@@ -152,23 +150,23 @@ const GoogleProfileCompletion = () => {
 
         {error && (
           <div className="badge-danger" style={{
-            padding: '10px 14px',
-            borderRadius: '8px',
-            fontSize: '0.82rem',
+            padding: '12px 14px',
+            borderRadius: '10px',
+            fontSize: '0.84rem',
             width: '100%',
-            marginBottom: '16px',
+            marginBottom: '18px',
             display: 'block',
             textAlign: 'center',
-            lineHeight: 1.4
+            lineHeight: 1.5
           }}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="grid-responsive-2col">
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Portal Username
               </label>
               <input
@@ -182,7 +180,7 @@ const GoogleProfileCompletion = () => {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Full Name
               </label>
               <input
@@ -199,7 +197,7 @@ const GoogleProfileCompletion = () => {
 
           <div className="grid-responsive-2col">
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Enrollment / Roll Number
               </label>
               <input
@@ -213,7 +211,7 @@ const GoogleProfileCompletion = () => {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 BT / Library Card No
               </label>
               <input
@@ -229,7 +227,7 @@ const GoogleProfileCompletion = () => {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Branch / Department
             </label>
             <select
@@ -247,7 +245,7 @@ const GoogleProfileCompletion = () => {
 
           <div className="grid-responsive-2col">
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Academic Year
               </label>
               <select
@@ -263,7 +261,7 @@ const GoogleProfileCompletion = () => {
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Current Semester
               </label>
               <select
@@ -283,7 +281,7 @@ const GoogleProfileCompletion = () => {
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', padding: '12px', marginTop: '6px', fontSize: '0.9rem' }}
+            style={{ width: '100%', padding: '13px', marginTop: '8px', fontSize: '0.92rem', fontWeight: 700, borderRadius: '10px' }}
             disabled={loading}
           >
             {loading ? (
@@ -293,7 +291,7 @@ const GoogleProfileCompletion = () => {
                 border: '2px solid rgba(255,255,255,0.3)',
                 borderTopColor: '#ffffff',
                 borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
+                animation: 'spin 0.8s linear infinite'
               }} />
             ) : (
               <>Complete & Enter Portal <ArrowRight size={16} /></>

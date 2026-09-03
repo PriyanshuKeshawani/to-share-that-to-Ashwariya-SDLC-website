@@ -25,7 +25,7 @@ const NotificationBell = () => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
@@ -62,22 +62,22 @@ const NotificationBell = () => {
           position: 'relative',
           padding: '8px',
           borderRadius: '50%',
-          width: '36px',
-          height: '36px',
+          width: '38px',
+          height: '38px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >
-        <Bell size={18} />
+        <Bell size={18} strokeWidth={1.8} />
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute',
-            top: '-2px',
-            right: '-2px',
-            background: '#ef4444',
+            top: '-1px',
+            right: '-1px',
+            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
             color: '#fff',
-            fontSize: '0.65rem',
+            fontSize: '0.6rem',
             fontWeight: 700,
             borderRadius: '50%',
             width: '18px',
@@ -85,7 +85,9 @@ const NotificationBell = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            border: '2px solid var(--bg-main)'
+            border: '2px solid var(--bg-main)',
+            boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+            animation: 'pulseGlow 2s infinite'
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -94,7 +96,6 @@ const NotificationBell = () => {
 
       {isOpen && (
         <>
-          {/* Backdrop */}
           <div
             style={{
               position: 'fixed',
@@ -104,26 +105,27 @@ const NotificationBell = () => {
             onClick={() => setIsOpen(false)}
           />
           
-          {/* Dropdown */}
-          <div className="glass-panel animate-fade-in" style={{
+          <div className="glass-panel animate-fade-in notification-dropdown" style={{
             position: 'absolute',
-            top: '44px',
+            top: '46px',
             right: 0,
-            width: '340px',
-            maxHeight: '400px',
+            width: '360px',
+            maxHeight: '420px',
             overflowY: 'auto',
             zIndex: 100,
             padding: 0,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+            boxShadow: 'var(--shadow-elevated)',
+            borderRadius: '18px'
           }}>
             <div style={{
-              padding: '14px 16px',
-              borderBottom: '1px solid rgba(255,255,255,0.07)',
+              padding: '16px 18px',
+              borderBottom: '1px solid var(--border-glass)',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              background: 'var(--surface-glow)'
             }}>
-              <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>Notifications</h4>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 700 }}>Notifications</h4>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
@@ -134,8 +136,13 @@ const NotificationBell = () => {
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    fontWeight: 600
+                    fontWeight: 600,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    transition: 'all 0.2s ease'
                   }}
+                  onMouseEnter={(e) => e.target.style.background = 'rgba(6, 182, 212, 0.1)'}
+                  onMouseLeave={(e) => e.target.style.background = 'none'}
                 >
                   Mark all read
                 </button>
@@ -144,49 +151,79 @@ const NotificationBell = () => {
 
             {notifications.length === 0 ? (
               <div style={{
-                padding: '32px 16px',
+                padding: '40px 18px',
                 textAlign: 'center',
                 color: 'var(--text-muted)'
               }}>
-                <Bell size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
-                <p style={{ fontSize: '0.85rem' }}>No notifications yet</p>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px'
+                }}>
+                  <Bell size={22} style={{ opacity: 0.5 }} />
+                </div>
+                <p style={{ fontSize: '0.88rem', fontWeight: 500 }}>No notifications yet</p>
+                <p style={{ fontSize: '0.78rem', marginTop: '4px' }}>You're all caught up!</p>
               </div>
             ) : (
               notifications.map(notif => (
                 <div
                   key={notif.id}
                   style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    padding: '14px 18px',
+                    borderBottom: '1px solid var(--border-glass)',
                     display: 'flex',
-                    gap: '10px',
+                    gap: '12px',
                     alignItems: 'flex-start',
-                    background: notif.is_read ? 'transparent' : 'rgba(99, 102, 241, 0.05)',
-                    cursor: 'pointer'
+                    background: notif.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.03)',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (notif.is_read) e.currentTarget.style.background = 'var(--bg-card-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (notif.is_read) e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <div style={{ marginTop: '2px', flexShrink: 0 }}>
+                  <div style={{ 
+                    marginTop: '2px', 
+                    flexShrink: 0,
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    background: notif.type === 'loan' ? 'rgba(59, 130, 246, 0.1)' : notif.type === 'return' ? 'rgba(16, 185, 129, 0.1)' : notif.type === 'fine' ? 'rgba(245, 158, 11, 0.1)' : 'var(--input-bg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
                     {getNotificationIcon(notif.type)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: '0.82rem',
-                      fontWeight: notif.is_read ? 400 : 600,
-                      marginBottom: '2px'
+                      fontSize: '0.84rem',
+                      fontWeight: notif.is_read ? 500 : 700,
+                      marginBottom: '3px',
+                      color: 'var(--text-primary)'
                     }}>
                       {notif.title}
                     </div>
                     <div style={{
-                      fontSize: '0.78rem',
+                      fontSize: '0.8rem',
                       color: 'var(--text-secondary)',
-                      lineHeight: 1.4
+                      lineHeight: 1.45
                     }}>
                       {notif.message}
                     </div>
                     <div style={{
                       fontSize: '0.7rem',
                       color: 'var(--text-muted)',
-                      marginTop: '4px'
+                      marginTop: '5px'
                     }}>
                       {new Date(notif.created_at).toLocaleString()}
                     </div>
@@ -198,7 +235,8 @@ const NotificationBell = () => {
                       borderRadius: '50%',
                       background: 'var(--primary)',
                       flexShrink: 0,
-                      marginTop: '6px'
+                      marginTop: '6px',
+                      boxShadow: '0 0 8px rgba(59, 130, 246, 0.4)'
                     }} />
                   )}
                 </div>

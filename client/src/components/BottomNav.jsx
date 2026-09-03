@@ -24,22 +24,23 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
             type="button"
           >
             <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <Icon size={20} />
+              <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} />
               {item.badge > 0 && (
                 <span style={{
                   position: 'absolute',
-                  top: '-4px',
-                  right: '-8px',
-                  background: 'var(--primary)',
+                  top: '-5px',
+                  right: '-9px',
+                  background: 'linear-gradient(135deg, var(--primary), #1d4ed8)',
                   color: '#ffffff',
-                  fontSize: '0.62rem',
+                  fontSize: '0.6rem',
                   fontWeight: 700,
-                  width: '15px',
-                  height: '15px',
+                  width: '16px',
+                  height: '16px',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)'
                 }}>
                   {item.badge}
                 </span>

@@ -22,7 +22,6 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
       }
       setIsActive(true);
 
-      // Try native barcode detection if available
       if ('BarcodeDetector' in window) {
         const detector = new BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39'] });
         const detectLoop = async () => {
@@ -77,8 +76,8 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
     <div style={{
       position: 'fixed',
       top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(5, 7, 12, 0.92)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(4, 6, 14, 0.92)',
+      backdropFilter: 'blur(12px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -87,26 +86,33 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
     }}>
       <div className="glass-panel animate-fade-in" style={{
         width: '100%',
-        maxWidth: '420px',
-        padding: '24px'
+        maxWidth: '440px',
+        padding: '28px',
+        borderRadius: '20px',
+        boxShadow: 'var(--shadow-elevated)'
       }}>
-        {/* Header */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px'
+          marginBottom: '22px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <QrCode size={20} color="var(--primary)" />
-            <h3 style={{ fontSize: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(6, 182, 212, 0.1))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <QrCode size={18} color="var(--primary)" />
+            </div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
               {title || (type === 'table' ? 'Scan Table QR Code' : 'Scan Book Code')}
             </h3>
           </div>
           <button
             onClick={() => { stopCamera(); onClose(); }}
             className="btn btn-secondary"
-            style={{ padding: '6px', borderRadius: '50%' }}
+            style={{ padding: '6px', borderRadius: '8px' }}
           >
             <X size={16} />
           </button>
@@ -117,10 +123,11 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
           width: '100%',
           aspectRatio: '4/3',
           background: '#000',
-          borderRadius: '12px',
+          borderRadius: '14px',
           overflow: 'hidden',
           position: 'relative',
-          marginBottom: '16px'
+          marginBottom: '18px',
+          border: '1px solid var(--border-glass)'
         }}>
           <video
             ref={videoRef}
@@ -142,10 +149,16 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '12px'
+              gap: '14px'
             }}>
-              <Camera size={40} style={{ color: 'var(--text-muted)' }} />
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '16px',
+                background: 'rgba(59, 130, 246, 0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Camera size={32} style={{ color: 'var(--text-muted)' }} />
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 500 }}>
                 Tap below to start scanning
               </p>
             </div>
@@ -154,12 +167,10 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
           {isActive && (
             <div style={{
               position: 'absolute',
-              top: '50%',
-              left: '10%',
-              right: '10%',
+              top: '50%', left: '10%', right: '10%',
               height: '2px',
               background: 'var(--primary)',
-              boxShadow: '0 0 12px var(--primary)',
+              boxShadow: '0 0 16px var(--primary)',
               animation: 'scanLine 2s ease-in-out infinite'
             }} />
           )}
@@ -167,15 +178,14 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
           {error && (
             <div style={{
               position: 'absolute',
-              bottom: '10px',
-              left: '10px',
-              right: '10px',
-              padding: '8px',
+              bottom: '10px', left: '10px', right: '10px',
+              padding: '10px',
               background: 'rgba(239, 68, 68, 0.9)',
-              borderRadius: '8px',
-              fontSize: '0.78rem',
+              borderRadius: '10px',
+              fontSize: '0.8rem',
               color: '#fff',
-              textAlign: 'center'
+              textAlign: 'center',
+              backdropFilter: 'blur(8px)'
             }}>
               {error}
             </div>
@@ -188,7 +198,7 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
             <button
               onClick={startCamera}
               className="btn btn-primary"
-              style={{ flex: 1, padding: '12px' }}
+              style={{ flex: 1, padding: '12px', borderRadius: '10px' }}
             >
               <Camera size={16} /> Start Camera
             </button>
@@ -196,7 +206,7 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
             <button
               onClick={stopCamera}
               className="btn btn-secondary"
-              style={{ flex: 1, padding: '12px' }}
+              style={{ flex: 1, padding: '12px', borderRadius: '10px' }}
             >
               Stop Camera
             </button>
@@ -204,9 +214,9 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
           <button
             onClick={() => setShowManual(!showManual)}
             className="btn btn-secondary"
-            style={{ padding: '12px' }}
+            style={{ padding: '12px', borderRadius: '10px' }}
           >
-            {showManual ? 'Hide' : 'Manual Entry'}
+            {showManual ? 'Hide' : 'Manual'}
           </button>
         </div>
 
@@ -214,7 +224,8 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
         {showManual && (
           <form onSubmit={handleManualSubmit} style={{
             display: 'flex',
-            gap: '8px'
+            gap: '10px',
+            animation: 'fadeIn 0.3s ease forwards'
           }}>
             <input
               type="text"
@@ -228,6 +239,7 @@ const QRScanner = ({ onScan, onClose, type = 'table', title }) => {
               type="submit"
               className="btn btn-primary"
               disabled={!manualInput.trim()}
+              style={{ borderRadius: '10px' }}
             >
               Submit
             </button>

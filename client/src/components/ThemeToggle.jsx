@@ -12,24 +12,20 @@ const ThemeToggle = () => {
   } = useTheme();
 
   const [panelOpen, setPanelOpen] = useState(false);
-
   const isDark = mode === 'dark';
 
   return (
     <>
-      {/* Keyframe injection */}
       <style>{`
-        @keyframes themeSlideUp {
-          from { opacity:0; transform: translateY(16px) scale(0.96); }
-          to   { opacity:1; transform: translateY(0) scale(1); }
+        @keyframes themePanelIn {
+          from { opacity: 0; transform: translateY(16px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .theme-fab:hover { transform: scale(1.12) !important; }
-        .palette-swatch:hover { transform: scale(1.18) !important; }
+        .theme-fab:hover { transform: scale(1.1) !important; }
+        .palette-swatch:hover { transform: scale(1.15) !important; }
       `}</style>
 
-      {/* FAB group */}
       <div className="theme-fab-container">
-        {/* Mode toggle */}
         <button
           className="theme-fab theme-fab-btn"
           onClick={toggleMode}
@@ -37,16 +33,15 @@ const ThemeToggle = () => {
           aria-label="Toggle dark/light mode"
         >
           {isDark
-            ? <Sun size={20} color="var(--warning)" />
+            ? <Sun size={20} color="#fbbf24" />
             : <Moon size={20} color="var(--primary)" />
           }
         </button>
 
-        {/* Palette picker toggle */}
         <button
           className={`theme-fab theme-fab-btn ${panelOpen ? 'active' : ''}`}
           onClick={() => setPanelOpen(o => !o)}
-          title="Customise theme palette"
+          title="Customize theme palette"
           aria-label="Open theme panel"
         >
           {panelOpen
@@ -56,33 +51,56 @@ const ThemeToggle = () => {
         </button>
       </div>
 
-      {/* Colour Palette Panel */}
       {panelOpen && (
         <div className="theme-studio-panel">
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Palette size={18} color="var(--primary)" />
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '10px',
+                background: `linear-gradient(135deg, var(--primary), var(--secondary))`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Palette size={16} color="#fff" />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
                 Theme Studio
               </span>
             </div>
             <button
               onClick={() => setPanelOpen(false)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
+              style={{ 
+                background: 'var(--input-bg)', 
+                border: '1px solid var(--border-glass)', 
+                cursor: 'pointer', 
+                color: 'var(--text-muted)', 
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--input-bg-focus)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--input-bg)';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
             >
               <X size={16} />
             </button>
           </div>
 
-          {/* Dark / Light Mode Row */}
-          <div style={{ marginBottom: '22px' }}>
+          {/* Mode Toggle */}
+          <div style={{ marginBottom: '24px' }}>
             <p className="theme-studio-section-title">Mode</p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {isDark
                   ? <Moon size={16} color="var(--primary)" />
-                  : <Sun size={16} color="var(--warning)" />
+                  : <Sun size={16} color="#f59e0b" />
                 }
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>
                   {isDark ? 'Dark Mode' : 'Light Mode'}
@@ -92,7 +110,7 @@ const ThemeToggle = () => {
                 <div className={`theme-mode-knob ${isDark ? 'active' : ''}`}>
                   {isDark
                     ? <Moon size={11} color="var(--primary)" />
-                    : <Sun size={11} color="var(--warning)" />
+                    : <Sun size={11} color="#f59e0b" />
                   }
                 </div>
               </button>
@@ -100,7 +118,7 @@ const ThemeToggle = () => {
           </div>
 
           {/* Preset Palettes */}
-          <div style={{ marginBottom: '22px' }}>
+          <div style={{ marginBottom: '24px' }}>
             <p className="theme-studio-section-title">Colour Palette</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               {palettes.filter(p => p.id !== 'custom').map(palette => {
@@ -120,21 +138,21 @@ const ThemeToggle = () => {
                       background: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})`,
                       cursor: 'pointer',
                       position: 'relative',
-                      transition: 'transform 0.15s ease, border 0.15s ease',
+                      transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), border 0.2s ease',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: isActive ? `0 0 0 1px rgba(255,255,255,0.2)` : 'none',
+                      boxShadow: isActive ? `0 4px 12px rgba(0,0,0,0.2)` : 'none',
                     }}
                   >
                     {isActive && (
                       <div style={{
-                        width: '18px', height: '18px', borderRadius: '50%',
-                        background: 'rgba(255,255,255,0.3)',
+                        width: '20px', height: '20px', borderRadius: '50%',
+                        background: 'rgba(255,255,255,0.35)',
                         backdropFilter: 'blur(4px)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <Check size={11} color="#fff" strokeWidth={3} />
+                        <Check size={12} color="#fff" strokeWidth={3} />
                       </div>
                     )}
                   </button>
@@ -142,8 +160,7 @@ const ThemeToggle = () => {
               })}
             </div>
 
-            {/* Palette name labels row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '6px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '8px' }}>
               {palettes.filter(p => p.id !== 'custom').map(palette => (
                 <span key={palette.id} style={{
                   fontSize: '0.6rem',
@@ -158,19 +175,20 @@ const ThemeToggle = () => {
             </div>
           </div>
 
-          {/* Custom Colour Pickers */}
+          {/* Custom Colours */}
           <div>
             <p className="theme-studio-section-title">Custom Colours</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Primary */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{
-                  width: '36px', height: '36px', borderRadius: '8px',
+                  width: '38px', height: '38px', borderRadius: '10px',
                   background: customPrimary,
                   border: '2px solid var(--border-glass)',
                   flexShrink: 0,
                   overflow: 'hidden',
                   position: 'relative',
+                  boxShadow: `0 2px 8px ${customPrimary}40`
                 }}>
                   <input
                     type="color"
@@ -181,22 +199,25 @@ const ThemeToggle = () => {
                       width: 'calc(100% + 8px)', height: 'calc(100% + 8px)',
                       border: 'none', cursor: 'pointer', opacity: 0,
                     }}
-                    title="Pick primary colour"
                   />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Palette size={14} color="rgba(255,255,255,0.8)" />
                   </div>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block' }}>Primary</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block' }}>Primary</span>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{customPrimary}</span>
                 </div>
                 <label style={{
-                  padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem',
+                  padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem',
                   fontWeight: 600, cursor: 'pointer',
                   background: 'var(--primary)', color: '#fff',
                   border: 'none', fontFamily: 'var(--font-sans)',
-                }}>
+                  transition: 'filter 0.2s ease'
+                }}
+                  onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
+                >
                   Pick
                   <input
                     type="color"
@@ -210,12 +231,13 @@ const ThemeToggle = () => {
               {/* Secondary */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{
-                  width: '36px', height: '36px', borderRadius: '8px',
+                  width: '38px', height: '38px', borderRadius: '10px',
                   background: customSecondary,
                   border: '2px solid var(--border-glass)',
                   flexShrink: 0,
                   overflow: 'hidden',
                   position: 'relative',
+                  boxShadow: `0 2px 8px ${customSecondary}40`
                 }}>
                   <input
                     type="color"
@@ -226,22 +248,25 @@ const ThemeToggle = () => {
                       width: 'calc(100% + 8px)', height: 'calc(100% + 8px)',
                       border: 'none', cursor: 'pointer', opacity: 0,
                     }}
-                    title="Pick secondary colour"
                   />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Palette size={14} color="rgba(255,255,255,0.8)" />
                   </div>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block' }}>Secondary / Accent</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block' }}>Accent</span>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{customSecondary}</span>
                 </div>
                 <label style={{
-                  padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem',
+                  padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem',
                   fontWeight: 600, cursor: 'pointer',
                   background: 'var(--secondary)', color: '#fff',
                   border: 'none', fontFamily: 'var(--font-sans)',
-                }}>
+                  transition: 'filter 0.2s ease'
+                }}
+                  onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
+                >
                   Pick
                   <input
                     type="color"
@@ -253,9 +278,9 @@ const ThemeToggle = () => {
               </div>
             </div>
 
-            {/* Live preview strip */}
+            {/* Live preview */}
             <div style={{
-              marginTop: '16px',
+              marginTop: '18px',
               height: '8px',
               borderRadius: '4px',
               background: `linear-gradient(90deg, var(--primary), var(--secondary))`,
