@@ -213,7 +213,7 @@ const StudentDashboard = ({ onSelectBook }) => {
       {/* Mobile Top Header */}
       <header className="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <BookOpen size={20} color="var(--secondary)" />
+          <img src="/logo.png" alt="SISTec" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} />
           <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             SISTEC Library
           </span>
@@ -226,11 +226,16 @@ const StudentDashboard = ({ onSelectBook }) => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-            <BookOpen size={28} color="var(--secondary)" />
-            <h3 style={{ fontSize: '1.25rem', background: 'linear-gradient(135deg, #ffffff, var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              SISTEC Library
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
+            <img src="/logo.png" alt="SISTec" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, lineHeight: 1.1 }}>
+                SISTEC
+              </h3>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Library Portal
+              </span>
+            </div>
           </div>
 
           {/* Current Session Card */}

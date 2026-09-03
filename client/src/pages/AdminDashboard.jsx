@@ -608,9 +608,16 @@ const AdminDashboard = () => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-            <BookOpen size={28} color="var(--primary)" />
-            <h3 style={{ fontSize: '1.25rem' }}>Admin Panel</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
+            <img src="/logo.png" alt="SISTec" style={{ height: '38px', width: 'auto', objectFit: 'contain' }} />
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, lineHeight: 1.1 }}>
+                SISTEC
+              </h3>
+              <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Admin Portal
+              </span>
+            </div>
           </div>
 
           <div className="glass-panel" style={{ padding: '12px', marginBottom: '24px', fontSize: '0.85rem', textAlign: 'center' }}>

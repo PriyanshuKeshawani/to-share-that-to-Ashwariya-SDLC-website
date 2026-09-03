@@ -71,25 +71,23 @@ const Login = ({ onToggleView }) => {
         border: '1px solid rgba(255, 255, 255, 0.1)'
       }}>
         {/* Header Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '60px',
-            height: '60px',
-            borderRadius: '16px',
-            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-            marginBottom: '14px',
-            boxShadow: '0 8px 24px -4px rgba(99, 102, 241, 0.5)'
-          }}>
-            <BookOpen size={30} color="#ffffff" />
-          </div>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-            SISTEC Library
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <img
+            src="/logo.png"
+            alt="SISTec Library Management System"
+            style={{
+              height: '92px',
+              width: 'auto',
+              objectFit: 'contain',
+              marginBottom: '10px',
+              filter: 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.4))'
+            }}
+          />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            SISTEC Library Portal
           </h2>
-          <p style={{ marginTop: '6px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-            Digital Library & Resource Management Portal
+          <p style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Digital Library & Resource Management System
           </p>
         </div>
 
