@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import ThemeToggle from './components/ThemeToggle';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
@@ -48,26 +47,15 @@ const AppContent = () => {
   // Not Logged In
   if (!user) {
     return isRegistering ? (
-      <>
-        <Register onToggleView={() => setIsRegistering(false)} />
-        <ThemeToggle />
-      </>
+      <Register onToggleView={() => setIsRegistering(false)} />
     ) : (
-      <>
-        <Login onToggleView={() => setIsRegistering(true)} />
-        <ThemeToggle />
-      </>
+      <Login onToggleView={() => setIsRegistering(true)} />
     );
   }
 
   // Admin View
   if (user.role === 'admin') {
-    return (
-      <>
-        <AdminDashboard />
-        <ThemeToggle />
-      </>
-    );
+    return <AdminDashboard />;
   }
 
   // Student Account Pending Approval View
@@ -172,12 +160,9 @@ const AppContent = () => {
   }
 
   return (
-    <>
-      <StudentDashboard
-        onSelectBook={(book) => setSelectedBook(book)}
-      />
-      <ThemeToggle />
-    </>
+    <StudentDashboard
+      onSelectBook={(book) => setSelectedBook(book)}
+    />
   );
 };
 

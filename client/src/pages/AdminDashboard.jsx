@@ -4,11 +4,12 @@ import {
   Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
   Search, ShieldAlert, Award, FileText, Download, TrendingUp,
   Upload, Layers, CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
-  Menu, ArrowLeftRight, MapPin, Settings, Package
+  Menu, ArrowLeftRight, MapPin, Settings, Package, UploadCloud
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
+import SettingsView from '../components/SettingsView';
 
 const AdminDashboard = () => {
   const { logout, apiCall } = useAuth();
@@ -39,16 +40,11 @@ const AdminDashboard = () => {
   // Book CRUD Modal State
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookSaving, setBookSaving] = useState(false);
-  const [editingBook, setEditingBook] = useState(null); // null for add, book object for edit
-  const [bookFormData, setBookFormData] = useState({
-    title: '',
-    author: '',
-    category_id: '',
-    branch_id: '',
-    priority: 'main',
-    pdf_url: ''
-  });
+  const [editingBook, setEditingBook] = useState(null);
+  const [bookFormData, setBookFormData] = useState({ title: '', author: '', category_id: '', branch_id: '', priority: 'main' });
   const [pdfFile, setPdfFile] = useState(null);
+  const [bookModalError, setBookModalError] = useState('');
+  const pdfInputRef = useRef(null);
 
   // Bulk Upload Modal State
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -438,6 +434,7 @@ const AdminDashboard = () => {
   // Open Book Modal (Add / Edit)
   const openBookModal = (book = null) => {
     setPdfFile(null);
+    setBookModalError('');
     if (book) {
       setEditingBook(book);
       setBookFormData({
@@ -465,22 +462,27 @@ const AdminDashboard = () => {
   const handleSaveBook = async (e) => {
     e.preventDefault();
     if (bookSaving) return;
+    setBookModalError('');
     const { title, author, category_id, branch_id, priority } = bookFormData;
-    if (!title || !author || !category_id || !branch_id || !priority) {
-      showFeedback('All fields except PDF file are required', 'error');
+    if (!title?.trim() || !author?.trim() || !category_id || !branch_id || !priority) {
+      const msg = 'Please fill out Book Title, Author, Department, and Category.';
+      setBookModalError(msg);
+      showFeedback(msg, 'error');
       return;
     }
 
     if (!editingBook && !pdfFile) {
-      showFeedback('Please select a PDF file to upload', 'error');
+      const msg = 'Please choose or drag-and-drop a PDF book file.';
+      setBookModalError(msg);
+      showFeedback(msg, 'error');
       return;
     }
 
     setBookSaving(true);
     try {
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('author', author);
+      formData.append('title', title.trim());
+      formData.append('author', author.trim());
       formData.append('category_id', category_id);
       formData.append('branch_id', branch_id);
       formData.append('priority', priority);
@@ -504,12 +506,14 @@ const AdminDashboard = () => {
 
       setShowBookModal(false);
       setPdfFile(null);
+      setBookModalError('');
       // Refresh
       const bList = await apiCall('/books');
       setBooks(bList);
       const dash = await apiCall('/analytics/dashboard');
       setDashboardData(dash);
     } catch (err) {
+      setBookModalError(err.message || 'Failed to save book');
       showFeedback(err.message || 'Failed to save book', 'error');
     } finally {
       setBookSaving(false);
@@ -1794,42 +1798,55 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Settings Tab */}
+            {/* Settings & System Preferences Tab */}
             {activeTab === 'settings' && (
-              <div className="animate-fade-in">
-                <div style={{ marginBottom: '32px' }}>
-                  <h2>Library Settings</h2>
-                  <p style={{ marginTop: '4px' }}>Configure loan duration, fines, and system-wide rules.</p>
-                </div>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                {/* Visual Appearance & Themes */}
+                <SettingsView isAdmin={true} />
 
-                <div className="glass-panel" style={{ padding: '24px', maxWidth: '600px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Library Circulation Rules & Fine Structure */}
+                <div className="glass-panel" style={{ padding: '24px', maxWidth: '860px', margin: '0 auto', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)' }}>
+                      <Settings size={18} />
+                    </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Loan Duration (Days)
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Circulation Rules & Fine Structure</h3>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Configure checkout duration and overdue penalty limits across the campus</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Default Loan Duration (Days)
                       </label>
                       <input
                         type="number"
                         className="glass-input"
                         value={librarySettings.loan_duration_days}
                         onChange={e => setLibrarySettings({ ...librarySettings, loan_duration_days: parseInt(e.target.value) || 0 })}
-                        style={{ maxWidth: '200px' }}
+                        min="1"
+                        max="90"
                       />
                     </div>
+
                     <div>
-                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Fine Per Day (₹)
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Fine Rate (₹ / Overdue Day)
                       </label>
                       <input
                         type="number"
                         className="glass-input"
                         value={librarySettings.fine_per_day}
                         onChange={e => setLibrarySettings({ ...librarySettings, fine_per_day: parseFloat(e.target.value) || 0 })}
-                        style={{ maxWidth: '200px' }}
+                        min="0"
+                        step="0.5"
                       />
                     </div>
+
                     <div>
-                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                         Maximum Fine Cap (₹)
                       </label>
                       <input
@@ -1837,28 +1854,29 @@ const AdminDashboard = () => {
                         className="glass-input"
                         value={librarySettings.max_fine}
                         onChange={e => setLibrarySettings({ ...librarySettings, max_fine: parseFloat(e.target.value) || 0 })}
-                        style={{ maxWidth: '200px' }}
+                        min="0"
                       />
                     </div>
-                    <button
-                      onClick={async () => {
-                        setSettingsSaving(true);
-                        try {
-                          await apiCall('/library-settings', { method: 'PUT', body: JSON.stringify(librarySettings) });
-                          showFeedback('Settings updated successfully');
-                        } catch (err) {
-                          showFeedback(err.message || 'Failed to update settings', 'error');
-                        } finally {
-                          setSettingsSaving(false);
-                        }
-                      }}
-                      className="btn btn-primary"
-                      style={{ padding: '12px 24px', alignSelf: 'flex-start' }}
-                      disabled={settingsSaving}
-                    >
-                      {settingsSaving ? 'Saving...' : 'Save Settings'}
-                    </button>
                   </div>
+
+                  <button
+                    onClick={async () => {
+                      setSettingsSaving(true);
+                      try {
+                        await apiCall('/library-settings', { method: 'PUT', body: JSON.stringify(librarySettings) });
+                        showFeedback('Circulation rules updated successfully');
+                      } catch (err) {
+                        showFeedback(err.message || 'Failed to update settings', 'error');
+                      } finally {
+                        setSettingsSaving(false);
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+                    disabled={settingsSaving}
+                  >
+                    {settingsSaving ? 'Saving Rules...' : 'Save Circulation Rules'}
+                  </button>
                 </div>
               </div>
             )}
@@ -2063,63 +2081,125 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Book Add / Edit Modal Popup */}
+      {/* ── Book Add / Edit Modal Popup (Modernized & Professional) ── */}
       {showBookModal && (
-
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.8)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(5, 7, 12, 0.82)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000,
+          zIndex: 1100,
           padding: '20px'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
-            maxWidth: '500px',
-            padding: '32px',
-            boxShadow: 'var(--shadow-glass)'
+            maxWidth: '560px',
+            padding: '28px 32px',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), var(--shadow-glass)',
+            border: '1px solid var(--border-glass)',
+            borderRadius: '16px',
+            maxHeight: '92vh',
+            overflowY: 'auto'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3>{editingBook ? 'Edit Book Metadata' : 'Catalog New Book Reference'}</h3>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: 'rgba(37, 99, 235, 0.12)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <BookOpen size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingBook ? 'Edit Book Metadata' : 'Catalog New Book Reference'}
+                  </h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    SISTec Departmental Syllabus & Digital Library Repository
+                  </p>
+                </div>
+              </div>
+
               <button 
                 onClick={() => setShowBookModal(false)}
                 className="btn btn-secondary"
-                style={{ padding: '6px', borderRadius: '50%' }}
+                style={{ padding: '6px', borderRadius: '50%', minWidth: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                aria-label="Close Modal"
               >
                 <X size={16} />
               </button>
             </div>
 
+            {/* Inline Error Notice */}
+            {bookModalError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#ef4444',
+                fontSize: '0.82rem'
+              }}>
+                <AlertTriangle size={16} />
+                <span>{bookModalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveBook} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Title & Author */}
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Book Title</label>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Book Title <span style={{ color: 'var(--primary)' }}>*</span>
+                </label>
                 <input
                   type="text"
                   className="glass-input"
-                  placeholder="e.g. Fundamental Mechanics"
+                  placeholder="e.g. Higher Engineering Mathematics"
                   value={bookFormData.title}
-                  onChange={(e) => setBookFormData({ ...bookFormData, title: e.target.value })}
+                  onChange={(e) => {
+                    setBookFormData({ ...bookFormData, title: e.target.value });
+                    if (bookModalError) setBookModalError('');
+                  }}
+                  required
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Author</label>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Author / Publication <span style={{ color: 'var(--primary)' }}>*</span>
+                </label>
                 <input
                   type="text"
                   className="glass-input"
-                  placeholder="e.g. Richard Feynman"
+                  placeholder="e.g. Dr. B.S. Grewal (Khanna Publishers)"
                   value={bookFormData.author}
-                  onChange={(e) => setBookFormData({ ...bookFormData, author: e.target.value })}
+                  onChange={(e) => {
+                    setBookFormData({ ...bookFormData, author: e.target.value });
+                    if (bookModalError) setBookModalError('');
+                  }}
+                  required
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {/* Branch & Category Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Branch</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Department / Branch <span style={{ color: 'var(--primary)' }}>*</span>
+                  </label>
                   <select
                     className="glass-input glass-select"
                     value={bookFormData.branch_id}
@@ -2132,7 +2212,9 @@ const AdminDashboard = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Curriculum Category <span style={{ color: 'var(--primary)' }}>*</span>
+                  </label>
                   <select
                     className="glass-input glass-select"
                     value={bookFormData.category_id}
@@ -2145,51 +2227,178 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Subject Priority</label>
-                  <select
-                    className="glass-input glass-select"
-                    value={bookFormData.priority}
-                    onChange={(e) => setBookFormData({ ...bookFormData, priority: e.target.value })}
-                  >
-                    <option value="main">Main Subject (1st Priority)</option>
-                    <option value="sub">Sub Subject (2nd Priority)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    {editingBook ? 'Update PDF File (Optional)' : 'Upload PDF File'}
-                  </label>
-                  <input
-                    type="file"
-                    className="glass-input"
-                    accept="application/pdf"
-                    onChange={(e) => setPdfFile(e.target.files[0])}
-                  />
-                  {editingBook && (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                      Current: {editingBook.pdf_url.split('/').pop()}
-                    </span>
-                  )}
-                </div>
+              {/* Priority */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Syllabus Classification
+                </label>
+                <select
+                  className="glass-input glass-select"
+                  value={bookFormData.priority}
+                  onChange={(e) => setBookFormData({ ...bookFormData, priority: e.target.value })}
+                >
+                  <option value="main">Main Syllabus (RGPV Prescribed Core Book)</option>
+                  <option value="sub">Reference Book (Supplementary Academic Resource)</option>
+                </select>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              {/* PDF Document Upload Zone (Modern Styled File Input) */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Digital Document PDF {!editingBook && <span style={{ color: 'var(--primary)' }}>*</span>}
+                </label>
+
+                {/* Hidden Real File Input */}
+                <input
+                  type="file"
+                  ref={pdfInputRef}
+                  style={{ display: 'none' }}
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setPdfFile(file);
+                      if (bookModalError) setBookModalError('');
+                    }
+                  }}
+                />
+
+                {/* Styled Dropzone / Selected File Card */}
+                {pdfFile ? (
+                  <div style={{
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    background: 'rgba(37, 99, 235, 0.08)',
+                    border: '1px solid var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '8px',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileText size={20} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {pdfFile.name}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          {(pdfFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPdfFile(null);
+                        if (pdfInputRef.current) pdfInputRef.current.value = '';
+                      }}
+                      className="btn btn-secondary"
+                      style={{ padding: '6px', borderRadius: '50%', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Remove selected file"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => pdfInputRef.current?.click()}
+                    style={{
+                      border: '2px dashed var(--border-glass)',
+                      borderRadius: '12px',
+                      padding: '24px 20px',
+                      textAlign: 'center',
+                      background: 'var(--input-bg)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'rgba(37, 99, 235, 0.04)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-glass)'; e.currentTarget.style.background = 'var(--input-bg)'; }}
+                  >
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '50%',
+                      background: 'rgba(37, 99, 235, 0.1)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <UploadCloud size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Click to browse or drop PDF document here
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Standard university syllabus PDF up to 50MB
+                      </div>
+                    </div>
+
+                    {editingBook && editingBook.pdf_url && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        fontSize: '0.72rem',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        Current: {editingBook.pdf_url.split('/').pop()}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  style={{ flex: 1, padding: '12px' }}
+                  style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                   disabled={bookSaving}
                 >
-                  {bookSaving ? 'Saving...' : 'Save Book Details'}
+                  {bookSaving ? (
+                    <>
+                      <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Saving to Catalog...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} /> Save Book Details
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowBookModal(false)}
                   className="btn btn-secondary"
-                  style={{ padding: '12px' }}
+                  style={{ padding: '12px 20px' }}
                 >
                   Cancel
                 </button>

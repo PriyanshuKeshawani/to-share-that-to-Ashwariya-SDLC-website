@@ -4,13 +4,14 @@ import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download, 
   Search, Lock, Unlock, QrCode, MapPin, 
   Clock, AlertTriangle, BookMarked, Home, Library, Compass, DollarSign,
-  Activity, X, ChevronRight, User
+  Activity, X, ChevronRight, User, Settings
 } from 'lucide-react';
 import QRScanner from '../components/QRScanner';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import BottomNav from '../components/BottomNav';
+import SettingsView from '../components/SettingsView';
 import { SkeletonCard, SkeletonStatCard, SkeletonTable } from '../components/SkeletonLoader';
 
 const StudentDashboard = ({ onSelectBook }) => {
@@ -212,6 +213,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     { key: 'loans', label: 'My Borrowed Books', icon: BookMarked, badge: myLoans.length },
     { key: 'fines', label: 'Fines & Dues', icon: DollarSign, badge: totalFines > 0 ? `₹${totalFines}` : null, isDanger: totalFines > 0 },
     { key: 'history', label: 'Reading Progress', icon: Activity },
+    { key: 'settings', label: 'Settings & Theme', icon: Settings },
   ];
 
   return (
@@ -524,6 +526,8 @@ const StudentDashboard = ({ onSelectBook }) => {
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : activeTab === 'settings' ? (
+          <SettingsView />
         ) : activeTab === 'loans' ? (
           /* ── My Loans View ── */
           <div className="animate-fade-in">
@@ -938,6 +942,15 @@ const StudentDashboard = ({ onSelectBook }) => {
               >
                 <Activity size={18} color="var(--sistec-gold)" />
                 <span>Reading Activity Log</span>
+              </button>
+
+              <button
+                onClick={() => { setShowDrawer(false); setActiveTab('settings'); }}
+                className="btn btn-secondary"
+                style={{ justifyContent: 'flex-start', padding: '12px 14px' }}
+              >
+                <Settings size={18} color="var(--primary)" />
+                <span>Settings & Theme Preferences</span>
               </button>
             </div>
 

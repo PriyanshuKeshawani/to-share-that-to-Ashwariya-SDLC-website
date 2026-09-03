@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, UserPlus, ArrowLeft } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { BookOpen, UserPlus, ArrowLeft, Sun, Moon } from 'lucide-react';
 
 const FALLBACK_BRANCHES = [
   { id: 1, name: 'Computer Science & Engineering' },
@@ -15,6 +16,8 @@ const FALLBACK_BRANCHES = [
 
 const Register = ({ onToggleView }) => {
   const { register, apiCall } = useAuth();
+  const { mode, toggleMode } = useTheme();
+  const isDark = mode === 'dark';
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -110,8 +113,42 @@ const Register = ({ onToggleView }) => {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
-      padding: '40px 20px'
+      padding: '40px 20px',
+      position: 'relative'
     }}>
+      {/* ── Top Bar Theme Toggle ── */}
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '24px',
+        zIndex: 20
+      }}>
+        <button
+          onClick={toggleMode}
+          className="btn btn-secondary"
+          style={{
+            padding: '8px 14px',
+            borderRadius: '999px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'var(--bg-glass)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid var(--border-glass)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+          }}
+          title={isDark ? 'Switch to Daylight Campus Mode' : 'Switch to Dark Academic Mode'}
+        >
+          {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="var(--primary)" />}
+          <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+      </div>
+
       <div className="glass-panel animate-fade-in" style={{
         width: '100%',
         maxWidth: '560px',

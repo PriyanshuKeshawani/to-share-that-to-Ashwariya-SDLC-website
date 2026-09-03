@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, UserCheck, AlertCircle, Sparkles, BookOpen, GraduationCap, CheckCircle2 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Shield, UserCheck, AlertCircle, Sparkles, BookOpen, GraduationCap, CheckCircle2, Sun, Moon } from 'lucide-react';
 
 // High-resolution WebP library wallpapers fetched directly from CDN (not stored locally)
 const LIBRARY_WALLPAPERS = [
@@ -28,6 +29,8 @@ const LIBRARY_WALLPAPERS = [
 
 const Login = ({ onToggleView }) => {
   const { login, loginWithGoogle, bypassLogin } = useAuth();
+  const { mode, toggleMode } = useTheme();
+  const isDark = mode === 'dark';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -124,42 +127,40 @@ const Login = ({ onToggleView }) => {
         <div className="login-backdrop-overlay" style={{ zIndex: 2 }} />
       </div>
 
-      {/* ── Active Library Wallpaper Indicator Pill ── */}
+      {/* ── Top Bar with Theme Mode Toggle (Clean & Professional) ── */}
       <div style={{
-        position: 'fixed',
-        bottom: '20px',
-        left: '24px',
+        position: 'absolute',
+        top: '20px',
+        right: '24px',
+        zIndex: 20,
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
-        zIndex: 10,
-        pointerEvents: 'none',
-        background: 'rgba(10, 15, 29, 0.55)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid var(--border-glass)',
-        padding: '6px 14px',
-        borderRadius: '999px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
-      }}
-      className="login-hero-desktop"
-      >
-        <div style={{ display: 'flex', gap: '5px' }}>
-          {LIBRARY_WALLPAPERS.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                width: currentBgIndex === i ? '16px' : '6px',
-                height: '5px',
-                borderRadius: '3px',
-                backgroundColor: currentBgIndex === i ? 'var(--primary)' : 'rgba(255, 255, 255, 0.3)',
-                transition: 'all 0.4s ease'
-              }}
-            />
-          ))}
-        </div>
-        <span style={{ fontSize: '0.72rem', color: '#cbd5e1', fontWeight: 500 }}>
-          {LIBRARY_WALLPAPERS[currentBgIndex].name}
-        </span>
+        gap: '12px'
+      }}>
+        <button
+          onClick={toggleMode}
+          className="btn btn-secondary"
+          style={{
+            padding: '8px 14px',
+            borderRadius: '999px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'var(--bg-glass)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid var(--border-glass)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+          }}
+          title={isDark ? 'Switch to Daylight Campus Mode' : 'Switch to Dark Academic Mode'}
+        >
+          {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="var(--primary)" />}
+          <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
       </div>
 
       <div className="login-split-card" style={{ position: 'relative', zIndex: 5 }}>
