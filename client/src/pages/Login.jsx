@@ -164,6 +164,20 @@ const Login = ({ onToggleView }) => {
         
         {/* ── Left Hero Side ── */}
         <div className="login-hero-side">
+          {/* Ambient Floating Glow Orb Motion Graphic */}
+          <div style={{
+            position: 'absolute',
+            top: '-25%',
+            right: '-15%',
+            width: '280px',
+            height: '280px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.22) 0%, rgba(6, 182, 212, 0.08) 50%, transparent 70%)',
+            filter: 'blur(35px)',
+            animation: 'orbDrift 8s ease-in-out infinite',
+            pointerEvents: 'none'
+          }} />
+
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '32px' }}>
               <img
@@ -324,7 +338,7 @@ const Login = ({ onToggleView }) => {
               <button
                 onClick={handleAdminBypass}
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary btn-shine"
                 style={{
                   padding: '9px 14px',
                   fontSize: '0.82rem',
@@ -469,7 +483,7 @@ const Login = ({ onToggleView }) => {
 
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary btn-shine"
               style={{
                 width: '100%',
                 padding: '12px',

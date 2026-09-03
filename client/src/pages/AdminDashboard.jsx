@@ -859,8 +859,6 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
-                  </div>
-                </div>
 
                 {/* Graphical Custom SVG Chart Panel */}
                 <div className="glass-panel" style={{ padding: '24px', marginBottom: '32px' }}>
