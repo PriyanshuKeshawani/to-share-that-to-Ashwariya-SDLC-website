@@ -4,12 +4,13 @@ import { ThemeProvider } from './context/ThemeContext';
 import ThemeToggle from './components/ThemeToggle';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
+import StudentDashboard from './pages/StudentDashboard';
 import BookReader from './pages/BookReader';
 import AdminDashboard from './pages/AdminDashboard';
+import GoogleProfileCompletion from './components/GoogleProfileCompletion';
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, needsProfile } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
 
@@ -36,6 +37,11 @@ const AppContent = () => {
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem' }}>Authenticating user session...</p>
       </div>
     );
+  }
+
+  // Google first-time user - needs to complete profile
+  if (needsProfile) {
+    return <GoogleProfileCompletion />;
   }
 
   // Not Logged In
@@ -72,7 +78,7 @@ const AppContent = () => {
 
   return (
     <>
-      <Dashboard
+      <StudentDashboard
         onSelectBook={(book) => setSelectedBook(book)}
       />
       <ThemeToggle />

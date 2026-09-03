@@ -12,12 +12,16 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
 
   // Clear local session state
   const clearSession = () => {
     localStorage.removeItem('lib_custom_user');
     setUser(null);
     setSession(null);
+    setNeedsProfile(false);
+    setPendingGoogleUser(null);
   };
 
   // Comprehensive Supabase Router for frontend actions
@@ -45,7 +49,8 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await supabase.from('books').select(`
           *,
           category:category_id(name),
-          branch:branch_id(name)
+          branch:branch_id(name),
+          copies:physical_book_copies(id, status)
         `).order('created_at', { ascending: false });
         if (error) throw error;
         
@@ -64,11 +69,15 @@ export const AuthProvider = ({ children }) => {
           if (user && user.role === 'student') {
             hasAccess = (b.branch_name === user.branchName) || approvedBranches.includes(b.branch_id);
           }
+          const availableCopies = (b.copies || []).filter(c => c.status === 'available').length;
+          const totalCopies = (b.copies || []).length;
           return {
             ...b,
             category_name: b.category ? b.category.name : null,
             branch_name: b.branch ? b.branch.name : null,
-            hasAccess
+            hasAccess,
+            availableCopies,
+            totalCopies
           };
         });
       }
@@ -90,7 +99,6 @@ export const AuthProvider = ({ children }) => {
           const title = rawName.replace(/[_\-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
           try {
-            // Check for duplicate (same title + branch)
             const { data: existing } = await supabase
               .from('books')
               .select('id')
@@ -104,7 +112,6 @@ export const AuthProvider = ({ children }) => {
               continue;
             }
 
-            // Upload PDF to Supabase Storage
             const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
             let pdf_url = null;
             const { error: uploadErr } = await supabase.storage
@@ -275,7 +282,6 @@ export const AuthProvider = ({ children }) => {
         roll_number: p.user ? p.user.roll_number : null,
         student_branch: p.user ? p.user.branch_name : null,
         requested_branch_name: p.branch ? p.branch.name : null,
-        // keep legacy aliases too
         user_name: p.user ? p.user.full_name : null,
         user_branch: p.user ? p.user.branch_name : null,
         branch_name: p.branch ? p.branch.name : null
@@ -299,7 +305,6 @@ export const AuthProvider = ({ children }) => {
     if (endpoint === '/permissions/request' && method === 'POST') {
       const branchId = body.branchId || body.branch_id;
 
-      // Check if request already exists
       const { data: existing } = await supabase
         .from('permissions')
         .select('id, status')
@@ -311,7 +316,6 @@ export const AuthProvider = ({ children }) => {
         if (existing.status === 'pending') {
           throw new Error('You already have a pending request for this branch');
         }
-        // Re-open a rejected request back to pending
         const { data, error } = await supabase
           .from('permissions')
           .update({ status: 'pending' })
@@ -322,7 +326,6 @@ export const AuthProvider = ({ children }) => {
         return data;
       }
 
-      // New request
       const { data, error } = await supabase.from('permissions').insert([{
         user_id: user.id,
         branch_id: branchId,
@@ -332,8 +335,381 @@ export const AuthProvider = ({ children }) => {
       return data;
     }
 
+    // 6. Physical Book Copies
+    if (endpoint === '/book-copies' && method === 'GET') {
+      const { data, error } = await supabase.from('physical_book_copies').select('*, book:book_id(title, author)').order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(c => ({
+        ...c,
+        book_title: c.book ? c.book.title : null,
+        book_author: c.book ? c.book.author : null
+      }));
+    }
 
-    // 6. Analytics & Logs
+    if (endpoint === '/book-copies' && method === 'POST') {
+      const { data, error } = await supabase.from('physical_book_copies').insert([body]).select().single();
+      if (error) throw error;
+      return { message: 'Book copy added successfully', data };
+    }
+
+    if (endpoint.startsWith('/book-copies/') && method === 'PUT') {
+      const copyId = endpoint.split('/').pop();
+      const { data, error } = await supabase.from('physical_book_copies').update(body).eq('id', copyId).select().single();
+      if (error) throw error;
+      return { message: 'Book copy updated', data };
+    }
+
+    if (endpoint.startsWith('/book-copies/') && method === 'DELETE') {
+      const copyId = endpoint.split('/').pop();
+      const { error } = await supabase.from('physical_book_copies').delete().eq('id', copyId);
+      if (error) throw error;
+      return { message: 'Book copy deleted' };
+    }
+
+    if (endpoint.startsWith('/book-copies/by-uuid/')) {
+      const uuid = endpoint.split('/').pop();
+      const { data, error } = await supabase.from('physical_book_copies').select('*, book:book_id(*)').eq('copy_uuid', uuid).single();
+      if (error) throw error;
+      return data;
+    }
+
+    // 7. Book Loans (Issue / Return)
+    if (endpoint === '/book-loans' && method === 'GET') {
+      const { data, error } = await supabase.from('book_loans').select(`
+        *,
+        copy:copy_id(copy_uuid, qr_code, book:book_id(title, author)),
+        user:user_id(full_name, roll_number, branch_name)
+      `).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(l => ({
+        ...l,
+        book_title: l.copy?.book?.title || null,
+        book_author: l.copy?.book?.author || null,
+        copy_uuid: l.copy?.copy_uuid || null,
+        borrower_name: l.user ? l.user.full_name : null,
+        borrower_roll: l.user ? l.user.roll_number : null,
+        borrower_branch: l.user ? l.user.branch_name : null
+      }));
+    }
+
+    if (endpoint === '/book-loans/my' && method === 'GET') {
+      if (!user) return [];
+      const { data, error } = await supabase.from('book_loans').select(`
+        *,
+        copy:copy_id(copy_uuid, qr_code, book:book_id(title, author))
+      `).eq('user_id', user.id).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(l => ({
+        ...l,
+        book_title: l.copy?.book?.title || null,
+        book_author: l.copy?.book?.author || null,
+        copy_uuid: l.copy?.copy_uuid || null,
+        qr_code: l.copy?.qr_code || null
+      }));
+    }
+
+    if (endpoint === '/book-loans' && method === 'POST') {
+      // Issue a book
+      const { copy_id, user_id, due_date } = body;
+      
+      // Check if copy is already issued
+      const { data: existingLoan } = await supabase
+        .from('book_loans')
+        .select('id')
+        .eq('copy_id', copy_id)
+        .eq('status', 'issued')
+        .maybeSingle();
+      
+      if (existingLoan) {
+        throw new Error('This book copy is already issued to another student');
+      }
+
+      const { data, error } = await supabase.from('book_loans').insert([{
+        copy_id,
+        user_id: user_id || user.id,
+        due_date,
+        status: 'issued'
+      }]).select().single();
+      if (error) throw error;
+
+      // Update copy status
+      await supabase.from('physical_book_copies').update({ status: 'issued' }).eq('id', copy_id);
+
+      // Create notification
+      if (user_id || user.id) {
+        await supabase.from('notifications').insert([{
+          user_id: user_id || user.id,
+          title: 'Book Issued',
+          message: `A book has been issued to you. Due date: ${new Date(due_date).toLocaleDateString()}`,
+          type: 'loan'
+        }]);
+      }
+
+      return { message: 'Book issued successfully', data };
+    }
+
+    if (endpoint.startsWith('/book-loans/') && endpoint.endsWith('/return') && method === 'POST') {
+      const loanId = endpoint.split('/')[2];
+      const now = new Date().toISOString();
+      
+      const { data: loan, error: loanErr } = await supabase
+        .from('book_loans')
+        .select('*, copy:copy_id(id)')
+        .eq('id', loanId)
+        .single();
+      
+      if (loanErr || !loan) throw new Error('Loan not found');
+
+      const fineAmount = body.fine_amount || 0;
+
+      const { data, error } = await supabase.from('book_loans').update({
+        returned_at: now,
+        status: 'returned',
+        fine_amount: fineAmount
+      }).eq('id', loanId).select().single();
+      if (error) throw error;
+
+      // Update copy status back to available
+      if (loan.copy) {
+        await supabase.from('physical_book_copies').update({ status: 'available' }).eq('id', loan.copy.id);
+      }
+
+      // Create notification
+      await supabase.from('notifications').insert([{
+        user_id: loan.user_id,
+        title: 'Book Returned',
+        message: fineAmount > 0 
+          ? `Your book has been returned. Fine of ₹${fineAmount} has been applied.`
+          : 'Your book has been returned successfully. No fine applied.',
+        type: 'return'
+      }]);
+
+      return { message: 'Book returned successfully', data };
+    }
+
+    if (endpoint.startsWith('/book-loans/') && endpoint.endsWith('/approve') && method === 'POST') {
+      const loanId = endpoint.split('/')[2];
+      const { data, error } = await supabase.from('book_loans').update({ status: body.status }).eq('id', loanId).select().single();
+      if (error) throw error;
+      return { message: `Loan ${body.status}`, data };
+    }
+
+    if (endpoint.startsWith('/book-loans/') && endpoint.endsWith('/fine') && method === 'POST') {
+      const loanId = endpoint.split('/')[2];
+      const { data, error } = await supabase.from('book_loans').update({ fine_amount: body.fine_amount }).eq('id', loanId).select().single();
+      if (error) throw error;
+
+      // Audit log for fine override
+      if (user) {
+        await supabase.from('activity_logs').insert([{
+          user_id: user.id,
+          action_type: 'admin_action',
+          details: `Fine overridden to ₹${body.fine_amount} for loan ${loanId}`
+        }]);
+      }
+
+      return { message: 'Fine updated', data };
+    }
+
+    // 8. Notifications
+    if (endpoint === '/notifications' && method === 'GET') {
+      if (!user) return [];
+      const { data, error } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      return data || [];
+    }
+
+    if (endpoint === '/notifications/unread-count' && method === 'GET') {
+      if (!user) return { count: 0 };
+      const { count, error } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false);
+      if (error) throw error;
+      return { count: count || 0 };
+    }
+
+    if (endpoint === '/notifications/mark-read' && method === 'POST') {
+      if (!user) return null;
+      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+      if (error) throw error;
+      return { message: 'Notifications marked as read' };
+    }
+
+    // 9. Rooms & Tables
+    if (endpoint === '/rooms' && method === 'GET') {
+      const { data, error } = await supabase.from('rooms').select('*, tables(*)').order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    }
+
+    if (endpoint === '/rooms' && method === 'POST') {
+      const { data, error } = await supabase.from('rooms').insert([body]).select().single();
+      if (error) throw error;
+      return { message: 'Room created', data };
+    }
+
+    if (endpoint.startsWith('/rooms/') && method === 'DELETE') {
+      const roomId = endpoint.split('/').pop();
+      const { error } = await supabase.from('rooms').delete().eq('id', roomId);
+      if (error) throw error;
+      return { message: 'Room deleted' };
+    }
+
+    if (endpoint === '/tables' && method === 'GET') {
+      const { data, error } = await supabase.from('tables').select('*, room:room_id(name), current_occupant:current_occupant_id(full_name, roll_number)').order('table_number', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(t => ({
+        ...t,
+        room_name: t.room ? t.room.name : null,
+        occupant_name: t.current_occupant ? t.current_occupant.full_name : null,
+        occupant_roll: t.current_occupant ? t.current_occupant.roll_number : null
+      }));
+    }
+
+    if (endpoint === '/tables' && method === 'POST') {
+      const qrId = body.qr_identifier || `TABLE-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+      const payload = { ...body, qr_identifier: qrId };
+      const { data, error } = await supabase.from('tables').insert([payload]).select().single();
+      if (error) throw error;
+      return { message: 'Table added', data };
+    }
+
+    if (endpoint.startsWith('/tables/') && method === 'PUT') {
+      const tableId = endpoint.split('/').pop();
+      const { data, error } = await supabase.from('tables').update(body).eq('id', tableId).select().single();
+      if (error) throw error;
+      return { message: 'Table updated', data };
+    }
+
+    if (endpoint.startsWith('/tables/') && method === 'DELETE') {
+      const tableId = endpoint.split('/').pop();
+      const { error } = await supabase.from('tables').delete().eq('id', tableId);
+      if (error) throw error;
+      return { message: 'Table deleted' };
+    }
+
+    if (endpoint.startsWith('/tables/by-qr/')) {
+      const qrId = endpoint.split('/').pop();
+      const { data, error } = await supabase.from('tables').select('*, room:room_id(name)').eq('qr_identifier', qrId).single();
+      if (error) throw error;
+      return data;
+    }
+
+    if (endpoint === '/tables/check-in' && method === 'POST') {
+      const { table_id, user_id: checkinUserId } = body;
+      const uid = checkinUserId || user?.id;
+      if (!uid) throw new Error('User not authenticated');
+
+      // Check if table is already occupied
+      const { data: table } = await supabase.from('tables').select('*').eq('id', table_id).single();
+      if (table && table.current_occupant_id && table.current_occupant_id !== uid) {
+        throw new Error('This table is already occupied by another student');
+      }
+
+      // End previous session if any
+      await supabase.from('library_sessions')
+        .update({ exited_at: new Date().toISOString(), duration_minutes: Math.floor((Date.now() - new Date(table?.session_started_at || Date.now()).getTime()) / 60000) })
+        .eq('user_id', uid)
+        .is('exited_at', null);
+
+      // Update table
+      await supabase.from('tables').update({
+        current_occupant_id: uid,
+        session_started_at: new Date().toISOString(),
+        status: 'occupied'
+      }).eq('id', table_id);
+
+      // Create session
+      const { data: sessionData, error: sessionErr } = await supabase.from('library_sessions').insert([{
+        user_id: uid,
+        table_id: table_id
+      }]).select().single();
+      if (sessionErr) throw sessionErr;
+
+      return { message: 'Checked in successfully', data: sessionData };
+    }
+
+    if (endpoint === '/tables/check-out' && method === 'POST') {
+      const { user_id: checkoutUserId } = body;
+      const uid = checkoutUserId || user?.id;
+      if (!uid) throw new Error('User not authenticated');
+
+      // Find active session
+      const { data: activeSession } = await supabase.from('library_sessions')
+        .select('*')
+        .eq('user_id', uid)
+        .is('exited_at', null)
+        .maybeSingle();
+
+      if (activeSession) {
+        const duration = Math.floor((Date.now() - new Date(activeSession.entered_at).getTime()) / 60000);
+        await supabase.from('library_sessions').update({
+          exited_at: new Date().toISOString(),
+          duration_minutes: duration
+        }).eq('id', activeSession.id);
+
+        // Free the table
+        await supabase.from('tables').update({
+          current_occupant_id: null,
+          session_started_at: null,
+          status: 'free'
+        }).eq('id', activeSession.table_id);
+      }
+
+      return { message: 'Checked out successfully' };
+    }
+
+    // 10. Library Sessions
+    if (endpoint === '/library-sessions' && method === 'GET') {
+      const { data, error } = await supabase.from('library_sessions').select(`
+        *, 
+        user:user_id(full_name, roll_number),
+        table:table_id(table_number, room:room_id(name))
+      `).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      return (data || []).map(s => ({
+        ...s,
+        user_name: s.user ? s.user.full_name : null,
+        user_roll: s.user ? s.user.roll_number : null,
+        table_number: s.table ? s.table.table_number : null,
+        room_name: s.table?.room ? s.table.room.name : null
+      }));
+    }
+
+    if (endpoint === '/library-sessions/my-current' && method === 'GET') {
+      if (!user) return null;
+      const { data, error } = await supabase.from('library_sessions').select(`
+        *, 
+        table:table_id(table_number, room:room_id(name))
+      `).eq('user_id', user.id).is('exited_at', null).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        ...data,
+        table_number: data.table ? data.table.table_number : null,
+        room_name: data.table?.room ? data.table.room.name : null
+      };
+    }
+
+    // 11. Library Settings
+    if (endpoint === '/library-settings' && method === 'GET') {
+      const { data, error } = await supabase.from('library_settings').select('*').limit(1).maybeSingle();
+      if (error) throw error;
+      return data || { loan_duration_days: 14, fine_per_day: 5, max_fine: 200 };
+    }
+
+    if (endpoint === '/library-settings' && method === 'PUT') {
+      const { data: existing } = await supabase.from('library_settings').select('id').limit(1).maybeSingle();
+      if (existing) {
+        const { data, error } = await supabase.from('library_settings').update(body).eq('id', existing.id).select().single();
+        if (error) throw error;
+        return { message: 'Settings updated', data };
+      } else {
+        const { data, error } = await supabase.from('library_settings').insert([body]).select().single();
+        if (error) throw error;
+        return { message: 'Settings created', data };
+      }
+    }
+
+    // 12. Analytics & Logs
     if (endpoint === '/analytics/track' && method === 'POST') {
       if (!user) return null;
       const { data, error } = await supabase.from('activity_logs').insert([{
@@ -347,13 +723,16 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (endpoint === '/analytics/dashboard') {
-      const [{ count: totalStudents }, { count: totalBooks }, { count: totalDownloads }, { count: totalViews }, { count: totalLogins }, { count: totalLogouts }] = await Promise.all([
+      const [{ count: totalStudents }, { count: totalBooks }, { count: totalDownloads }, { count: totalViews }, { count: totalLogins }, { count: totalLogouts }, { count: totalLoans }, { count: totalActiveLoans }, { count: totalFines }] = await Promise.all([
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'student'),
         supabase.from('books').select('*', { count: 'exact', head: true }),
         supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'download'),
         supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'view'),
         supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'login'),
-        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'logout')
+        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'logout'),
+        supabase.from('book_loans').select('*', { count: 'exact', head: true }),
+        supabase.from('book_loans').select('*', { count: 'exact', head: true }).eq('status', 'issued'),
+        supabase.from('book_loans').select('*', { count: 'exact', head: true }).gt('fine_amount', 0)
       ]);
 
       const { data: logsData } = await supabase.from('activity_logs').select('*, user:user_id(full_name, role, roll_number), book:book_id(title)').order('created_at', { ascending: false }).limit(10);
@@ -365,7 +744,10 @@ export const AuthProvider = ({ children }) => {
           downloads: totalDownloads || 0,
           views: totalViews || 0,
           books: totalBooks || 0,
-          students: totalStudents || 0
+          students: totalStudents || 0,
+          totalLoans: totalLoans || 0,
+          activeLoans: totalActiveLoans || 0,
+          finesCount: totalFines || 0
         },
         mostReadPerBranch: [],
         bestBook: null,
@@ -425,7 +807,7 @@ export const AuthProvider = ({ children }) => {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, full_name, roll_number, branch_name, year, semester, bt_number, role, status, is_blocked')
+        .select('id, username, full_name, roll_number, branch_name, year, semester, bt_number, role, status, is_blocked, auth_provider, avatar_url')
         .eq('id', authUserId)
         .single();
 
@@ -444,11 +826,17 @@ export const AuthProvider = ({ children }) => {
             rollNumber: data.roll_number,
             year: data.year,
             semester: data.semester,
-            btNumber: data.bt_number
+            btNumber: data.bt_number,
+            authProvider: data.auth_provider,
+            avatarUrl: data.avatar_url
           };
           setUser(formatted);
           localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
         }
+      } else if (currentSession.user.app_metadata?.provider === 'google') {
+        // Google user without profile yet - needs to complete profile
+        setPendingGoogleUser(currentSession.user);
+        setNeedsProfile(true);
       } else {
         await supabase.auth.signOut();
         clearSession();
@@ -463,7 +851,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     loadUser();
 
-    // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (event === 'SIGNED_OUT') {
         clearSession();
@@ -477,7 +864,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, [loadUser]);
 
-  // Login
+  // Login with username/password
   const login = async (username, password) => {
     const fakeEmail = `${username.toLowerCase()}@sistec.local`;
     
@@ -526,7 +913,9 @@ export const AuthProvider = ({ children }) => {
       rollNumber: userRecord.roll_number,
       year: userRecord.year,
       semester: userRecord.semester,
-      btNumber: userRecord.bt_number
+      btNumber: userRecord.bt_number,
+      authProvider: userRecord.auth_provider,
+      avatarUrl: userRecord.avatar_url
     };
 
     try {
@@ -545,10 +934,69 @@ export const AuthProvider = ({ children }) => {
     return formattedUser;
   };
 
+  // Login with Google OAuth
+  const loginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) throw error;
+  };
+
+  // Complete Google profile for first-time users
+  const completeGoogleProfile = async (profileData) => {
+    if (!pendingGoogleUser) throw new Error('No pending Google user');
+
+    const { username, fullName, rollNumber, branchName, year, semester, btNumber } = profileData;
+
+    // Check username uniqueness
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (existing) {
+      throw new Error('Username is already taken');
+    }
+
+    const userId = pendingGoogleUser.id;
+
+    const { data, error } = await supabase.from('users').insert([{
+      id: userId,
+      username,
+      full_name: fullName,
+      roll_number: rollNumber,
+      branch_name: branchName,
+      year,
+      semester,
+      bt_number: btNumber,
+      role: 'student',
+      status: 'pending',
+      is_blocked: 0,
+      auth_provider: 'google',
+      google_id: pendingGoogleUser.app_metadata?.provider_id || null,
+      avatar_url: pendingGoogleUser.user_metadata?.avatar_url || null
+    }]).select().single();
+
+    if (error) throw new Error('Failed to create profile: ' + error.message);
+
+    await supabase.auth.signOut();
+    setNeedsProfile(false);
+    setPendingGoogleUser(null);
+
+    return { message: 'Profile submitted! Awaiting admin approval.' };
+  };
+
   // Logout
   const logout = async () => {
     if (user) {
       try {
+        // Auto check-out from any table
+        await apiCall('/tables/check-out', { method: 'POST', body: JSON.stringify({}) });
+
         await supabase.from('activity_logs').insert([{
           user_id: user.id,
           action_type: 'logout',
@@ -575,7 +1023,6 @@ export const AuthProvider = ({ children }) => {
       btNumber
     } = userData;
 
-    // First check if username exists in our public table
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -586,7 +1033,6 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Username is already taken');
     }
 
-    // Sign up with Supabase Auth using a synthetic email
     const fakeEmail = `${username.toLowerCase()}@sistec.local`;
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: fakeEmail,
@@ -601,9 +1047,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Registration failed, please try again.');
     }
 
-    const userId = authData.user.id; // UUID from Supabase Auth
+    const userId = authData.user.id;
 
-    // Insert the public user profile
     const { data, error } = await supabase.from('users').insert([{
       id: userId,
       username,
@@ -615,22 +1060,25 @@ export const AuthProvider = ({ children }) => {
       bt_number: btNumber,
       role: 'student',
       status: 'pending',
-      is_blocked: 0
+      is_blocked: 0,
+      auth_provider: 'password'
     }]).select().single();
 
     if (error) {
-      // Rollback logic could go here if needed
       throw new Error('Failed to create user profile: ' + error.message);
     }
     
-    // Automatically sign out so they wait for approval
     await supabase.auth.signOut();
 
     return { message: 'Registration successful! Awaiting admin approval.', data };
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, login, logout, register, apiCall, refreshUser: loadUser }}>
+    <AuthContext.Provider value={{ 
+      user, session, loading, login, logout, register, 
+      loginWithGoogle, completeGoogleProfile, needsProfile, 
+      pendingGoogleUser, apiCall, refreshUser: loadUser 
+    }}>
       {children}
     </AuthContext.Provider>
   );
