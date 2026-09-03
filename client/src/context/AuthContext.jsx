@@ -791,50 +791,114 @@ export const AuthProvider = ({ children }) => {
     return [];
   }, [user]);
 
+  // 1-Click Bypass login for demo/testing
+  const bypassLogin = (role = 'admin') => {
+    const mockUser = role === 'admin' ? {
+      id: '00000000-0000-0000-0000-000000000001',
+      username: 'admin',
+      fullName: 'System Administrator',
+      role: 'admin',
+      status: 'approved',
+      branchName: 'Central Library',
+      rollNumber: 'ADMIN-01',
+      year: 'Faculty/Staff',
+      semester: 'N/A',
+      btNumber: 'BT-ADMIN',
+      authProvider: 'bypass',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin'
+    } : {
+      id: '00000000-0000-0000-0000-000000000002',
+      username: 'student_cs',
+      fullName: 'Demo Student (CS)',
+      role: 'student',
+      status: 'approved',
+      branchName: 'Computer Science and Engineering',
+      rollNumber: '0187CS211001',
+      year: '3rd Year',
+      semester: '6th Semester',
+      btNumber: 'BT-1029',
+      authProvider: 'bypass',
+      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=priyanshu'
+    };
+
+    localStorage.setItem('lib_custom_user', JSON.stringify(mockUser));
+    setUser(mockUser);
+    setNeedsProfile(false);
+    setPendingGoogleUser(null);
+    setLoading(false);
+    return mockUser;
+  };
+
   // Restore User Session
   const loadUser = useCallback(async () => {
     try {
       setLoading(true);
+
+      // 1. Check if user is logged in via bypass
+      const savedUserStr = localStorage.getItem('lib_custom_user');
+      if (savedUserStr) {
+        try {
+          const savedUser = JSON.parse(savedUserStr);
+          if (savedUser && savedUser.authProvider === 'bypass') {
+            setUser(savedUser);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed parsing cached user', e);
+        }
+      }
+
+      // 2. Check Supabase session
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !currentSession) {
-        clearSession();
+        if (!savedUserStr) clearSession();
         return;
       }
 
       setSession(currentSession);
       const authUserId = currentSession.user.id;
 
+      // Detect Google OAuth user robustly across all Supabase metadata structures
+      const isGoogleUser = 
+        currentSession.user.app_metadata?.provider === 'google' ||
+        (Array.isArray(currentSession.user.app_metadata?.providers) && currentSession.user.app_metadata.providers.includes('google')) ||
+        (Array.isArray(currentSession.user.identities) && currentSession.user.identities.some(i => i.provider === 'google')) ||
+        currentSession.user.email?.endsWith('@gmail.com');
+
       const { data, error } = await supabase
         .from('users')
         .select('id, username, full_name, roll_number, branch_name, year, semester, bt_number, role, status, is_blocked, auth_provider, avatar_url')
         .eq('id', authUserId)
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
-        if (data.is_blocked === 1 || (data.role === 'student' && data.status !== 'approved')) {
+        if (data.is_blocked === 1) {
           await supabase.auth.signOut();
           clearSession();
-        } else {
-          const formatted = {
-            id: data.id,
-            username: data.username,
-            fullName: data.full_name,
-            role: data.role,
-            status: data.status,
-            branchName: data.branch_name,
-            rollNumber: data.roll_number,
-            year: data.year,
-            semester: data.semester,
-            btNumber: data.bt_number,
-            authProvider: data.auth_provider,
-            avatarUrl: data.avatar_url
-          };
-          setUser(formatted);
-          localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
+          return;
         }
-      } else if (currentSession.user.app_metadata?.provider === 'google') {
-        // Google user without profile yet - needs to complete profile
+
+        const formatted = {
+          id: data.id,
+          username: data.username,
+          fullName: data.full_name,
+          role: data.role,
+          status: data.status,
+          branchName: data.branch_name,
+          rollNumber: data.roll_number,
+          year: data.year,
+          semester: data.semester,
+          btNumber: data.bt_number,
+          authProvider: data.auth_provider,
+          avatarUrl: data.avatar_url || (isGoogleUser ? (currentSession.user.user_metadata?.avatar_url || currentSession.user.user_metadata?.picture) : null)
+        };
+        setUser(formatted);
+        localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
+        setNeedsProfile(false);
+      } else if (isGoogleUser) {
+        // Google user authenticated in Supabase but no profile in users table yet
         setPendingGoogleUser(currentSession.user);
         setNeedsProfile(true);
       } else {
@@ -881,7 +945,7 @@ export const AuthProvider = ({ children }) => {
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
-      .single();
+      .maybeSingle();
 
     if (userError || !userRecord) {
       await supabase.auth.signOut();
@@ -891,11 +955,6 @@ export const AuthProvider = ({ children }) => {
     if (userRecord.is_blocked === 1) {
       await supabase.auth.signOut();
       throw new Error('Your account has been blocked by the admin');
-    }
-
-    if (userRecord.role === 'student' && userRecord.status === 'pending') {
-      await supabase.auth.signOut();
-      throw new Error('Your account is pending admin approval');
     }
 
     if (userRecord.role === 'student' && userRecord.status === 'rejected') {
@@ -958,13 +1017,15 @@ export const AuthProvider = ({ children }) => {
       .eq('username', username)
       .maybeSingle();
 
-    if (existing) {
+    if (existing && existing.id !== pendingGoogleUser.id) {
       throw new Error('Username is already taken');
     }
 
     const userId = pendingGoogleUser.id;
+    const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || null;
 
-    const { data, error } = await supabase.from('users').insert([{
+    // Auto-approve student profiles registered via Google sign-in
+    const { data, error } = await supabase.from('users').upsert([{
       id: userId,
       username,
       full_name: fullName,
@@ -974,20 +1035,36 @@ export const AuthProvider = ({ children }) => {
       semester,
       bt_number: btNumber,
       role: 'student',
-      status: 'pending',
+      status: 'approved',
       is_blocked: 0,
       auth_provider: 'google',
-      google_id: pendingGoogleUser.app_metadata?.provider_id || null,
-      avatar_url: pendingGoogleUser.user_metadata?.avatar_url || null
-    }]).select().single();
+      google_id: pendingGoogleUser.id,
+      avatar_url: avatarUrl
+    }], { onConflict: 'id' }).select().single();
 
     if (error) throw new Error('Failed to create profile: ' + error.message);
 
-    await supabase.auth.signOut();
+    const formattedUser = {
+      id: data.id,
+      username: data.username,
+      fullName: data.full_name,
+      role: data.role,
+      status: data.status,
+      branchName: data.branch_name,
+      rollNumber: data.roll_number,
+      year: data.year,
+      semester: data.semester,
+      btNumber: data.bt_number,
+      authProvider: data.auth_provider,
+      avatarUrl: data.avatar_url
+    };
+
+    localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+    setUser(formattedUser);
     setNeedsProfile(false);
     setPendingGoogleUser(null);
 
-    return { message: 'Profile submitted! Awaiting admin approval.' };
+    return { message: 'Profile completed successfully! Welcome to SISTEC Library.' };
   };
 
   // Logout
@@ -1077,7 +1154,8 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider value={{ 
       user, session, loading, login, logout, register, 
       loginWithGoogle, completeGoogleProfile, needsProfile, 
-      pendingGoogleUser, apiCall, refreshUser: loadUser 
+      pendingGoogleUser, apiCall, refreshUser: loadUser,
+      bypassLogin
     }}>
       {children}
     </AuthContext.Provider>
