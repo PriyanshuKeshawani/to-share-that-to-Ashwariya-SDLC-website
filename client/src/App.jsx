@@ -141,7 +141,6 @@ const AppContent = () => {
             </button>
           </div>
         </div>
-        <ThemeToggle />
       </div>
     );
   }
@@ -154,7 +153,6 @@ const AppContent = () => {
           book={selectedBook}
           onClose={() => setSelectedBook(null)}
         />
-        <ThemeToggle />
       </div>
     );
   }

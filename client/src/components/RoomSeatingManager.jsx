@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { 
   Users, MapPin, QrCode, Plus, Layers, Edit3, Save, Bookmark, 
-  RotateCcw, Sparkles, Check, Trash2, Eye, ShieldCheck, ChevronDown, CheckCircle2 
+  RotateCcw, Sparkles, Check, Trash2, Eye, ShieldCheck, ChevronDown, CheckCircle2, X
 } from 'lucide-react';
 import TableQRBadgeModal from './TableQRBadgeModal';
 import BulkRoomBuilderModal from './BulkRoomBuilderModal';

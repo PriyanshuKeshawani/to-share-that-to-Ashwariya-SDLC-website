@@ -25,9 +25,17 @@ const NotificationBell = () => {
   }, [user, apiCall]);
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    let isMounted = true;
+    const load = async () => {
+      if (!isMounted) return;
+      await fetchNotifications();
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [fetchNotifications]);
 
   const markAllRead = async () => {
@@ -64,17 +72,10 @@ const NotificationBell = () => {
     }
   };
 
-  const getRelativeTime = (dateString) => {
+  const formatNotificationTime = (dateString) => {
     try {
-      const diff = Date.now() - new Date(dateString).getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'Just now';
-      if (mins < 60) return `${mins}m ago`;
-      const hours = Math.floor(mins / 60);
-      if (hours < 24) return `${hours}h ago`;
-      const days = Math.floor(hours / 24);
-      if (days < 7) return `${days}d ago`;
-      return new Date(dateString).toLocaleDateString();
+      const d = new Date(dateString);
+      return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} • ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
       return '';
     }
@@ -394,7 +395,7 @@ const NotificationBell = () => {
                           color: 'var(--text-muted)',
                           flexShrink: 0
                         }}>
-                          {getRelativeTime(notif.created_at)}
+                          {formatNotificationTime(notif.created_at)}
                         </span>
                       </div>
 
