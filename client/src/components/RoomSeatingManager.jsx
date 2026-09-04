@@ -53,16 +53,34 @@ const RoomSeatingManager = ({
   const [gridCols, setGridCols] = useState(10);
   const [aisleCols, setAisleCols] = useState([5]);
   const [disabledCells, setDisabledCells] = useState(new Set()); // "row-col" strings that are walkways
-  const [savedTemplates, setSavedTemplates] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sistec_library_seating_templates');
-      return saved ? JSON.parse(saved) : DEFAULT_TEMPLATES;
-    } catch {
-      return DEFAULT_TEMPLATES;
-    }
-  });
+  const [savedTemplates, setSavedTemplates] = useState(DEFAULT_TEMPLATES);
   const [templateNameInput, setTemplateNameInput] = useState('');
   const [showSaveTemplateInput, setShowSaveTemplateInput] = useState(false);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+  // Fetch saved templates directly from Supabase database (Zero local storage)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDbTemplates = async () => {
+      if (!apiCall) return;
+      try {
+        const dbTemplates = await apiCall('/seating-templates');
+        if (isMounted && Array.isArray(dbTemplates) && dbTemplates.length > 0) {
+          const merged = [...DEFAULT_TEMPLATES];
+          dbTemplates.forEach(t => {
+            if (!merged.some(m => m.id === t.id)) {
+              merged.push({ ...t, isCustom: true });
+            }
+          });
+          setSavedTemplates(merged);
+        }
+      } catch (err) {
+        console.warn('Could not load seating templates from DB:', err);
+      }
+    };
+    fetchDbTemplates();
+    return () => { isMounted = false; };
+  }, [apiCall]);
 
   // Sync selected room if rooms list changes
   useEffect(() => {
@@ -176,9 +194,10 @@ const RoomSeatingManager = ({
     return { total, occupied, free, occupancyRate };
   }, [roomTables]);
 
-  // Save template handler
-  const handleSaveTemplate = () => {
+  // Save template handler directly to Supabase Database (Zero local storage)
+  const handleSaveTemplate = async () => {
     if (!templateNameInput.trim()) return;
+    setIsSavingTemplate(true);
     const newTemplate = {
       id: `template-${Date.now()}`,
       name: templateNameInput.trim(),
@@ -186,19 +205,42 @@ const RoomSeatingManager = ({
       cols: gridCols,
       aisleCols: [...aisleCols],
       disabledCells: Array.from(disabledCells),
-      description: `${gridRows} Rows x ${gridCols} Columns with custom layout`
+      description: `${gridRows} Rows x ${gridCols} Columns with custom layout`,
+      isCustom: true
     };
 
-    const updated = [...savedTemplates, newTemplate];
-    setSavedTemplates(updated);
     try {
-      localStorage.setItem('sistec_library_seating_templates', JSON.stringify(updated));
-      if (showFeedback) showFeedback(`Layout template "${newTemplate.name}" saved!`);
+      if (apiCall) {
+        await apiCall('/seating-templates', {
+          method: 'POST',
+          body: JSON.stringify(newTemplate)
+        });
+      }
+      setSavedTemplates(prev => [...prev, newTemplate]);
+      if (showFeedback) showFeedback(`Layout template "${newTemplate.name}" saved to database!`);
     } catch (e) {
-      console.warn('Could not save to localStorage:', e);
+      console.error('Failed saving template to database:', e);
+      if (showFeedback) showFeedback(`Failed to save template to database: ${e.message}`, 'error');
+    } finally {
+      setIsSavingTemplate(false);
+      setTemplateNameInput('');
+      setShowSaveTemplateInput(false);
     }
-    setTemplateNameInput('');
-    setShowSaveTemplateInput(false);
+  };
+
+  // Delete custom template directly from database
+  const handleDeleteCustomTemplate = async (tmpl, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete template "${tmpl.name}" from database?`)) return;
+    try {
+      if (apiCall) {
+        await apiCall(`/seating-templates/${tmpl.id}`, { method: 'DELETE' });
+      }
+      setSavedTemplates(prev => prev.filter(t => t.id !== tmpl.id));
+      if (showFeedback) showFeedback(`Template "${tmpl.name}" deleted from database`);
+    } catch (err) {
+      if (showFeedback) showFeedback(`Failed to delete template: ${err.message}`, 'error');
+    }
   };
 
   // Load template
@@ -473,15 +515,39 @@ const RoomSeatingManager = ({
                       APPLY TEMPLATE:
                     </span>
                     {savedTemplates.map(tmpl => (
-                      <button
-                        key={tmpl.id}
-                        type="button"
-                        onClick={() => handleApplyTemplate(tmpl)}
-                        className="btn btn-secondary"
-                        style={{ padding: '5px 10px', fontSize: '0.74rem' }}
-                      >
-                        {tmpl.name}
-                      </button>
+                      <div key={tmpl.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyTemplate(tmpl)}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '5px 10px',
+                            fontSize: '0.74rem',
+                            borderTopRightRadius: tmpl.isCustom ? '0' : undefined,
+                            borderBottomRightRadius: tmpl.isCustom ? '0' : undefined
+                          }}
+                        >
+                          {tmpl.name}
+                        </button>
+                        {tmpl.isCustom && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomTemplate(tmpl, e)}
+                            title="Delete template from database"
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '5px 8px',
+                              fontSize: '0.74rem',
+                              color: 'var(--danger)',
+                              borderLeft: 'none',
+                              borderTopLeftRadius: '0',
+                              borderBottomLeftRadius: '0'
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
 
@@ -546,10 +612,11 @@ const RoomSeatingManager = ({
                         />
                         <button
                           onClick={handleSaveTemplate}
+                          disabled={isSavingTemplate}
                           className="btn btn-primary"
                           style={{ padding: '5px 10px', fontSize: '0.75rem' }}
                         >
-                          Save
+                          {isSavingTemplate ? 'Saving...' : 'Save to DB'}
                         </button>
                         <button
                           onClick={() => setShowSaveTemplateInput(false)}

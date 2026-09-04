@@ -132,8 +132,11 @@ CREATE TABLE IF NOT EXISTS library_settings (
   loan_duration_days INTEGER DEFAULT 14,
   fine_per_day DECIMAL(10,2) DEFAULT 5.00,
   max_fine DECIMAL(10,2) DEFAULT 200.00,
+  seating_templates JSONB DEFAULT '[]'::jsonb,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE library_settings ADD COLUMN IF NOT EXISTS seating_templates JSONB DEFAULT '[]'::jsonb;
 
 INSERT INTO library_settings (id, loan_duration_days, fine_per_day, max_fine)
 VALUES (1, 14, 5.00, 200.00)
@@ -201,3 +204,21 @@ BEGIN
     EXECUTE format('CREATE POLICY "Public access for all" ON %I FOR ALL USING (true) WITH CHECK (true)', tbl);
   END LOOP;
 END $$;
+
+-- 14. High-Performance B-Tree Indexes (Optimized for 100,000 Users Scale)
+CREATE INDEX IF NOT EXISTS idx_users_roll ON users(roll_number);
+CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role, status);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_tables_qr ON tables(qr_identifier);
+CREATE INDEX IF NOT EXISTS idx_tables_room_status ON tables(room_id, status);
+CREATE INDEX IF NOT EXISTS idx_physical_copies_qr ON physical_book_copies(qr_code);
+CREATE INDEX IF NOT EXISTS idx_physical_copies_book ON physical_book_copies(book_id, status);
+CREATE INDEX IF NOT EXISTS idx_book_loans_user ON book_loans(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_book_loans_copy ON book_loans(copy_id);
+CREATE INDEX IF NOT EXISTS idx_library_sessions_user_active ON library_sessions(user_id) WHERE exited_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_library_sessions_table ON library_sessions(table_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE is_read = FALSE;
+CREATE INDEX IF NOT EXISTS idx_books_branch_cat ON books(branch_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
+

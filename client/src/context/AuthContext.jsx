@@ -844,6 +844,74 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
+    // 11b. Seating Layout Templates (Database-backed directly in Supabase)
+    if (endpoint === '/seating-templates' && method === 'GET') {
+      try {
+        const { data, error } = await supabase
+          .from('activity_logs')
+          .select('id, details, created_at')
+          .eq('action_type', 'seating_template')
+          .order('created_at', { ascending: true });
+        
+        if (error) {
+          console.warn('Could not fetch templates from DB:', error.message);
+          return [];
+        }
+
+        const templates = (data || []).map(row => {
+          try {
+            const parsed = typeof row.details === 'string' ? JSON.parse(row.details) : row.details;
+            return { ...parsed, db_id: row.id };
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+
+        return templates;
+      } catch (err) {
+        console.warn('Error reading seating templates:', err);
+        return [];
+      }
+    }
+
+    if (endpoint === '/seating-templates' && method === 'POST') {
+      const templateData = body;
+      let uid = user?.id;
+      if (uid && uid.startsWith('00000000-')) uid = null;
+
+      const { data, error } = await supabase.from('activity_logs').insert([{
+        user_id: uid,
+        action_type: 'seating_template',
+        details: JSON.stringify(templateData)
+      }]).select().single();
+      
+      if (error) throw error;
+      return { message: 'Template saved directly to database', data };
+    }
+
+    if (endpoint.startsWith('/seating-templates/') && method === 'DELETE') {
+      const targetId = endpoint.split('/').pop();
+      const { data: records } = await supabase
+        .from('activity_logs')
+        .select('id, details')
+        .eq('action_type', 'seating_template');
+      
+      const found = (records || []).find(r => {
+        try {
+          const parsed = JSON.parse(r.details);
+          return parsed.id === targetId || String(r.id) === String(targetId);
+        } catch {
+          return false;
+        }
+      });
+
+      if (found) {
+        const { error } = await supabase.from('activity_logs').delete().eq('id', found.id);
+        if (error) throw error;
+      }
+      return { message: 'Template deleted from database' };
+    }
+
     // 12. Analytics & Logs
     if (endpoint === '/analytics/track' && method === 'POST') {
       if (!user) return null;
