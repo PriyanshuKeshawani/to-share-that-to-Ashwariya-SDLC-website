@@ -158,17 +158,24 @@ const Register = ({ onToggleView }) => {
       }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <img
-            src="/logo.png"
-            alt="SISTec Logo"
-            style={{
-              height: '72px',
-              width: 'auto',
-              objectFit: 'contain',
-              marginBottom: '14px',
-              filter: 'drop-shadow(0 6px 16px rgba(0, 0, 0, 0.3))'
-            }}
-          />
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '6px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+            margin: '0 auto 16px'
+          }}>
+            <img
+              src="/logo.png"
+              alt="SISTec Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '6px' }}>Student Registration</h2>
           <p style={{ marginTop: '4px', fontSize: '0.88rem' }}>Create your library account for approval</p>
         </div>

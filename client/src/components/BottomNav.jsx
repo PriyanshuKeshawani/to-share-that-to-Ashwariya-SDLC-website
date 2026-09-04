@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Home, BookOpen, BookMarked, Activity, Menu } from 'lucide-react';
 
 const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
@@ -19,12 +19,22 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
         return (
           <button
             key={item.id}
-            onClick={() => (item.isAction ? onOpenMenu() : onSelectTab(item.id))}
+            onClick={(e) => {
+              if (item.isAction) {
+                onOpenMenu();
+              } else {
+                onSelectTab(item.id);
+                // Haptic-like visual feedback
+                const btn = e.currentTarget;
+                btn.style.transform = 'scale(0.85)';
+                setTimeout(() => { btn.style.transform = ''; }, 150);
+              }
+            }}
             className={`bottom-nav-item ${isActive ? 'active' : ''}`}
             type="button"
           >
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} />
+            <div style={{ position: 'relative', display: 'inline-flex', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+              <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} style={{ transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} />
               {item.badge > 0 && (
                 <span style={{
                   position: 'absolute',
@@ -40,13 +50,15 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)'
+                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)',
+                  animation: isActive ? 'pulseGlow 2s infinite' : 'none',
+                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                 }}>
                   {item.badge}
                 </span>
               )}
             </div>
-            <span>{item.label}</span>
+            <span style={{ transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', transform: isActive ? 'scale(1.05)' : 'scale(1)' }}>{item.label}</span>
           </button>
         );
       })}

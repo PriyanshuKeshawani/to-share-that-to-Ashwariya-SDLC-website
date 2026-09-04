@@ -180,18 +180,26 @@ const Login = ({ onToggleView }) => {
 
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '32px' }}>
-              <img
-                src="/logo.png"
-                alt="SISTec Logo"
-                style={{
-                  height: '52px',
-                  width: 'auto',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3))'
-                }}
-              />
+              <div style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '5px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                <img
+                  src="/logo.png"
+                  alt="SISTec Logo"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              </div>
               <div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.01em', color: '#ffffff', lineHeight: 1.15 }}>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.01em', color: '#ffffff', lineHeight: 1.15 }}>
                   SISTec
                 </h3>
                 <span style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
@@ -271,17 +279,24 @@ const Login = ({ onToggleView }) => {
         <div className="login-form-side">
           {/* Mobile Header */}
           <div className="login-mobile-header" style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <img
-              src="/logo.png"
-              alt="SISTec Logo"
-              style={{
-                height: '72px',
-                width: 'auto',
-                objectFit: 'contain',
-                margin: '0 auto 12px',
-                filter: 'drop-shadow(0 6px 16px rgba(0, 0, 0, 0.3))'
-              }}
-            />
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+              margin: '0 auto 14px'
+            }}>
+              <img
+                src="/logo.png"
+                alt="SISTec Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
               SISTec Library Portal
             </h2>

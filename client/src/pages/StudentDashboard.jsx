@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download, 
@@ -34,16 +34,23 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
   const [showDrawer, setShowDrawer] = useState(false);
+  const [prevTab, setPrevTab] = useState('all');
+  const [tabTransition, setTabTransition] = useState(false);
+  const [toastExiting, setToastExiting] = useState(false);
 
   // QR Scanner Modal
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [qrScannerType, setQrScannerType] = useState('table');
   const [checkinSuccessData, setCheckinSuccessData] = useState(null);
 
-  const showFeedback = (text, type = 'success') => {
+  const showFeedback = useCallback((text, type = 'success') => {
+    setToastExiting(false);
     setFeedbackMsg({ text, type });
-    setTimeout(() => setFeedbackMsg({ text: '', type: '' }), 4000);
-  };
+    setTimeout(() => {
+      setToastExiting(true);
+      setTimeout(() => setFeedbackMsg({ text: '', type: '' }), 300);
+    }, 3500);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -224,16 +231,29 @@ const StudentDashboard = ({ onSelectBook }) => {
       {/* ── Mobile Top Header (≤ 767px) ── */}
       <header className="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img
-            src="/logo.png"
-            alt="SISTec Logo"
-            style={{ height: '34px', width: 'auto', objectFit: 'contain' }}
-          />
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '11px',
+            background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '3px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+            flexShrink: 0
+          }}>
+            <img
+              src="/logo.png"
+              alt="SISTec Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
           <div>
-            <div style={{ fontSize: '0.92rem', fontWeight: 700, lineHeight: 1.15, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '0.94rem', fontWeight: 800, lineHeight: 1.15, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
               SISTec Library
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
               {user?.department || user?.branchName || 'Student'}
             </div>
           </div>
@@ -268,18 +288,31 @@ const StudentDashboard = ({ onSelectBook }) => {
       <aside className="sidebar">
         <div>
           {/* Logo & College Branding */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-            <img
-              src="/logo.png"
-              alt="SISTec Logo"
-              style={{ height: '44px', width: 'auto', objectFit: 'contain' }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '4px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+              flexShrink: 0
+            }}>
+              <img
+                src="/logo.png"
+                alt="SISTec Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
             <div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.15 }}>
+              <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
                 SISTec
               </h3>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Central Library
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
+                Digital Library Portal
               </p>
             </div>
           </div>
@@ -357,7 +390,7 @@ const StudentDashboard = ({ onSelectBook }) => {
               return (
                 <button
                   key={key}
-                  onClick={() => { setActiveTab(key); setSelectedBranch(''); }}
+                  onClick={() => { setPrevTab(activeTab); setTabTransition(true); setActiveTab(key); setSelectedBranch(''); setTimeout(() => setTabTransition(false), 50); }}
                   className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'}`}
                   style={{
                     justifyContent: 'flex-start',
@@ -426,9 +459,9 @@ const StudentDashboard = ({ onSelectBook }) => {
 
       {/* ── Main Content Area ── */}
       <main className="main-content">
-        {/* Toast Feedback */}
+        {/* Toast Feedback — smooth slide in/out */}
         {feedbackMsg.text && (
-          <div className="animate-fade-in toast-notification" style={{
+          <div className={`toast-notification ${toastExiting ? 'toast-exit' : ''}`} style={{
             position: 'fixed',
             top: '72px',
             right: '20px',
@@ -444,7 +477,8 @@ const StudentDashboard = ({ onSelectBook }) => {
             alignItems: 'center',
             gap: '10px',
             fontSize: '0.86rem',
-            fontWeight: 500
+            fontWeight: 500,
+            pointerEvents: 'auto'
           }}>
             {feedbackMsg.type === 'error' ? <ShieldAlert size={18} /> : <CheckCircle size={18} />}
             <span>{feedbackMsg.text}</span>
@@ -538,10 +572,10 @@ const StudentDashboard = ({ onSelectBook }) => {
             <SkeletonCard />
           </div>
         ) : activeTab === 'settings' ? (
-          <SettingsView />
+          <div className="animate-section-enter"><SettingsView /></div>
         ) : activeTab === 'loans' ? (
           /* ── My Loans View ── */
-          <div className="animate-fade-in">
+          <div className="animate-section-enter">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 My Borrowed Books ({myLoans.length})
@@ -611,7 +645,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : activeTab === 'fines' ? (
           /* ── Fines Tab ── */
-          <div className="animate-fade-in">
+          <div className="animate-section-enter">
             <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '16px' }}>
               Fines & Overdue Charges
             </h3>
@@ -656,7 +690,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : activeTab === 'history' ? (
           /* ── Reading Progress View ── */
-          <div className="animate-fade-in">
+          <div className="animate-section-enter">
             <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '16px' }}>
               Reading Progress & Download Log
             </h3>
@@ -702,7 +736,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : (
           /* ── Catalog & Book Discovery View ── */
-          <div className="animate-fade-in">
+          <div className="animate-section-enter">
             {/* Search & Category Filter Bar */}
             <div className="glass-panel" style={{ padding: '14px 16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
               <div style={{ flex: '1 1 240px', position: 'relative' }}>
@@ -909,7 +943,20 @@ const StudentDashboard = ({ onSelectBook }) => {
           <div className="mobile-sheet-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img src="/logo.png" alt="SISTec" style={{ height: '32px', width: 'auto' }} />
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '3px',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                  flexShrink: 0
+                }}>
+                  <img src="/logo.png" alt="SISTec" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
                 <div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {user?.fullName || user?.username}

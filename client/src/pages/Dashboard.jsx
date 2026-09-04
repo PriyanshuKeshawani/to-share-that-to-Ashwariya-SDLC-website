@@ -27,10 +27,15 @@ const Dashboard = ({ onSelectBook }) => {
   const [actionLoading, setActionLoading] = useState({});
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
   const [showProfileDrawer, setShowProfileDrawer] = useState(false);
+  const [toastExiting, setToastExiting] = useState(false);
 
   const showFeedback = useCallback((text, type = 'success') => {
+    setToastExiting(false);
     setFeedbackMsg({ text, type });
-    setTimeout(() => setFeedbackMsg({ text: '', type: '' }), 5000);
+    setTimeout(() => {
+      setToastExiting(true);
+      setTimeout(() => setFeedbackMsg({ text: '', type: '' }), 300);
+    }, 4000);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -265,7 +270,7 @@ const Dashboard = ({ onSelectBook }) => {
       <main className="main-content">
         {/* Floating Toast Notification */}
         {feedbackMsg.text && (
-          <div className="animate-fade-in toast-notification" style={{
+          <div className={`toast-notification ${toastExiting ? 'toast-exit' : ''}`} style={{
             position: 'fixed',
             top: '72px',
             right: '20px',

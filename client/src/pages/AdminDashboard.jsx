@@ -71,6 +71,7 @@ const AdminDashboard = () => {
   const [logsPagination, setLogsPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [logsLoading, setLogsLoading] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
+  const [toastExiting, setToastExiting] = useState(false);
 
   // Loan Management State
   const [loans, setLoans] = useState([]);
@@ -141,8 +142,12 @@ const AdminDashboard = () => {
   }, [students]);
 
   const showFeedback = useCallback((text, type = 'success') => {
+    setToastExiting(false);
     setFeedback({ text, type });
-    setTimeout(() => setFeedback({ text: '', type: '' }), 5000);
+    setTimeout(() => {
+      setToastExiting(true);
+      setTimeout(() => setFeedback({ text: '', type: '' }), 300);
+    }, 4000);
   }, []);
 
   const fetchAllAdminData = useCallback(async () => {
@@ -617,9 +622,22 @@ const AdminDashboard = () => {
       <aside className="sidebar">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
-            <img src="/logo.png" alt="SISTec" style={{ height: '38px', width: 'auto', objectFit: 'contain' }} />
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '4px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+              flexShrink: 0
+            }}>
+              <img src="/logo.png" alt="SISTec" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, lineHeight: 1.1 }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, lineHeight: 1.1 }}>
                 SISTEC
               </h3>
               <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -720,7 +738,7 @@ const AdminDashboard = () => {
       <main className="main-content">
         {/* Floating Toast Notification */}
         {feedback.text && (
-          <div className="animate-fade-in toast-notification" style={{
+          <div className={`toast-notification ${toastExiting ? 'toast-exit' : ''}`} style={{
             position: 'fixed',
             top: '72px',
             right: '20px',
@@ -750,7 +768,7 @@ const AdminDashboard = () => {
           <>
             {/* Overview / Analytics Tab */}
             {activeTab === 'overview' && dashboardData && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
                   <h2>Library System Analytics</h2>
                   <p style={{ marginTop: '4px' }}>Real-time statistics, aggregate branch reading patterns, and user activity.</p>
@@ -958,7 +976,7 @@ const AdminDashboard = () => {
 
             {/* User Registration Approvals Tab */}
             {activeTab === 'users' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
                   <h2>User Registration Approvals</h2>
                   <p style={{ marginTop: '4px' }}>Approve or reject first-time student registration requests. Approved accounts can immediately log in.</p>
@@ -1015,7 +1033,7 @@ const AdminDashboard = () => {
 
             {/* Branch Access Requests Tab */}
             {activeTab === 'permissions' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
                   <h2>Cross-Branch Access Requests</h2>
                   <p style={{ marginTop: '4px' }}>Students are restricted to reading books in their own branch. Approve requests to allow access to additional branches.</p>
@@ -1072,7 +1090,7 @@ const AdminDashboard = () => {
 
             {/* Book Inventory Tab */}
             {activeTab === 'books' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }} className="responsive-grid-1col">
                   <div>
                     <h2>Book Inventory Management</h2>
@@ -1219,7 +1237,7 @@ const AdminDashboard = () => {
 
             {/* Students Management Tab */}
             {activeTab === 'students' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 {/* Header */}
                 <div style={{ marginBottom: '32px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -1458,7 +1476,7 @@ const AdminDashboard = () => {
 
             {/* System Audit Logs Tab */}
             {activeTab === 'logs' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
                   <h2>System Audit Log Trail</h2>
                   <p style={{ marginTop: '4px' }}>Real-time history of events, login sessions, reading page progress updates, and administrative overrides.</p>
@@ -1568,7 +1586,7 @@ const AdminDashboard = () => {
 
             {/* Book Circulation / Loans Tab */}
             {activeTab === 'loans' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
                   <h2>Book Circulation Management</h2>
                   <p style={{ marginTop: '4px' }}>Track issued books, process returns, and manage overdue fines.</p>
@@ -1694,7 +1712,7 @@ const AdminDashboard = () => {
 
             {/* Book Copies Tab */}
             {activeTab === 'copies' && (
-              <div className="animate-fade-in">
+              <div className="animate-section-enter">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }} className="responsive-grid-1col">
                   <div>
                     <h2>Physical Book Copies</h2>
@@ -1753,7 +1771,7 @@ const AdminDashboard = () => {
 
             {/* Settings & System Preferences Tab */}
             {activeTab === 'settings' && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              <div className="animate-section-enter" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
                 {/* Visual Appearance & Themes */}
                 <SettingsView isAdmin={true} />
 
@@ -2601,9 +2619,22 @@ const AdminDashboard = () => {
       {/* Mobile Top Header */}
       <header className="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/logo.png" alt="SISTec Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '11px',
+            background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '3px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+            flexShrink: 0
+          }}>
+            <img src="/logo.png" alt="SISTec Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <div>
-            <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', lineHeight: 1.15 }}>
+            <span style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
               SISTec Admin
             </span>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
@@ -2681,7 +2712,20 @@ const AdminDashboard = () => {
           <div className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-drawer-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img src="/logo.png" alt="SISTec Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '3px',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                  flexShrink: 0
+                }}>
+                  <img src="/logo.png" alt="SISTec Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
                 <div>
                   <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem' }}>SISTec Admin Console</h4>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Root Operations</span>
