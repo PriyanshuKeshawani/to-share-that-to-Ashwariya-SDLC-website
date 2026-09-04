@@ -1158,12 +1158,12 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // 1. Check if user is logged in via bypass
+      // 1. Check if user is logged in via credentials/admin session or bypass
       const savedUserStr = localStorage.getItem('lib_custom_user');
       if (savedUserStr) {
         try {
           const savedUser = JSON.parse(savedUserStr);
-          if (savedUser && savedUser.authProvider === 'bypass') {
+          if (savedUser && (savedUser.authProvider === 'credentials' || savedUser.role === 'admin' || savedUser.authProvider === 'bypass')) {
             setUser(savedUser);
             setLoading(false);
             return;
@@ -1252,17 +1252,86 @@ export const AuthProvider = ({ children }) => {
     };
   }, [loadUser]);
 
-  // Login with username/password
-  const login = async (username, password) => {
-    const fakeEmail = `${username.toLowerCase()}@sistec.local`;
-    
+  // Login with institutional credentials or student username
+  const login = async (identifier, password) => {
+    const trimmedId = (identifier || '').trim();
+    const trimmedPass = (password || '').trim();
+    const idLower = trimmedId.toLowerCase();
+
+    // 1. Official Institutional Central Library Admin Authentication
+    const isAdminCandidate = 
+      idLower === 'sistec.library@sistec.ac.in' ||
+      idLower === 'admin' ||
+      idLower === 'sistec.library';
+
+    if (isAdminCandidate) {
+      if (trimmedPass !== 'Kalpana2680#') {
+        throw new Error('Invalid password for Institutional Central Library Administrator.');
+      }
+
+      // Check if official admin user row exists in Supabase users table
+      let adminId = '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
+      try {
+        const { data: dbAdmin } = await supabase
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .eq('role', 'admin')
+          .limit(1)
+          .maybeSingle();
+        if (dbAdmin) {
+          adminId = dbAdmin.id;
+        }
+      } catch (e) {
+        console.warn('DB admin check note:', e);
+      }
+
+      const adminUser = {
+        id: adminId,
+        username: 'sistec.library@sistec.ac.in',
+        email: 'Sistec.library@sistec.ac.in',
+        fullName: 'Central Library Administrator',
+        role: 'admin',
+        status: 'approved',
+        branchName: 'Central Library',
+        rollNumber: 'ADMIN-SISTEC',
+        year: 'Faculty/Staff',
+        semester: 'N/A',
+        btNumber: 'BT-ADMIN-01',
+        authProvider: 'credentials',
+        avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=SISTecAdmin'
+      };
+
+      localStorage.setItem('lib_custom_user', JSON.stringify(adminUser));
+      setUser(adminUser);
+      setNeedsProfile(false);
+      setPendingGoogleUser(null);
+      setLoading(false);
+
+      try {
+        await supabase.from('activity_logs').insert([{
+          action_type: 'login',
+          details: 'Official Central Library Administrator logged in securely'
+        }]);
+      } catch {}
+
+      return adminUser;
+    }
+
+    // 2. If user attempted admin login with wrong password
+    if (idLower === 'sistec.library@sistec.ac.in' || idLower === 'admin' || idLower === 'sistec.library') {
+      throw new Error('Invalid password for Institutional Administrator.');
+    }
+
+    // 3. Regular Student / Faculty Authentication via Supabase Auth
+    const authEmail = trimmedId.includes('@') ? idLower : `${idLower}@sistec.local`;
+
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: fakeEmail,
-      password: password
+      email: authEmail,
+      password: trimmedPass
     });
 
     if (authError || !authData.user) {
-      throw new Error('Invalid username or password');
+      throw new Error('Invalid email/username or password. Please verify your credentials.');
     }
 
     const { data: userRecord, error: userError } = await supabase
@@ -1273,17 +1342,17 @@ export const AuthProvider = ({ children }) => {
 
     if (userError || !userRecord) {
       await supabase.auth.signOut();
-      throw new Error('User profile not found in database');
+      throw new Error('User profile not found in institutional database.');
     }
 
     if (userRecord.is_blocked === 1) {
       await supabase.auth.signOut();
-      throw new Error('Your account has been blocked by the admin');
+      throw new Error('Your library access has been restricted by the administrator.');
     }
 
     if (userRecord.role === 'student' && userRecord.status === 'rejected') {
       await supabase.auth.signOut();
-      throw new Error('Your registration request was rejected by the admin');
+      throw new Error('Your registration was rejected by the library administrator.');
     }
 
     const formattedUser = {
@@ -1305,11 +1374,9 @@ export const AuthProvider = ({ children }) => {
       await supabase.from('activity_logs').insert([{
         user_id: userRecord.id,
         action_type: 'login',
-        details: 'User logged in securely'
+        details: `User ${userRecord.username} logged in securely`
       }]);
-    } catch (e) {
-      console.warn('Could not write login activity log:', e);
-    }
+    } catch {}
 
     localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
     setUser(formattedUser);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Shield, UserCheck, AlertCircle, Sparkles, BookOpen, GraduationCap, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Sun, Moon } from 'lucide-react';
 
 const LIBRARY_WALLPAPERS = [
   {
@@ -27,10 +27,10 @@ const LIBRARY_WALLPAPERS = [
 ];
 
 const Login = ({ onToggleView }) => {
-  const { login, loginWithGoogle, bypassLogin } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { mode, toggleMode } = useTheme();
   const isDark = mode === 'dark';
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,15 +54,15 @@ const Login = ({ onToggleView }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !password) {
-      setError('Please enter both username and password.');
+    if (!identifier.trim() || !password) {
+      setError('Please enter both institutional email/username and password.');
       return;
     }
 
     try {
       setError('');
       setLoading(true);
-      await login(username.trim(), password);
+      await login(identifier.trim(), password);
     } catch (err) {
       setError(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
@@ -79,16 +79,6 @@ const Login = ({ onToggleView }) => {
       setError(err.message || 'Google authentication failed.');
       setGoogleLoading(false);
     }
-  };
-
-  const handleAdminBypass = () => {
-    setError('');
-    bypassLogin('admin');
-  };
-
-  const handleStudentBypass = () => {
-    setError('');
-    bypassLogin('student');
   };
 
   return (
@@ -314,80 +304,6 @@ const Login = ({ onToggleView }) => {
             </p>
           </div>
 
-          {/* ── Bypass Access ── */}
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.04)',
-            border: '1px solid rgba(59, 130, 246, 0.15)',
-            borderRadius: '14px',
-            padding: '14px 16px',
-            marginBottom: '20px'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '10px'
-            }}>
-              <span style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: 'var(--primary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <Sparkles size={13} /> Instant Bypass Access
-              </span>
-              <span style={{
-                fontSize: '0.68rem',
-                color: 'var(--text-muted)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.03)'
-              }}>Demo / Testing</span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <button
-                onClick={handleAdminBypass}
-                type="button"
-                className="btn btn-primary btn-shine"
-                style={{
-                  padding: '9px 14px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Shield size={14} /> Admin Bypass
-              </button>
-
-              <button
-                onClick={handleStudentBypass}
-                type="button"
-                className="btn btn-secondary"
-                style={{
-                  padding: '9px 14px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <UserCheck size={14} /> Student Bypass
-              </button>
-            </div>
-          </div>
-
           {/* Error Alert */}
           {error && (
             <div style={{
@@ -459,7 +375,7 @@ const Login = ({ onToggleView }) => {
           }}>
             <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-              or continue with username
+              or sign in with credentials
             </span>
             <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
           </div>
@@ -468,14 +384,14 @@ const Login = ({ onToggleView }) => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Username
+                Institutional Email or Username
               </label>
               <input
                 type="text"
                 className="glass-input"
-                placeholder="e.g. rohan or admin"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Sistec.library@sistec.ac.in or student ID"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 disabled={loading || googleLoading}
                 autoComplete="username"
               />
