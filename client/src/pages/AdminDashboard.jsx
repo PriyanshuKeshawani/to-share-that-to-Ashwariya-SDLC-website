@@ -4,13 +4,14 @@ import {
   Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
   Search, ShieldAlert, Award, FileText, Download, TrendingUp,
   Upload, Layers, CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
-  Menu, ArrowLeftRight, MapPin, Settings, Package, UploadCloud
+  Menu, ArrowLeftRight, MapPin, Settings, Package, UploadCloud, Activity
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import SettingsView from '../components/SettingsView';
 import RoomSeatingManager from '../components/RoomSeatingManager';
+import StudentActivityModal from '../components/StudentActivityModal';
 
 const AdminDashboard = () => {
   const { logout, apiCall } = useAuth();
@@ -29,6 +30,7 @@ const AdminDashboard = () => {
   const [studentBranchFilter, setStudentBranchFilter] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name } or null
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectedStudentForActivity, setSelectedStudentForActivity] = useState(null);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
@@ -1361,12 +1363,20 @@ const AdminDashboard = () => {
                           </thead>
                           <tbody>
                             {filteredStudents.map((s, idx) => (
-                              <tr key={s.id} style={{
-                                borderBottom: '1px solid var(--border-glass)',
-                                transition: 'background 0.15s ease'
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              <tr
+                                key={s.id}
+                                onClick={(e) => {
+                                  if (!e.target.closest('button') && !e.target.closest('input')) {
+                                    setSelectedStudentForActivity(s);
+                                  }
+                                }}
+                                style={{
+                                  borderBottom: '1px solid var(--border-glass)',
+                                  transition: 'background 0.15s ease',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                               >
                                 <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                                   <input
@@ -1377,18 +1387,22 @@ const AdminDashboard = () => {
                                   />
                                 </td>
                                 <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{idx + 1}</td>
-                                <td style={{ padding: '14px 16px' }}>
+                                <td style={{ padding: '14px 16px' }} title="Click to view complete activity history">
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div style={{
                                       width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
                                       background: `linear-gradient(135deg, var(--primary), var(--secondary))`,
                                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      fontSize: '0.85rem', fontWeight: 700, color: '#fff'
+                                      fontSize: '0.85rem', fontWeight: 700, color: '#fff',
+                                      boxShadow: '0 2px 8px var(--primary-glow)'
                                     }}>
                                       {s.full_name?.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.full_name}</div>
+                                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span>{s.full_name}</span>
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', opacity: 0.8 }}>↗</span>
+                                      </div>
                                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{s.username}</div>
                                     </div>
                                   </div>
@@ -1420,9 +1434,29 @@ const AdminDashboard = () => {
                                  </td>
                                  <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setSelectedStudentForActivity(s);
+                                       }}
+                                       className="btn btn-secondary"
+                                       style={{
+                                         padding: '7px 12px',
+                                         borderColor: 'rgba(37, 99, 235, 0.35)',
+                                         color: 'var(--primary)',
+                                         fontSize: '0.8rem', gap: '6px'
+                                       }}
+                                       title={`View complete activity & study history for ${s.full_name}`}
+                                     >
+                                       <Activity size={14} /> Activity
+                                     </button>
+
                                      {s.is_blocked === 1 ? (
                                        <button
-                                         onClick={() => handleToggleBlock(s.id, false)}
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleToggleBlock(s.id, false);
+                                         }}
                                          className="btn btn-secondary"
                                          style={{
                                            padding: '7px 12px',
@@ -1436,7 +1470,10 @@ const AdminDashboard = () => {
                                        </button>
                                      ) : (
                                        <button
-                                         onClick={() => handleToggleBlock(s.id, true)}
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleToggleBlock(s.id, true);
+                                         }}
                                          className="btn btn-secondary"
                                          style={{
                                            padding: '7px 12px',
@@ -1450,7 +1487,10 @@ const AdminDashboard = () => {
                                        </button>
                                      )}
                                      <button
-                                       onClick={() => setDeleteConfirm({ id: s.id, name: s.full_name })}
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setDeleteConfirm({ id: s.id, name: s.full_name });
+                                       }}
                                        className="btn btn-secondary"
                                        style={{
                                          padding: '7px 12px',
@@ -3141,6 +3181,18 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Student Activity History Modal */}
+      {selectedStudentForActivity && (
+        <StudentActivityModal
+          student={selectedStudentForActivity}
+          onClose={() => setSelectedStudentForActivity(null)}
+          onToggleBlock={(id, blockStatus) => {
+            handleToggleBlock(id, blockStatus);
+            setSelectedStudentForActivity(prev => prev ? { ...prev, is_blocked: blockStatus ? 1 : 0 } : null);
+          }}
+        />
       )}
     </div>
   );

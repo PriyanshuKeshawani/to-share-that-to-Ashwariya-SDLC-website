@@ -272,6 +272,84 @@ export const AuthProvider = ({ children }) => {
       return { message: 'Users deleted successfully' };
     }
 
+    // Complete Student Activity History Endpoint
+    if (endpoint.startsWith('/students/') && endpoint.endsWith('/activity') && method === 'GET') {
+      const studentId = endpoint.split('/')[2];
+      
+      const [
+        { data: studentUser },
+        { data: loansData },
+        { data: sessionsData },
+        { data: activeTable },
+        { data: bookProgress },
+        { data: permissionsData },
+        { data: activityLogs }
+      ] = await Promise.all([
+        supabase.from('users').select('*').eq('id', studentId).maybeSingle(),
+        supabase.from('book_loans').select(`
+          *,
+          copy:copy_id(copy_uuid, qr_code, book:book_id(title, author, category_id, branch_id))
+        `).eq('user_id', studentId).order('created_at', { ascending: false }),
+        supabase.from('library_sessions').select(`
+          *,
+          table:table_id(table_number, room:room_id(name))
+        `).eq('user_id', studentId).order('created_at', { ascending: false }),
+        supabase.from('tables').select('*, room:room_id(name)').eq('current_occupant_id', studentId).maybeSingle(),
+        supabase.from('user_book_progress').select(`
+          *,
+          book:book_id(title, author, category:category_id(name), branch:branch_id(name))
+        `).eq('user_id', studentId).order('last_accessed_at', { ascending: false }),
+        supabase.from('permissions').select('*, branch:branch_id(name)').eq('user_id', studentId).order('created_at', { ascending: false }),
+        supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(50)
+      ]);
+
+      const formattedLoans = (loansData || []).map(l => ({
+        ...l,
+        book_title: l.copy?.book?.title || 'Unknown Title',
+        book_author: l.copy?.book?.author || 'Unknown Author',
+        copy_uuid: l.copy?.copy_uuid || null,
+        qr_code: l.copy?.qr_code || null
+      }));
+
+      const formattedSessions = (sessionsData || []).map(s => ({
+        ...s,
+        table_number: s.table?.table_number || 'N/A',
+        room_name: s.table?.room?.name || 'Reading Hall'
+      }));
+
+      const totalLoansCount = formattedLoans.length;
+      const activeLoans = formattedLoans.filter(l => l.status === 'issued');
+      const returnedLoans = formattedLoans.filter(l => l.status === 'returned');
+      const overdueLoans = formattedLoans.filter(l => l.status === 'overdue');
+      const totalFine = formattedLoans.reduce((sum, l) => sum + (parseFloat(l.fine_amount) || 0), 0);
+      const totalStudyMinutes = formattedSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
+
+      return {
+        student: studentUser,
+        stats: {
+          totalLoans: totalLoansCount,
+          activeLoansCount: activeLoans.length,
+          returnedLoansCount: returnedLoans.length,
+          overdueLoansCount: overdueLoans.length,
+          totalFine,
+          totalSessions: formattedSessions.length,
+          totalStudyMinutes,
+          eBooksRead: (bookProgress || []).length
+        },
+        currentDesk: activeTable ? {
+          table_id: activeTable.id,
+          table_number: activeTable.table_number,
+          room_name: activeTable.room?.name || 'Library',
+          session_started_at: activeTable.session_started_at
+        } : null,
+        loans: formattedLoans,
+        sessions: formattedSessions,
+        bookProgress: bookProgress || [],
+        permissions: permissionsData || [],
+        logs: activityLogs || []
+      };
+    }
+
     // 5. Permissions / Requests
     if (endpoint === '/permissions/pending-requests') {
       const { data, error } = await supabase.from('permissions').select('*, user:user_id(full_name, roll_number, branch_name), branch:branch_id(name)').eq('status', 'pending').order('created_at', { ascending: false });

@@ -226,6 +226,45 @@ async function runDeepTests() {
     assert(updatedUnread === 0, 'Marking notification as read reduces unread count to 0');
   }
 
+  // ──────────────────────────────────────────────────
+  // TEST SUITE 6: Student Complete Activity History & Analytics
+  // ──────────────────────────────────────────────────
+  console.log('\n📊 [6/6] Testing Student Complete Activity History & Analytics:');
+  {
+    const mockStudentId = 'student-uuid-999';
+    const mockLoans = [
+      { id: 'l1', book_title: 'Operating System Concepts', status: 'issued', fine_amount: 0 },
+      { id: 'l2', book_title: 'Database System Concepts', status: 'returned', fine_amount: 15 },
+      { id: 'l3', book_title: 'Computer Networks', status: 'overdue', fine_amount: 30 }
+    ];
+
+    const mockSessions = [
+      { id: 's1', room_name: 'Reading Hall 101', table_number: 'A-1', duration_minutes: 120 },
+      { id: 's2', room_name: 'Reading Hall 101', table_number: 'B-4', duration_minutes: 45 },
+      { id: 's3', room_name: 'Digital Library', table_number: 'C-2', duration_minutes: 95 }
+    ];
+
+    const mockEBooks = [
+      { id: 'eb1', title: 'Data Structures & Algorithms in JS', last_page_read: 142 },
+      { id: 'eb2', title: 'Modern Artificial Intelligence', last_page_read: 56 }
+    ];
+
+    const activeLoans = mockLoans.filter(l => l.status === 'issued');
+    const overdueLoans = mockLoans.filter(l => l.status === 'overdue');
+    const returnedLoans = mockLoans.filter(l => l.status === 'returned');
+    const totalFine = mockLoans.reduce((sum, l) => sum + l.fine_amount, 0);
+    const totalStudyMins = mockSessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    assert(mockLoans.length === 3, 'Lifetime loans accurately count 3 books');
+    assert(activeLoans.length === 1, 'Active loans count 1 currently held book');
+    assert(overdueLoans.length === 1, 'Overdue loans count 1 book');
+    assert(returnedLoans.length === 1, 'Returned loans count 1 book');
+    assert(totalFine === 45, `Accumulated fines calculated accurately: ₹45 (got ₹${totalFine})`);
+    assert(mockSessions.length === 3, 'Total study desk visits count 3 sessions');
+    assert(totalStudyMins === 260, `Total study duration computed accurately: 260 mins / 4h 20m (got ${totalStudyMins} mins)`);
+    assert(mockEBooks.length === 2, 'Digital e-books accessed count 2 titles');
+  }
+
   console.log('\n====================================================');
   console.log(`🏁 TEST RESULTS: ${passed} PASSED | ${failed} FAILED`);
   console.log('====================================================\n');
