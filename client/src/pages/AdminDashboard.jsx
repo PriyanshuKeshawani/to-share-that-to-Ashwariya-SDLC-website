@@ -2702,14 +2702,6 @@ const AdminDashboard = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <NotificationBell />
-          <button 
-            onClick={() => setShowMenuDrawer(true)}
-            className="btn btn-secondary"
-            style={{ padding: '6px', borderRadius: '50%', width: '34px', height: '34px', minWidth: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            aria-label="Open Navigation Menu"
-          >
-            <Menu size={17} />
-          </button>
         </div>
       </header>
 
