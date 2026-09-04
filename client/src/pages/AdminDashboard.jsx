@@ -10,6 +10,7 @@ import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import SettingsView from '../components/SettingsView';
+import RoomSeatingManager from '../components/RoomSeatingManager';
 
 const AdminDashboard = () => {
   const { logout, apiCall } = useAuth();
@@ -1678,70 +1679,17 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Rooms & Tables Tab */}
+            {/* Rooms & Interactive BookMyShow Seating Tab */}
             {activeTab === 'rooms' && (
-              <div className="animate-fade-in">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }} className="responsive-grid-1col">
-                  <div>
-                    <h2>Rooms & Tables</h2>
-                    <p style={{ marginTop: '4px' }}>Manage library rooms, tables, and QR check-in locations.</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
-                    <button onClick={() => setShowRoomModal(true)} className="btn btn-primary" style={{ padding: '10px 18px' }}>
-                      <Plus size={16} /> Add Room
-                    </button>
-                    <button onClick={() => setShowTableModal(true)} className="btn btn-secondary" style={{ padding: '10px 18px' }}>
-                      <Plus size={16} /> Add Table
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
-                  {rooms.map(room => (
-                    <div key={room.id} className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <h4 style={{ margin: 0 }}>{room.name}</h4>
-                        <button
-                          onClick={async () => { await apiCall(`/rooms/${room.id}`, { method: 'DELETE' }); setRooms(prev => prev.filter(r => r.id !== room.id)); showFeedback('Room deleted'); }}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--danger)' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      {room.description && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>{room.description}</p>}
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {room.tables?.length === 0 && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No tables yet.</p>}
-                        {room.tables?.map(table => (
-                          <div key={table.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px' }}>
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Table {table.table_number}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>QR: {table.qr_identifier}</div>
-                              <div style={{ fontSize: '0.75rem', color: table.status === 'occupied' ? 'var(--success)' : 'var(--text-muted)' }}>
-                                {table.status === 'occupied' ? `Occupied by ${table.occupant_name || 'someone'}` : 'Free'}
-                              </div>
-                            </div>
-                            <button
-                              onClick={async () => { await apiCall(`/tables/${table.id}`, { method: 'DELETE' }); setAllTables(prev => prev.filter(t => t.id !== table.id)); showFeedback('Table deleted'); }}
-                              className="btn btn-secondary"
-                              style={{ padding: '6px', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--danger)' }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  {rooms.length === 0 && (
-                    <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', gridColumn: '1 / -1' }}>
-                      <MapPin size={40} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-                      <h4>No rooms configured</h4>
-                      <p style={{ marginTop: '8px' }}>Add rooms and tables to enable QR-based presence tracking.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <RoomSeatingManager
+                rooms={rooms}
+                tables={allTables}
+                apiCall={apiCall}
+                showFeedback={showFeedback}
+                onRefresh={fetchAllAdminData}
+                onAddRoomModal={() => setShowRoomModal(true)}
+                onAddTableModal={() => setShowTableModal(true)}
+              />
             )}
 
             {/* Book Copies Tab */}

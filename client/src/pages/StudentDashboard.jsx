@@ -13,6 +13,7 @@ import StatusBadge from '../components/StatusBadge';
 import BottomNav from '../components/BottomNav';
 import SettingsView from '../components/SettingsView';
 import { SkeletonCard, SkeletonStatCard, SkeletonTable } from '../components/SkeletonLoader';
+import DeskCheckinSuccessModal from '../components/DeskCheckinSuccessModal';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall, BASE_URL } = useAuth();
@@ -37,6 +38,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   // QR Scanner Modal
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [qrScannerType, setQrScannerType] = useState('table');
+  const [checkinSuccessData, setCheckinSuccessData] = useState(null);
 
   const showFeedback = (text, type = 'success') => {
     setFeedbackMsg({ text, type });
@@ -112,9 +114,10 @@ const StudentDashboard = ({ onSelectBook }) => {
         method: 'POST',
         body: JSON.stringify({ table_id: table.id })
       });
-      showFeedback(`Checked in at Table ${table.table_number}${table.room ? ` (${table.room.name})` : ''}`);
       const session = await apiCall('/library-sessions/my-current');
       setCurrentSession(session);
+      setCheckinSuccessData({ sessionData: session, tableInfo: table });
+      showFeedback(`Checked in at Table ${table.table_number}${table.room ? ` (${table.room.name})` : ''}`);
     } catch (err) {
       showFeedback(err.message || 'Failed to check in', 'error');
     }
@@ -983,6 +986,15 @@ const StudentDashboard = ({ onSelectBook }) => {
           type={qrScannerType}
           onScan={qrScannerType === 'table' ? handleTableScan : undefined}
           onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
+      {/* ── Desk Check-in Instant Confirmation Modal ── */}
+      {checkinSuccessData && (
+        <DeskCheckinSuccessModal
+          sessionData={checkinSuccessData.sessionData}
+          tableInfo={checkinSuccessData.tableInfo}
+          onClose={() => setCheckinSuccessData(null)}
         />
       )}
     </div>

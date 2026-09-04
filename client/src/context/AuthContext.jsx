@@ -540,10 +540,67 @@ export const AuthProvider = ({ children }) => {
       return data || [];
     }
 
+    // Bulk Rooms & Tables Creation
+    if (endpoint === '/rooms/bulk' && method === 'POST') {
+      const { rooms: bulkRooms } = body;
+      if (!Array.isArray(bulkRooms) || bulkRooms.length === 0) {
+        throw new Error('No rooms specified for bulk creation');
+      }
+
+      const createdRooms = [];
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+      for (let i = 0; i < bulkRooms.length; i++) {
+        const r = bulkRooms[i];
+        const roomPayload = {
+          name: r.name,
+          description: r.description || `Capacity: ${r.seatsCount || 60} study desks`
+        };
+
+        const { data: newRoom, error: roomErr } = await supabase.from('rooms').insert([roomPayload]).select().single();
+        if (roomErr) throw roomErr;
+        createdRooms.push(newRoom);
+
+        // Generate tables for this room
+        const seats = Math.max(1, parseInt(r.seatsCount, 10) || 60);
+        const cols = 10;
+        const tablesPayload = [];
+
+        for (let s = 0; s < seats; s++) {
+          const rowIdx = Math.floor(s / cols);
+          const colIdx = (s % cols) + 1;
+          const rowLetter = alphabet[rowIdx] || `R${rowIdx + 1}`;
+          const seatCode = `${rowLetter}-${colIdx}`;
+          const qrId = `TABLE-R${newRoom.id}-${seatCode}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+
+          tablesPayload.push({
+            room_id: newRoom.id,
+            table_number: seatCode,
+            qr_identifier: qrId,
+            status: 'free'
+          });
+        }
+
+        if (tablesPayload.length > 0) {
+          const { error: tablesErr } = await supabase.from('tables').insert(tablesPayload);
+          if (tablesErr) console.warn(`Error inserting tables for room ${newRoom.id}:`, tablesErr.message);
+        }
+      }
+
+      return { message: `Successfully created ${createdRooms.length} rooms`, data: createdRooms };
+    }
+
     if (endpoint === '/rooms' && method === 'POST') {
       const { data, error } = await supabase.from('rooms').insert([body]).select().single();
       if (error) throw error;
       return { message: 'Room created', data };
+    }
+
+    if (endpoint.startsWith('/rooms/') && method === 'PUT') {
+      const roomId = endpoint.split('/').pop();
+      const { data, error } = await supabase.from('rooms').update(body).eq('id', roomId).select().single();
+      if (error) throw error;
+      return { message: 'Room updated', data };
     }
 
     if (endpoint.startsWith('/rooms/') && method === 'DELETE') {
