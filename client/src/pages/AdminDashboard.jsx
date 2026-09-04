@@ -2372,14 +2372,32 @@ const AdminDashboard = () => {
 
                     {editingBook && editingBook.pdf_url && (
                       <div style={{
-                        marginTop: '8px',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        fontSize: '0.72rem',
-                        color: 'var(--text-secondary)'
+                        marginTop: '10px',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        fontSize: '0.74rem',
+                        color: '#60a5fa',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        maxWidth: '100%',
+                        overflow: 'hidden'
                       }}>
-                        Current: {editingBook.pdf_url.split('/').pop()}
+                        <FileText size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>Current Document:</span>
+                        <span style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: 'var(--text-primary)',
+                          maxWidth: '240px'
+                        }}>
+                          {editingBook.pdf_url.startsWith('data:')
+                            ? `${editingBook.title || 'Digital Document'}.pdf (Embedded)`
+                            : editingBook.pdf_url.split('/').pop()}
+                        </span>
                       </div>
                     )}
                   </div>

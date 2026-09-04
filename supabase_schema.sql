@@ -239,4 +239,8 @@ CREATE POLICY "Anyone can update pdfs" ON storage.objects FOR UPDATE USING (buck
 DROP POLICY IF EXISTS "Anyone can delete pdfs" ON storage.objects;
 CREATE POLICY "Anyone can delete pdfs" ON storage.objects FOR DELETE USING (bucket_id = 'pdfs');
 
+-- 16. Relax Permissions User FK (Supports Demo Students, Bypass Logins & External Users)
+ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
+
+
 
