@@ -98,22 +98,47 @@ const Dashboard = ({ onSelectBook }) => {
         body: JSON.stringify({ book_id: book.id, action_type: 'download' })
       });
 
-      // Trigger browser download for the actual file
-      const link = document.createElement('a');
-      if (book.pdf_url && book.pdf_url.startsWith('/uploads/')) {
-        link.href = `${BASE_URL}${book.pdf_url}`;
-        link.setAttribute('target', '_blank');
-        const filename = book.pdf_url.split('/').pop();
+      const safeTitle = (book.title || 'document').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const filename = `${safeTitle}.pdf`;
+
+      if (book.pdf_url && book.pdf_url.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = book.pdf_url;
         link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else if (book.pdf_url && (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('/uploads/'))) {
+        const fullUrl = book.pdf_url.startsWith('http') ? book.pdf_url : `${BASE_URL}${book.pdf_url}`;
+        try {
+          const resp = await fetch(fullUrl);
+          const blob = await resp.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.setAttribute('download', filename);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch {
+          const link = document.createElement('a');
+          link.href = fullUrl;
+          link.target = '_blank';
+          link.setAttribute('download', filename);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       } else {
-        // Fallback for seeded mock PDF content
-        const blob = new Blob([`Simulated PDF Content for ${book.title}`], { type: 'application/pdf' });
+        const blob = new Blob([`%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\ntrailer<</Size 4/Root 1 0 R>>\n%%EOF`], { type: 'application/pdf' });
+        const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', `${book.title.toLowerCase().replace(/ /g, '_')}.pdf`);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
 
       showFeedback(`"${book.title}" downloaded successfully!`, 'success');
       

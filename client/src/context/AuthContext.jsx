@@ -123,6 +123,14 @@ export const AuthProvider = ({ children }) => {
               pdf_url = publicUrlData ? publicUrlData.publicUrl : null;
             } else {
               console.warn('Storage upload note for', pdfFile.name, ':', uploadErr.message);
+              if (pdfFile.size <= 8 * 1024 * 1024) {
+                pdf_url = await new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = () => resolve(null);
+                  reader.readAsDataURL(pdfFile);
+                }).catch(() => null);
+              }
             }
 
             const bookPayload = { title, author: sharedAuthor, category_id, branch_id, priority };
@@ -174,8 +182,19 @@ export const AuthProvider = ({ children }) => {
             const { data: publicUrlData } = supabase.storage.from('pdfs').getPublicUrl(fileName);
             pdf_url = publicUrlData ? publicUrlData.publicUrl : null;
           } else {
-            console.warn('Storage upload error:', uploadErr.message);
-            throw new Error(`PDF upload failed: ${uploadErr.message}`);
+            console.warn('Supabase storage upload notice:', uploadErr.message);
+            // Resilient fallback: Convert to Base64 Data URL so PDF upload succeeds even before storage bucket is created
+            if (pdfFile.size <= 8 * 1024 * 1024) {
+              pdf_url = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(pdfFile);
+              }).catch(() => null);
+            }
+            if (!pdf_url) {
+              throw new Error(`PDF upload failed: ${uploadErr.message}. Ensure 'pdfs' bucket exists in Supabase storage.`);
+            }
           }
         }
 

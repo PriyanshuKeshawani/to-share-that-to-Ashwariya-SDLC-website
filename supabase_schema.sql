@@ -222,3 +222,21 @@ CREATE INDEX IF NOT EXISTS idx_books_branch_cat ON books(branch_id, category_id)
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
 
+-- 15. Supabase Storage Bucket & Policies for Digital PDFs
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('pdfs', 'pdfs', true, 52428800, ARRAY['application/pdf']::text[])
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Public can view pdfs" ON storage.objects;
+CREATE POLICY "Public can view pdfs" ON storage.objects FOR SELECT USING (bucket_id = 'pdfs');
+
+DROP POLICY IF EXISTS "Anyone can upload pdfs" ON storage.objects;
+CREATE POLICY "Anyone can upload pdfs" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'pdfs');
+
+DROP POLICY IF EXISTS "Anyone can update pdfs" ON storage.objects;
+CREATE POLICY "Anyone can update pdfs" ON storage.objects FOR UPDATE USING (bucket_id = 'pdfs');
+
+DROP POLICY IF EXISTS "Anyone can delete pdfs" ON storage.objects;
+CREATE POLICY "Anyone can delete pdfs" ON storage.objects FOR DELETE USING (bucket_id = 'pdfs');
+
+
