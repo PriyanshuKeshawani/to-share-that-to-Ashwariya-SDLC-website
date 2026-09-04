@@ -79,8 +79,8 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
     if (!mins || mins <= 0) return '0 mins';
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
-    if (hrs === 0) return `${remMins} mins`;
-    if (remMins === 0) return `${hrs} hrs`;
+    if (hrs === 0) return `${remMins}m`;
+    if (remMins === 0) return `${hrs}h`;
     return `${hrs}h ${remMins}m`;
   };
 
@@ -231,107 +231,337 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
 
   return (
     <div 
-      className="modal-backdrop animate-fade-in"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.75)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '20px'
-      }}
+      className="sam-modal-backdrop animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div
-        className="glass-panel animate-scale-up"
-        style={{
-          width: '100%',
-          maxWidth: '1080px',
-          maxHeight: '92vh',
-          background: 'var(--bg-card-solid)',
-          border: '1.5px solid var(--border-glass-hover)',
-          borderRadius: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'var(--shadow-elevated)',
-          overflow: 'hidden',
-          position: 'relative'
-        }}
-      >
+      <style>{`
+        .sam-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(3, 7, 18, 0.85);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 16px;
+        }
+        .sam-modal-container {
+          width: 100%;
+          max-width: 1040px;
+          max-height: 94vh;
+          background: var(--bg-card-solid);
+          border: 1.5px solid var(--border-glass-hover);
+          border-radius: 20px;
+          display: flex;
+          flex-direction: column;
+          box-shadow: var(--shadow-elevated);
+          overflow: hidden;
+          position: relative;
+        }
+        .sam-header {
+          padding: 20px 24px;
+          border-bottom: 1px solid var(--border-glass);
+          background: linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(13, 22, 42, 0.4) 100%);
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .sam-header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+        }
+        .sam-student-profile {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          flex: 1;
+          min-width: 0;
+        }
+        .sam-avatar {
+          width: 52px;
+          height: 52px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, var(--primary), #1e40af);
+          color: #fff;
+          font-size: 1.35rem;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 16px var(--primary-glow);
+          border: 2px solid rgba(255, 255, 255, 0.15);
+          flex-shrink: 0;
+        }
+        .sam-profile-info {
+          min-width: 0;
+          flex: 1;
+        }
+        .sam-name-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .sam-student-name {
+          font-size: 1.3rem;
+          font-weight: 800;
+          margin: 0;
+          color: var(--text-primary);
+          word-break: break-word;
+          line-height: 1.25;
+        }
+        .sam-details-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 6px;
+          font-size: 0.78rem;
+          color: var(--text-secondary);
+          flex-wrap: wrap;
+        }
+        .sam-detail-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: var(--input-bg);
+          padding: 2px 7px;
+          border-radius: 6px;
+          border: 1px solid var(--border-glass);
+          white-space: nowrap;
+        }
+        .sam-actions-desktop {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .sam-actions-mobile {
+          display: none;
+          gap: 8px;
+          width: 100%;
+          margin-top: 2px;
+        }
+        .sam-close-btn {
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          border-radius: 50%;
+          color: var(--text-muted);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .sam-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 10px;
+          margin-top: 2px;
+        }
+        .sam-kpi-card {
+          padding: 10px 12px;
+          border-radius: 12px;
+          background: var(--input-bg);
+          border: 1px solid var(--border-glass);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .sam-kpi-icon {
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .sam-kpi-value {
+          font-size: 1.05rem;
+          font-weight: 800;
+          color: var(--text-primary);
+          line-height: 1.2;
+        }
+        .sam-kpi-label {
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+          font-weight: 600;
+        }
+        .sam-tabs-bar {
+          padding: 0 20px;
+          border-bottom: 1px solid var(--border-glass);
+          background: rgba(0, 0, 0, 0.1);
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .sam-tabs-bar::-webkit-scrollbar {
+          display: none;
+        }
+        .sam-tab-btn {
+          padding: 12px 14px;
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-weight: 500;
+          font-size: 0.84rem;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+          border-bottom: 2px solid transparent;
+        }
+        .sam-tab-btn.active {
+          color: var(--primary);
+          font-weight: 700;
+          border-bottom-color: var(--primary);
+        }
+        .sam-tab-body {
+          padding: 20px 24px;
+          overflow-y: auto;
+          flex: 1;
+        }
+        .sam-footer {
+          padding: 12px 24px;
+          border-top: 1px solid var(--border-glass);
+          background: rgba(0, 0, 0, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        /* ── Mobile Layout Adjustments (max-width: 640px) ── */
+        @media (max-width: 640px) {
+          .sam-modal-backdrop {
+            padding: 8px !important;
+          }
+          .sam-modal-container {
+            max-height: 96vh !important;
+            border-radius: 16px !important;
+          }
+          .sam-header {
+            padding: 14px 14px !important;
+            gap: 10px !important;
+          }
+          .sam-header-top {
+            gap: 8px !important;
+            align-items: flex-start !important;
+          }
+          .sam-avatar {
+            width: 42px !important;
+            height: 42px !important;
+            font-size: 1.1rem !important;
+            border-radius: 11px !important;
+          }
+          .sam-student-name {
+            font-size: 1.1rem !important;
+          }
+          .sam-actions-desktop {
+            display: none !important;
+          }
+          .sam-actions-mobile {
+            display: flex !important;
+          }
+          .sam-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .sam-kpi-card {
+            padding: 8px 10px !important;
+            gap: 8px !important;
+          }
+          .sam-kpi-icon {
+            width: 28px !important;
+            height: 28px !important;
+            border-radius: 7px !important;
+          }
+          .sam-kpi-value {
+            font-size: 0.95rem !important;
+          }
+          .sam-kpi-label {
+            font-size: 0.65rem !important;
+          }
+          .sam-tabs-bar {
+            padding: 0 10px !important;
+          }
+          .sam-tab-btn {
+            padding: 10px 10px !important;
+            font-size: 0.76rem !important;
+            gap: 4px !important;
+          }
+          .sam-tab-body {
+            padding: 14px 12px !important;
+          }
+          .sam-footer {
+            padding: 10px 14px !important;
+          }
+        }
+      `}</style>
+
+      <div className="sam-modal-container animate-scale-up">
         {/* ── Modal Header & Student Info Card ── */}
-        <div style={{
-          padding: '24px 28px',
-          borderBottom: '1px solid var(--border-glass)',
-          background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(13, 22, 42, 0.4) 100%)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div className="sam-header">
+          <div className="sam-header-top">
+            <div className="sam-student-profile">
               {/* Avatar */}
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, var(--primary), #1e40af)',
-                color: '#fff',
-                fontSize: '1.4rem',
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 16px var(--primary-glow)',
-                border: '2px solid rgba(255, 255, 255, 0.15)',
-                flexShrink: 0
-              }}>
+              <div className="sam-avatar">
                 {student.full_name?.charAt(0).toUpperCase() || 'S'}
               </div>
 
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              <div className="sam-profile-info">
+                <div className="sam-name-row">
+                  <h2 className="sam-student-name">
                     {student.full_name}
                   </h2>
-                  <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                  <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
                     @{student.username}
                   </span>
                   {student.is_blocked === 1 ? (
                     <span className="badge badge-danger" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
-                      Account Blocked
+                      Blocked
                     </span>
                   ) : (
                     <StatusBadge status={student.status} />
                   )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                  <span><strong>Roll:</strong> {student.roll_number || 'N/A'}</span>
-                  <span>&bull;</span>
-                  <span><strong>BT:</strong> {student.bt_number || 'N/A'}</span>
-                  <span>&bull;</span>
-                  <span><strong>Branch:</strong> {student.branch_name || 'General'}</span>
-                  <span>&bull;</span>
-                  <span><strong>Year:</strong> {student.year} &bull; <strong>Sem:</strong> {student.semester}</span>
-                  <span>&bull;</span>
-                  <span><strong>Joined:</strong> {new Date(student.created_at).toLocaleDateString()}</span>
+                <div className="sam-details-row">
+                  <span className="sam-detail-chip">
+                    <strong>Roll:</strong> {student.roll_number || 'N/A'}
+                  </span>
+                  <span className="sam-detail-chip">
+                    <strong>BT:</strong> {student.bt_number || 'N/A'}
+                  </span>
+                  <span className="sam-detail-chip">
+                    <strong>Branch:</strong> {student.branch_name || 'General'}
+                  </span>
+                  <span className="sam-detail-chip">
+                    Year {student.year}&bull;Sem {student.semester}
+                  </span>
+                  <span className="sam-detail-chip">
+                    Joined {new Date(student.created_at).toLocaleDateString()}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Action buttons & Close */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Desktop Action buttons & Close */}
+            <div className="sam-actions-desktop">
               <button
                 onClick={handlePrintReport}
                 className="btn btn-secondary"
-                style={{ padding: '8px 14px', fontSize: '0.82rem', gap: '6px' }}
+                style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '5px' }}
                 title="Print or export complete activity transcript"
               >
-                <Printer size={15} /> Print Transcript
+                <Printer size={14} /> Print Transcript
               </button>
 
               {onToggleBlock && (
@@ -339,95 +569,125 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                   onClick={() => onToggleBlock(student.id, student.is_blocked !== 1)}
                   className="btn btn-secondary"
                   style={{
-                    padding: '8px 14px',
-                    fontSize: '0.82rem',
-                    gap: '6px',
+                    padding: '7px 12px',
+                    fontSize: '0.8rem',
+                    gap: '5px',
                     color: student.is_blocked === 1 ? 'var(--success)' : 'var(--warning)',
                     borderColor: student.is_blocked === 1 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'
                   }}
                 >
                   {student.is_blocked === 1 ? (
-                    <><UserCheck size={15} /> Unblock</>
+                    <><UserCheck size={14} /> Unblock</>
                   ) : (
-                    <><UserX size={15} /> Block</>
+                    <><UserX size={14} /> Block</>
                   )}
                 </button>
               )}
 
               <button
                 onClick={onClose}
-                className="btn btn-secondary"
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  padding: 0,
-                  borderRadius: '50%',
-                  color: 'var(--text-muted)'
-                }}
+                className="btn btn-secondary sam-close-btn"
                 title="Close"
               >
                 <X size={18} />
               </button>
             </div>
+
+            {/* Mobile Close Button (Always visible on mobile) */}
+            <button
+              onClick={onClose}
+              className="btn btn-secondary sam-close-btn"
+              style={{ display: window.innerWidth <= 640 ? 'flex' : 'none' }}
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Mobile Action Buttons Row */}
+          <div className="sam-actions-mobile">
+            <button
+              onClick={handlePrintReport}
+              className="btn btn-secondary"
+              style={{ flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px' }}
+            >
+              <Printer size={14} /> Print Transcript
+            </button>
+            {onToggleBlock && (
+              <button
+                onClick={() => onToggleBlock(student.id, student.is_blocked !== 1)}
+                className="btn btn-secondary"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  fontSize: '0.78rem',
+                  gap: '5px',
+                  color: student.is_blocked === 1 ? 'var(--success)' : 'var(--warning)'
+                }}
+              >
+                {student.is_blocked === 1 ? (
+                  <><UserCheck size={14} /> Unblock</>
+                ) : (
+                  <><UserX size={14} /> Block</>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Currently Seated Banner (if active) */}
           {currentDesk && (
             <div style={{
-              padding: '10px 16px',
-              borderRadius: '12px',
+              padding: '8px 12px',
+              borderRadius: '10px',
               background: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '12px'
+              gap: '10px',
+              flexWrap: 'wrap'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{
-                  width: '10px',
-                  height: '10px',
+                  width: '8px',
+                  height: '8px',
                   borderRadius: '50%',
                   background: '#10b981',
-                  boxShadow: '0 0 10px #10b981',
-                  animation: 'pulse 2s infinite'
+                  boxShadow: '0 0 8px #10b981',
+                  animation: 'pulse 2s infinite',
+                  flexShrink: 0
                 }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#34d399' }}>
-                  Currently Seated & Studying at <strong>{currentDesk.table_number}</strong> in <strong>{currentDesk.room_name}</strong>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#34d399' }}>
+                  Seated at <strong>{currentDesk.table_number}</strong> ({currentDesk.room_name})
                 </span>
               </div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Session started: {new Date(currentDesk.session_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Since {new Date(currentDesk.session_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           )}
 
           {/* ── KPI Stat Cards ── */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '12px',
-            marginTop: '4px'
-          }}>
+          <div className="sam-kpi-grid">
             {[
               {
-                label: 'Currently Borrowed',
+                label: 'Borrowed Now',
                 value: stats.activeLoansCount,
                 suffix: 'books',
                 color: stats.activeLoansCount > 0 ? 'var(--primary)' : 'var(--text-muted)',
                 icon: BookOpen
               },
               {
-                label: 'Lifetime Borrowed',
+                label: 'All-Time Borrowed',
                 value: stats.totalLoans,
                 suffix: 'total',
                 color: '#38bdf8',
                 icon: Bookmark
               },
               {
-                label: 'Study Desk Visits',
+                label: 'Desk Visits',
                 value: stats.totalSessions,
-                suffix: 'sessions',
+                suffix: 'visits',
                 color: '#10b981',
                 icon: MapPin
               },
@@ -441,12 +701,12 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {
                 label: 'Fines Incurred',
                 value: stats.totalFine > 0 ? `₹${stats.totalFine}` : '₹0',
-                suffix: stats.totalFine > 0 ? 'Pending' : 'Clear',
+                suffix: stats.totalFine > 0 ? 'Dues' : 'Clear',
                 color: stats.totalFine > 0 ? '#ef4444' : 'var(--success)',
                 icon: DollarSign
               },
               {
-                label: 'Digital E-Books Read',
+                label: 'E-Books Read',
                 value: stats.eBooksRead,
                 suffix: 'titles',
                 color: '#f59e0b',
@@ -455,36 +715,21 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
             ].map((card, i) => {
               const Icon = card.icon;
               return (
-                <div
-                  key={i}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '12px',
-                    background: 'var(--input-bg)',
-                    border: '1px solid var(--border-glass)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}
-                >
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: `${card.color}18`,
-                    color: card.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <Icon size={18} />
+                <div key={i} className="sam-kpi-card">
+                  <div
+                    className="sam-kpi-icon"
+                    style={{
+                      background: `${card.color}18`,
+                      color: card.color
+                    }}
+                  >
+                    <Icon size={16} />
                   </div>
-                  <div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                      {card.value} {card.suffix && <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>{card.suffix}</span>}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="sam-kpi-value">
+                      {card.value} {card.suffix && <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>{card.suffix}</span>}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    <div className="sam-kpi-label">
                       {card.label}
                     </div>
                   </div>
@@ -495,20 +740,13 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
         </div>
 
         {/* ── Tabs Bar ── */}
-        <div style={{
-          padding: '0 28px',
-          borderBottom: '1px solid var(--border-glass)',
-          background: 'rgba(0, 0, 0, 0.1)',
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto'
-        }}>
+        <div className="sam-tabs-bar">
           {[
-            { id: 'overview', label: 'Summary Overview', icon: History, count: null },
-            { id: 'loans', label: 'Physical Book Loans', icon: BookOpen, count: loans.length },
-            { id: 'sessions', label: 'Desk & Room Check-Ins', icon: MapPin, count: sessions.length },
-            { id: 'ebooks', label: 'E-Books Progress', icon: Laptop, count: bookProgress.length },
-            { id: 'logs', label: 'Audit Trail & Permissions', icon: FileText, count: logs.length + permissions.length }
+            { id: 'overview', label: 'Overview', icon: History, count: null },
+            { id: 'loans', label: 'Loans', icon: BookOpen, count: loans.length },
+            { id: 'sessions', label: 'Desk Visits', icon: MapPin, count: sessions.length },
+            { id: 'ebooks', label: 'E-Books', icon: Laptop, count: bookProgress.length },
+            { id: 'logs', label: 'Audit Trail', icon: FileText, count: logs.length + permissions.length }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -516,29 +754,15 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: '14px 16px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
-                  color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '0.86rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.2s ease'
-                }}
+                className={`sam-tab-btn ${isActive ? 'active' : ''}`}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span>{tab.label}</span>
                 {tab.count !== null && (
                   <span style={{
-                    fontSize: '0.7rem',
-                    padding: '2px 7px',
-                    borderRadius: '10px',
+                    fontSize: '0.68rem',
+                    padding: '1px 6px',
+                    borderRadius: '8px',
                     background: isActive ? 'var(--primary)' : 'var(--input-bg)',
                     color: isActive ? '#fff' : 'var(--text-muted)',
                     fontWeight: 700
@@ -552,78 +776,71 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
         </div>
 
         {/* ── Scrollable Tab Body ── */}
-        <div style={{
-          padding: '24px 28px',
-          overflowY: 'auto',
-          flex: 1
-        }}>
+        <div className="sam-tab-body">
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{
-                width: '36px', height: '36px', border: '3px solid var(--border-glass)',
+                width: '32px', height: '32px', border: '3px solid var(--border-glass)',
                 borderTopColor: 'var(--primary)', borderRadius: '50%',
-                margin: '0 auto 16px auto', animation: 'spin 1s linear infinite'
+                margin: '0 auto 14px auto', animation: 'spin 1s linear infinite'
               }} />
-              <p>Fetching complete student activity history...</p>
+              <p style={{ fontSize: '0.88rem' }}>Fetching student activity records...</p>
             </div>
           ) : (
             <>
               {/* ════ TAB 1: OVERVIEW ════ */}
               {activeTab === 'overview' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {/* Quick Recent Activity Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
                     {/* Recent Book Circulation */}
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div className="glass-panel" style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <BookOpen size={18} color="var(--primary)" />
-                          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Recent Book Loans</h4>
+                          <BookOpen size={16} color="var(--primary)" />
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Recent Book Loans</h4>
                         </div>
                         <button
                           onClick={() => setActiveTab('loans')}
                           className="btn btn-secondary"
-                          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
                         >
-                          View All ({loans.length})
+                          View ({loans.length})
                         </button>
                       </div>
 
                       {loans.length === 0 ? (
-                        <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                           No books have been issued to this student yet.
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {loans.slice(0, 3).map((loan) => (
                             <div
                               key={loan.id}
                               style={{
-                                padding: '12px',
-                                borderRadius: '10px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
                                 background: 'var(--input-bg)',
                                 border: '1px solid var(--border-glass)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                gap: '12px'
+                                gap: '10px'
                               }}
                             >
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {loan.book_title}
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  {loan.book_author} &bull; Copy: {loan.qr_code || loan.copy_uuid || 'N/A'}
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  {loan.book_author} &bull; {loan.qr_code || loan.copy_uuid || 'Copy'}
                                 </div>
                               </div>
                               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <span className={`badge ${loan.status === 'returned' ? 'badge-success' : (loan.status === 'issued' ? 'badge-warning' : 'badge-danger')}`} style={{ fontSize: '0.68rem' }}>
+                                <span className={`badge ${loan.status === 'returned' ? 'badge-success' : (loan.status === 'issued' ? 'badge-warning' : 'badge-danger')}`} style={{ fontSize: '0.65rem' }}>
                                   {loan.status}
                                 </span>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                  {loan.returned_at ? `Returned ${new Date(loan.returned_at).toLocaleDateString()}` : `Due ${new Date(loan.due_date).toLocaleDateString()}`}
-                                </div>
                               </div>
                             </div>
                           ))}
@@ -632,56 +849,53 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                     </div>
 
                     {/* Recent Desk Visits */}
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div className="glass-panel" style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <MapPin size={18} color="#10b981" />
-                          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Recent Study Desk Visits</h4>
+                          <MapPin size={16} color="#10b981" />
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Recent Desk Visits</h4>
                         </div>
                         <button
                           onClick={() => setActiveTab('sessions')}
                           className="btn btn-secondary"
-                          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
                         >
-                          View All ({sessions.length})
+                          View ({sessions.length})
                         </button>
                       </div>
 
                       {sessions.length === 0 ? (
-                        <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                           No desk seating check-ins recorded yet.
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {sessions.slice(0, 3).map((sess) => (
                             <div
                               key={sess.id}
                               style={{
-                                padding: '12px',
-                                borderRadius: '10px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
                                 background: 'var(--input-bg)',
                                 border: '1px solid var(--border-glass)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                gap: '12px'
+                                gap: '10px'
                               }}
                             >
                               <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
                                   Table {sess.table_number}
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                   {sess.room_name}
                                 </div>
                               </div>
                               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
+                                <span className="badge badge-secondary" style={{ fontSize: '0.65rem' }}>
                                   {sess.duration_minutes ? formatDuration(sess.duration_minutes) : 'Active'}
                                 </span>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                  {new Date(sess.entered_at).toLocaleDateString()}
-                                </div>
                               </div>
                             </div>
                           ))}
@@ -691,40 +905,40 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                   </div>
 
                   {/* Academic Profile Details */}
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                      <User size={18} color="var(--secondary)" />
-                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Academic & System Record</h4>
+                  <div className="glass-panel" style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <User size={16} color="var(--secondary)" />
+                      <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Academic & Account File</h4>
                     </div>
 
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: '16px',
-                      fontSize: '0.85rem'
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                      gap: '12px',
+                      fontSize: '0.82rem'
                     }}>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Full Legal Name</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>Full Legal Name</span>
                         <strong style={{ color: 'var(--text-primary)' }}>{student.full_name}</strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Enrollment / Roll No</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>Enrollment / Roll No</span>
                         <strong style={{ color: 'var(--text-primary)' }}>{student.roll_number || 'N/A'}</strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>BT Number</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>BT Number</span>
                         <strong style={{ color: 'var(--text-primary)' }}>{student.bt_number || 'N/A'}</strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Assigned Branch</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>Assigned Branch</span>
                         <strong style={{ color: 'var(--text-primary)' }}>{student.branch_name || 'General'}</strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Current Semester</span>
-                        <strong style={{ color: 'var(--text-primary)' }}>Year {student.year} &bull; Semester {student.semester}</strong>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>Semester</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>Year {student.year} &bull; Sem {student.semester}</strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Account Status</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>Account Status</span>
                         <strong style={{ color: student.status === 'approved' ? 'var(--success)' : 'var(--warning)' }}>
                           {student.status?.toUpperCase()}
                         </strong>
@@ -738,40 +952,40 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {activeTab === 'loans' && (
                 <div>
                   {/* Filter & Search */}
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
-                      <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
+                      <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input
                         type="text"
                         className="glass-input"
-                        placeholder="Search books by title, author, or QR copy..."
+                        placeholder="Search loans..."
                         value={loanSearch}
                         onChange={(e) => setLoanSearch(e.target.value)}
-                        style={{ paddingLeft: '36px' }}
+                        style={{ paddingLeft: '34px', fontSize: '0.84rem' }}
                       />
                     </div>
                     <select
                       className="glass-input glass-select"
                       value={loanFilter}
                       onChange={(e) => setLoanFilter(e.target.value)}
-                      style={{ width: '160px' }}
+                      style={{ width: '140px', fontSize: '0.84rem' }}
                     >
                       <option value="all">All Loans ({loans.length})</option>
-                      <option value="issued">Issued / Holding</option>
+                      <option value="issued">Holding</option>
                       <option value="returned">Returned</option>
                       <option value="overdue">Overdue</option>
                     </select>
                   </div>
 
                   {filteredLoans.length === 0 ? (
-                    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <BookOpen size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <BookOpen size={36} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
                       <h4>No book loans found</h4>
-                      <p style={{ fontSize: '0.85rem' }}>This student has no book loan records matching your criteria.</p>
+                      <p style={{ fontSize: '0.82rem' }}>No loans match your search or filter.</p>
                     </div>
                   ) : (
                     <div className="table-responsive-wrapper">
-                      <table className="custom-table">
+                      <table className="custom-table" style={{ minWidth: '600px' }}>
                         <thead>
                           <tr>
                             <th>#</th>
@@ -779,35 +993,35 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                             <th>Copy QR Code</th>
                             <th>Issued Date</th>
                             <th>Due Date</th>
-                            <th>Returned Date</th>
+                            <th>Returned</th>
                             <th>Status</th>
-                            <th>Fine Dues</th>
+                            <th>Fine</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredLoans.map((loan, idx) => (
                             <tr key={loan.id}>
-                              <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{idx + 1}</td>
+                              <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
                               <td>
                                 <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{loan.book_title}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{loan.book_author}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{loan.book_author}</div>
                               </td>
-                              <td style={{ fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                              <td style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}>
                                 {loan.qr_code || loan.copy_uuid || 'N/A'}
                               </td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                 {loan.issued_at ? new Date(loan.issued_at).toLocaleDateString() : 'N/A'}
                               </td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                 {loan.due_date ? new Date(loan.due_date).toLocaleDateString() : 'N/A'}
                               </td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                 {loan.returned_at ? new Date(loan.returned_at).toLocaleDateString() : (
-                                  <span style={{ color: 'var(--warning)', fontWeight: 600 }}>Currently Holding</span>
+                                  <span style={{ color: 'var(--warning)', fontWeight: 600 }}>Holding</span>
                                 )}
                               </td>
                               <td>
-                                <span className={`badge ${loan.status === 'returned' ? 'badge-success' : (loan.status === 'issued' ? 'badge-warning' : 'badge-danger')}`}>
+                                <span className={`badge ${loan.status === 'returned' ? 'badge-success' : (loan.status === 'issued' ? 'badge-warning' : 'badge-danger')}`} style={{ fontSize: '0.65rem' }}>
                                   {loan.status}
                                 </span>
                               </td>
@@ -827,21 +1041,21 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {activeTab === 'sessions' && (
                 <div>
                   {sessions.length === 0 ? (
-                    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <MapPin size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
-                      <h4>No study desk visits recorded</h4>
-                      <p style={{ fontSize: '0.85rem' }}>When the student scans a desk QR badge, their session history will appear here.</p>
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <MapPin size={36} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
+                      <h4>No desk check-ins recorded</h4>
+                      <p style={{ fontSize: '0.82rem' }}>When the student scans a desk QR badge, history will appear here.</p>
                     </div>
                   ) : (
                     <div className="table-responsive-wrapper">
-                      <table className="custom-table">
+                      <table className="custom-table" style={{ minWidth: '550px' }}>
                         <thead>
                           <tr>
                             <th>#</th>
-                            <th>Hall / Room</th>
+                            <th>Room Location</th>
                             <th>Desk No</th>
-                            <th>Check-In Time</th>
-                            <th>Check-Out Time</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
                             <th>Duration</th>
                             <th>Status</th>
                           </tr>
@@ -849,31 +1063,28 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                         <tbody>
                           {sessions.map((sess, idx) => (
                             <tr key={sess.id}>
-                              <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{idx + 1}</td>
+                              <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
                               <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                                 {sess.room_name}
                               </td>
                               <td>
-                                <span className="badge badge-secondary" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                                <span className="badge badge-secondary" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
                                   {sess.table_number}
                                 </span>
                               </td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                 {new Date(sess.entered_at).toLocaleString()}
                               </td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                 {sess.exited_at ? new Date(sess.exited_at).toLocaleString() : (
-                                  <span style={{ color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                                    Active Now
-                                  </span>
+                                  <span style={{ color: '#10b981', fontWeight: 700 }}>Active</span>
                                 )}
                               </td>
-                              <td style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                              <td style={{ fontSize: '0.78rem', fontWeight: 600 }}>
                                 {sess.duration_minutes ? formatDuration(sess.duration_minutes) : 'In Progress'}
                               </td>
                               <td>
-                                <span className={`badge ${sess.exited_at ? 'badge-success' : 'badge-primary'}`}>
+                                <span className={`badge ${sess.exited_at ? 'badge-success' : 'badge-primary'}`} style={{ fontSize: '0.65rem' }}>
                                   {sess.exited_at ? 'Completed' : 'Seated'}
                                 </span>
                               </td>
@@ -890,56 +1101,55 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {activeTab === 'ebooks' && (
                 <div>
                   {bookProgress.length === 0 ? (
-                    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <Laptop size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <Laptop size={36} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
                       <h4>No digital e-books read yet</h4>
-                      <p style={{ fontSize: '0.85rem' }}>When the student opens digital PDFs in the reader, their reading progress will sync here.</p>
+                      <p style={{ fontSize: '0.82rem' }}>Digital reading progress will sync here as student browses books.</p>
                     </div>
                   ) : (
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                      gap: '16px'
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                      gap: '12px'
                     }}>
                       {bookProgress.map((item) => (
                         <div
                           key={item.id}
                           className="glass-panel"
-                          style={{ padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                          style={{ padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
                         >
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                              <span className="badge badge-secondary" style={{ fontSize: '0.65rem' }}>
-                                {item.book?.branch?.name || 'All Branches'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                              <span className="badge badge-secondary" style={{ fontSize: '0.62rem' }}>
+                                {item.book?.branch?.name || 'All'}
                               </span>
-                              <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>
+                              <span className="badge badge-primary" style={{ fontSize: '0.62rem' }}>
                                 {item.book?.category?.name || 'General'}
                               </span>
                             </div>
-                            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <h4 style={{ margin: '0 0 3px 0', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                               {item.book?.title || 'Unknown E-Book'}
                             </h4>
-                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              Author: {item.book?.author || 'Unknown'}
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {item.book?.author || 'Unknown'}
                             </p>
                           </div>
 
                           <div style={{
-                            marginTop: '16px',
-                            paddingTop: '12px',
+                            marginTop: '12px',
+                            paddingTop: '10px',
                             borderTop: '1px solid var(--border-glass)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            fontSize: '0.78rem'
+                            fontSize: '0.75rem'
                           }}>
                             <div>
                               <span style={{ color: 'var(--text-muted)' }}>Last Page: </span>
                               <strong style={{ color: 'var(--primary)' }}>Page {item.last_page_read || 1}</strong>
                             </div>
                             <div>
-                              <span style={{ color: 'var(--text-muted)' }}>Read Count: </span>
-                              <strong>{item.accessed_count || 1} times</strong>
+                              <strong>{item.accessed_count || 1} reads</strong>
                             </div>
                           </div>
                         </div>
@@ -951,28 +1161,28 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
 
               {/* ════ TAB 5: AUDIT LOGS & PERMISSIONS ════ */}
               {activeTab === 'logs' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {/* Branch Requests */}
                   <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
-                      Branch Access Request Records ({permissions.length})
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: '10px', color: 'var(--text-primary)' }}>
+                      Branch Requests ({permissions.length})
                     </h4>
                     {permissions.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No extra branch permission requests filed.</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No extra branch requests.</p>
                     ) : (
                       <div className="table-responsive-wrapper">
                         <table className="custom-table">
                           <thead>
                             <tr>
-                              <th>Requested Branch</th>
-                              <th>Date Requested</th>
-                              <th>Approval Status</th>
+                              <th>Branch</th>
+                              <th>Date</th>
+                              <th>Status</th>
                             </tr>
                           </thead>
                           <tbody>
                             {permissions.map((p) => (
                               <tr key={p.id}>
-                                <td style={{ fontWeight: 600 }}>{p.branch?.name || p.branch_name || 'Branch Access'}</td>
+                                <td style={{ fontWeight: 600 }}>{p.branch?.name || p.branch_name || 'Branch'}</td>
                                 <td>{new Date(p.created_at).toLocaleDateString()}</td>
                                 <td>
                                   <StatusBadge status={p.status} />
@@ -987,35 +1197,38 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
 
                   {/* Activity Trail */}
                   <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
-                      System Activity Trail ({logs.length})
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: '10px', color: 'var(--text-primary)' }}>
+                      System Events ({logs.length})
                     </h4>
                     {logs.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No recent activity events recorded.</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No recent activity events recorded.</p>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         {logs.map((log) => (
                           <div
                             key={log.id}
                             style={{
-                              padding: '10px 14px',
-                              borderRadius: '10px',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
                               background: 'var(--input-bg)',
                               border: '1px solid var(--border-glass)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              fontSize: '0.82rem'
+                              fontSize: '0.78rem',
+                              gap: '8px'
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <span className="badge badge-primary" style={{ fontSize: '0.62rem' }}>
                                 {log.action_type?.toUpperCase()}
                               </span>
-                              <span style={{ color: 'var(--text-primary)' }}>{log.details}</span>
+                              <span style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {log.details}
+                              </span>
                             </div>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                              {new Date(log.created_at).toLocaleString()}
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              {new Date(log.created_at).toLocaleDateString()}
                             </span>
                           </div>
                         ))}
@@ -1029,21 +1242,14 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
         </div>
 
         {/* ── Footer ── */}
-        <div style={{
-          padding: '14px 28px',
-          borderTop: '1px solid var(--border-glass)',
-          background: 'rgba(0, 0, 0, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            Student UUID: <code style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{student.id}</code>
+        <div className="sam-footer">
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+            UUID: <code style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{student.id?.slice(0, 8)}...</code>
           </div>
           <button
             onClick={onClose}
             className="btn btn-primary"
-            style={{ padding: '8px 20px', fontSize: '0.85rem' }}
+            style={{ padding: '6px 18px', fontSize: '0.82rem' }}
           >
             Done
           </button>
