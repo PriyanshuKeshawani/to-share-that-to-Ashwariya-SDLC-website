@@ -825,7 +825,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Champion Records (Best Book, Top Reader) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }} className="responsive-grid-1col">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }} className="responsive-grid-1col champion-cards-grid">
                   {/* Best Book */}
                   <div className="glass-panel glass-panel-hover animate-stagger-in stagger-3" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--secondary)' }}>
                     <div>
@@ -929,7 +929,7 @@ const AdminDashboard = () => {
                   </div>
                   
                   {/* Legend */}
-                  <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', marginTop: '20px', fontSize: '0.8rem' }}>
+                  <div className="admin-chart-legend" style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', marginTop: '20px', fontSize: '0.8rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'var(--primary)' }} />
                       <span>Total Book Accesses</span>
@@ -1098,7 +1098,7 @@ const AdminDashboard = () => {
                     <h2>Book Inventory Management</h2>
                     <p style={{ marginTop: '4px' }}>Add, update, or remove reference books and materials from the catalog.</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  <div className="book-inventory-actions" style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
                     <button
                       onClick={() => openBulkModal()}
                       className="btn btn-secondary"

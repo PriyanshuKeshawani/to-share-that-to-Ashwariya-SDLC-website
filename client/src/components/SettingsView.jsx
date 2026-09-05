@@ -32,8 +32,8 @@ const SettingsView = ({ isAdmin = false }) => {
       </div>
 
       {/* ── Section 1: Theme Mode ── */}
-      <div className="glass-panel" style={{ padding: '28px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+      <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px' }}>
+        <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <div style={{ 
             padding: '10px', borderRadius: '12px', 
             background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(6, 182, 212, 0.08))', 
@@ -160,8 +160,8 @@ const SettingsView = ({ isAdmin = false }) => {
       </div>
 
       {/* ── Section 2: Color Palettes ── */}
-      <div className="glass-panel" style={{ padding: '28px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+      <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px' }}>
+        <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <div style={{ 
             padding: '10px', borderRadius: '12px', 
             background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(59, 130, 246, 0.08))', 
@@ -239,8 +239,8 @@ const SettingsView = ({ isAdmin = false }) => {
 
       {/* ── Section 3: Profile Details ── */}
       {user && (
-        <div className="glass-panel" style={{ padding: '28px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+        <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px' }}>
+          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <div style={{ 
               padding: '10px', borderRadius: '12px', 
               background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))', 
@@ -308,7 +308,7 @@ const SettingsView = ({ isAdmin = false }) => {
       )}
 
       {/* ── Footer ── */}
-      <div className="glass-panel" style={{ 
+      <div className="glass-panel settings-footer" style={{ 
         padding: '18px 28px', 
         display: 'flex', 
         justifyContent: 'space-between', 

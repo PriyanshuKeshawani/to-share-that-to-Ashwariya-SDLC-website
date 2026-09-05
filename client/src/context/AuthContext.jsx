@@ -79,23 +79,30 @@ export const AuthProvider = ({ children }) => {
           } catch {}
 
           const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-          const demoApproved = localPerms
-            .filter(p => (p.user_id === user.id || p.user_id === 'demo-student') && p.status === 'approved')
+          const userLocalApproved = localPerms
+            .filter(p => p.user_id === user.id && p.status === 'approved')
             .map(p => p.branch_id);
-          approvedBranches = [...new Set([...approvedBranches, ...demoApproved])];
+          approvedBranches = [...new Set([...approvedBranches, ...userLocalApproved])];
         }
 
         return (data || []).map(b => {
+          const branchName = b.branch ? b.branch.name : null;
+          const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
+          const bookBranch = (branchName || '').trim().toLowerCase();
+
           let hasAccess = true;
           if (user && user.role === 'student') {
-            hasAccess = (b.branch_name === user.branchName) || approvedBranches.includes(b.branch_id);
+            const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
+            const isApproved = approvedBranches.some(bId => String(bId) === String(b.branch_id));
+            hasAccess = isHomeBranch || isApproved;
           }
+
           const availableCopies = (b.copies || []).filter(c => c.status === 'available').length;
           const totalCopies = (b.copies || []).length;
           return {
             ...b,
             category_name: b.category ? b.category.name : null,
-            branch_name: b.branch ? b.branch.name : null,
+            branch_name: branchName,
             hasAccess,
             availableCopies,
             totalCopies

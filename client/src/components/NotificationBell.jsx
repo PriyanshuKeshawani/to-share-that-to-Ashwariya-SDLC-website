@@ -81,6 +81,15 @@ const NotificationBell = () => {
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   if (!user) return null;
 
   const displayedNotifications = activeTab === 'unread' 
@@ -145,10 +154,10 @@ const NotificationBell = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              zIndex: 1099,
-              background: 'rgba(0, 0, 0, 0.45)',
-              backdropFilter: 'blur(3px)',
-              WebkitBackdropFilter: 'blur(3px)',
+              zIndex: 1199,
+              background: 'rgba(0, 0, 0, 0.35)',
+              backdropFilter: 'blur(2px)',
+              WebkitBackdropFilter: 'blur(2px)',
               animation: 'fadeIn 0.15s ease'
             }}
             onClick={() => setIsOpen(false)}
@@ -159,15 +168,15 @@ const NotificationBell = () => {
             className="notification-dropdown animate-fade-in-scale"
             style={{
               position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: '-6px',
-              width: 'min(360px, calc(100vw - 24px))',
+              top: 'calc(100% + 10px)',
+              right: 0,
+              width: 'min(360px, calc(100vw - 32px))',
               maxHeight: '480px',
-              zIndex: 1100,
-              background: 'var(--bg-card-solid)',
+              zIndex: 1200,
+              background: 'var(--bg-surface)',
               border: '1px solid var(--border-glass-hover)',
-              boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08)',
-              borderRadius: '20px',
+              boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-glass)',
+              borderRadius: '16px',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
@@ -256,7 +265,7 @@ const NotificationBell = () => {
                 display: 'flex',
                 gap: '8px',
                 padding: '8px 18px',
-                background: 'rgba(0, 0, 0, 0.15)',
+                background: 'var(--surface-glow)',
                 borderBottom: '1px solid var(--border-glass)'
               }}>
                 <button
@@ -306,13 +315,13 @@ const NotificationBell = () => {
                     width: '56px',
                     height: '56px',
                     borderRadius: '18px',
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(6, 182, 212, 0.08))',
-                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    background: 'var(--primary-glow)',
+                    border: '1px solid var(--border-glass-focus)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     margin: '0 auto 14px',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)'
                   }}>
                     {activeTab === 'unread' ? (
                       <CheckCheck size={26} color="var(--success)" />

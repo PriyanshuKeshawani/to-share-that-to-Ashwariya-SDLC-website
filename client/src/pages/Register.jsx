@@ -148,7 +148,7 @@ const Register = ({ onToggleView }) => {
         </button>
       </div>
 
-      <div className="glass-panel animate-fade-in" style={{
+      <div className="glass-panel animate-fade-in register-card" style={{
         width: '100%',
         maxWidth: '580px',
         padding: '40px 36px',

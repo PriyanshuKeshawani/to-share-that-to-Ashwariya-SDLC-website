@@ -16,7 +16,9 @@ import {
   Sparkles,
   ExternalLink,
   X,
-  FileDown
+  FileDown,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 
 const TAG_COLORS = {
@@ -28,7 +30,7 @@ const TAG_COLORS = {
 };
 
 const BookReader = ({ book, onClose }) => {
-  const { apiCall } = useAuth();
+  const { apiCall, user } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const isUploaded = Boolean(
     book.pdf_url &&
@@ -38,6 +40,18 @@ const BookReader = ({ book, onClose }) => {
   );
   const [totalPages] = useState(isUploaded ? 9999 : 60);
   const [saving, setSaving] = useState(false);
+
+  // Strictly enforce permission access for non-home branch books
+  const hasAccess = useMemo(() => {
+    if (!book) return false;
+    if (user?.role === 'admin') return true;
+    if (book.hasAccess !== undefined) return Boolean(book.hasAccess);
+
+    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
+    const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
+    if (userBranch && bookBranch && userBranch === bookBranch) return true;
+    return false;
+  }, [book, user]);
 
   // Notes state
   const storageKey = `sistec_reader_notes_${book.id}`;
@@ -288,7 +302,59 @@ const BookReader = ({ book, onClose }) => {
       gap: '14px',
       padding: '0 8px'
     }}>
-      {/* Top Controls Header Bar */}
+      {/* Access Denied Guard for Non-Home Branch Books */}
+      {!hasAccess ? (
+        <div className="animate-fade-in" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '75vh',
+          padding: '30px 20px',
+          textAlign: 'center'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '500px',
+            width: '100%',
+            padding: '36px 28px',
+            borderRadius: '20px',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            background: 'var(--bg-surface)',
+            boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4)'
+          }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '20px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              color: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px',
+              boxShadow: '0 0 20px rgba(239, 68, 68, 0.2)'
+            }}>
+              <Lock size={32} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Reading Permission Required
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+              <strong>"{book.title}"</strong> is part of the <strong>{book.branch_name || 'different department'}</strong> catalog.
+              As per institutional library policy, you must request permission from the Central Library Administrator to access books outside your registered branch.
+            </p>
+            <button
+              onClick={onClose}
+              className="btn btn-primary btn-shine"
+              style={{ width: '100%', padding: '10px 18px', fontSize: '0.9rem', justifyContent: 'center' }}
+            >
+              <ArrowLeft size={16} /> Return to Catalog & Request Access
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Top Controls Header Bar */}
       <div className="glass-panel reader-header" style={{
         padding: '12px 20px',
         display: 'flex',
@@ -386,7 +452,7 @@ const BookReader = ({ book, onClose }) => {
       </div>
 
       {/* Main Workspace Body: PDF Viewer on Left + Notes Drawer on Right */}
-      <div style={{
+      <div className="reader-layout" style={{
         display: 'flex',
         gap: '16px',
         flex: 1,
@@ -395,13 +461,16 @@ const BookReader = ({ book, onClose }) => {
         overflow: 'hidden'
       }}>
         {/* ===================== LEFT: PDF VIEWER / READER ===================== */}
-        <div style={{
-          flex: showNotes ? '1 1 68%' : '1 1 100%',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          minWidth: 0
-        }}>
+        <div
+          className="reader-pdf-container"
+          style={{
+            flex: showNotes ? '1 1 68%' : '1 1 100%',
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            minWidth: 0
+          }}
+        >
           {isUploaded ? (
             <div className="glass-panel" style={{
               flex: 1,
@@ -529,18 +598,21 @@ const BookReader = ({ book, onClose }) => {
 
         {/* ===================== RIGHT: IN-BUILT STUDY NOTES WORKSPACE ===================== */}
         {showNotes && (
-          <div className="glass-panel animate-fade-in" style={{
-            flex: '0 0 340px',
-            width: '340px',
-            borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            background: 'rgba(15, 23, 42, 0.92)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(16px)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}>
+          <div
+            className="glass-panel animate-fade-in reader-notes-container"
+            style={{
+              flex: '0 0 340px',
+              width: '340px',
+              borderRadius: '16px',
+              border: '1px solid var(--border-glass)',
+              background: 'var(--bg-surface)',
+              boxShadow: 'var(--shadow-glass)',
+              backdropFilter: 'blur(16px)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
             {/* Notes Panel Header */}
             <div style={{
               padding: '14px 18px',
@@ -848,6 +920,8 @@ const BookReader = ({ book, onClose }) => {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

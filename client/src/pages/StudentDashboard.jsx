@@ -161,6 +161,12 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   // Download PDF
   const handleDownload = async (book) => {
+    const access = getBookAccess(book);
+    if (!access.hasAccess) {
+      showFeedback(`Permission required: You must request permission from Admin to download books outside your department.`, 'error');
+      return;
+    }
+
     try {
       showFeedback(`Downloading "${book.title}"...`, 'success');
       await apiCall('/analytics/track', {
@@ -222,26 +228,102 @@ const StudentDashboard = ({ onSelectBook }) => {
     }
   };
 
-  const isRequestPending = (branchId) => requests.some(r => r.branch_id === branchId && r.status === 'pending');
-  const isRequestRejected = (branchId) => requests.some(r => r.branch_id === branchId && r.status === 'rejected');
+  const isRequestPending = (branchId) => requests.some(r => String(r.branch_id) === String(branchId) && r.status === 'pending');
+  const isRequestRejected = (branchId) => requests.some(r => String(r.branch_id) === String(branchId) && r.status === 'rejected');
 
+  // Compute live branch access for every book
+  const getBookAccess = useCallback((book) => {
+    if (!book) return { hasAccess: false, isHomeBranch: false, status: 'none' };
+    if (user?.role === 'admin') return { hasAccess: true, isHomeBranch: true, status: 'approved' };
+
+    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
+    const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
+
+    // 1. Same department/branch = automatic unlock
+    const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
+    if (isHomeBranch) {
+      return { hasAccess: true, isHomeBranch: true, status: 'approved' };
+    }
+
+    // 2. Different department = must have approved permission from admin
+    const req = requests.find(r => 
+      (book.branch_id != null && String(r.branch_id) === String(book.branch_id)) ||
+      (r.branch_name && book.branch_name && r.branch_name.trim().toLowerCase() === book.branch_name.trim().toLowerCase())
+    );
+
+    if (req && req.status === 'approved') {
+      return { hasAccess: true, isHomeBranch: false, status: 'approved' };
+    }
+
+    if (req && req.status === 'pending') {
+      return { hasAccess: false, isHomeBranch: false, status: 'pending' };
+    }
+
+    if (req && req.status === 'rejected') {
+      return { hasAccess: false, isHomeBranch: false, status: 'rejected' };
+    }
+
+    return { hasAccess: false, isHomeBranch: false, status: 'none' };
+  }, [user, requests]);
+
+  // Guard book reading: enforce permission check before launching reader
+  const handleOpenBook = (book) => {
+    const access = getBookAccess(book);
+    if (!access.hasAccess) {
+      showFeedback(`Permission required: You must request permission to read books from ${book.branch_name || 'other departments'}.`, 'error');
+      return;
+    }
+    onSelectBook(book);
+  };
+
+  // Comprehensive multi-attribute filter
   const filteredBooks = useMemo(() => {
+    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
+
     return books.filter(book => {
-      if (activeTab === 'home' && book.branch_name !== user?.branchName) return false;
-      if (activeTab === 'other' && book.branch_name === user?.branchName) return false;
+      const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
+      const isHome = Boolean(userBranch && bookBranch && userBranch === bookBranch);
 
-      if (selectedCategory && book.category_id !== parseInt(selectedCategory, 10)) return false;
-      if (selectedBranch && book.branch_id !== parseInt(selectedBranch, 10)) return false;
-
-      if (search) {
-        const q = search.toLowerCase();
-        const matchTitle = book.title?.toLowerCase().includes(q);
-        const matchAuthor = book.author?.toLowerCase().includes(q);
-        return matchTitle || matchAuthor;
+      // If user explicitly chose a branch dropdown, prioritize that branch over tabs
+      if (selectedBranch) {
+        const selectedBranchObj = branches.find(b => String(b.id) === String(selectedBranch));
+        const matchBranchId = book.branch_id != null && String(book.branch_id) === String(selectedBranch);
+        const matchBranchName = selectedBranchObj && bookBranch === selectedBranchObj.name.trim().toLowerCase();
+        if (!matchBranchId && !matchBranchName) {
+          return false;
+        }
+      } else {
+        if (activeTab === 'home' && !isHome) return false;
+        if (activeTab === 'other' && isHome) return false;
       }
+
+      // Category filter (string-safe comparison by ID or Category Name)
+      if (selectedCategory) {
+        const selectedCatObj = categories.find(c => String(c.id) === String(selectedCategory));
+        const bookCatName = (book.category_name || book.category?.name || '').trim().toLowerCase();
+        const matchCatId = book.category_id != null && String(book.category_id) === String(selectedCategory);
+        const matchCatName = selectedCatObj && bookCatName === selectedCatObj.name.trim().toLowerCase();
+        if (!matchCatId && !matchCatName) {
+          return false;
+        }
+      }
+
+      // Search across Title, Author, Branch Name, Category Name, and Priority
+      if (search) {
+        const q = search.toLowerCase().trim();
+        const matchTitle = (book.title || '').toLowerCase().includes(q);
+        const matchAuthor = (book.author || '').toLowerCase().includes(q);
+        const matchBranch = bookBranch.includes(q);
+        const matchCat = (book.category_name || book.category?.name || '').toLowerCase().includes(q);
+        const matchPriority = (book.priority || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchAuthor && !matchBranch && !matchCat && !matchPriority) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [books, activeTab, selectedCategory, selectedBranch, search, user?.branchName]);
+  }, [books, activeTab, selectedCategory, selectedBranch, search, user?.branchName, user?.branch_name, branches, categories]);
 
   const navItems = [
     { key: 'all', label: 'All Catalog', icon: Home },
@@ -765,48 +847,149 @@ const StudentDashboard = ({ onSelectBook }) => {
           /* ── Catalog & Book Discovery View ── */
           <div className="animate-section-enter">
             {/* Search & Category Filter Bar */}
-            <div className="glass-panel" style={{ padding: '14px 16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-              <div style={{ flex: '1 1 240px', position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  className="glass-input"
-                  placeholder="Search books by title, author, topic..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ paddingLeft: '40px' }}
-                />
-              </div>
+            <div className="glass-panel" style={{ padding: '16px 18px', marginBottom: '22px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+                {/* Search input */}
+                <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="Search books by title, author, topic, branch..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ paddingLeft: '40px', width: '100%' }}
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch('')}
+                      style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
-              <div style={{ flex: '1 1 180px' }}>
-                <select
-                  className="glass-input glass-select"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                  <option value="">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name} {cat.parent_name ? `(${cat.parent_name})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* Category Dropdown */}
+                <div style={{ flex: '1 1 180px' }}>
+                  <select
+                    className="glass-input glass-select"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={String(cat.id)}>
+                        {cat.name} {cat.parent_name ? `(${cat.parent_name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {activeTab === 'all' && (
+                {/* Branch Dropdown */}
                 <div style={{ flex: '1 1 180px' }}>
                   <select
                     className="glass-input glass-select"
                     value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedBranch(val);
+                      if (val) {
+                        setActiveTab('all');
+                      }
+                    }}
+                    style={{ width: '100%' }}
                   >
                     <option value="">All Branches</option>
                     {branches.map(br => (
-                      <option key={br.id} value={br.id}>{br.name}</option>
+                      <option key={br.id} value={String(br.id)}>{br.name}</option>
                     ))}
                   </select>
                 </div>
-              )}
+
+                {/* Clear Filters Button */}
+                {(search || selectedCategory || selectedBranch || activeTab !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSearch('');
+                      setSelectedCategory('');
+                      setSelectedBranch('');
+                      setActiveTab('all');
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '9px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap', gap: '6px' }}
+                    title="Reset all search and department filters"
+                  >
+                    <X size={13} /> Reset Filters
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Filter Badges Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap', paddingTop: '10px', borderTop: '1px solid var(--border-glass)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Quick Filter:
+                </span>
+                <button
+                  onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: activeTab === 'all' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                    color: activeTab === 'all' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                    border: activeTab === 'all' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                  }}
+                >
+                  All Catalog ({books.length})
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedBranch('');
+                    setActiveTab('home');
+                  }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: activeTab === 'home' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                    color: activeTab === 'home' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                    border: activeTab === 'home' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                  }}
+                >
+                  My Branch ({user?.branchName || 'Department'})
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedBranch('');
+                    setActiveTab('other');
+                  }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: activeTab === 'other' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                    color: activeTab === 'other' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                    border: activeTab === 'other' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                  }}
+                >
+                  Other Branches
+                </button>
+                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredBooks.length}</strong> of {books.length} books
+                </span>
+              </div>
             </div>
 
             {/* Book Cards Grid */}
@@ -816,7 +999,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                 title="No books match your criteria"
                 description="Try clearing your search query or switching to another department category."
                 actionLabel="Reset Search Filters"
-                onAction={() => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); }}
+                onAction={() => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); setActiveTab('all'); }}
               />
             ) : (
               <div style={{
@@ -824,128 +1007,131 @@ const StudentDashboard = ({ onSelectBook }) => {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                 gap: '18px'
               }}>
-                {filteredBooks.map((book, idx) => (
-                  <div
-                    key={book.id}
-                    className="glass-panel glass-panel-hover animate-stagger-in"
-                    style={{
-                      padding: '18px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      minHeight: '260px',
-                      animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
-                    }}
-                  >
-                    <div>
-                      {/* Top Chips */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {book.priority === 'main' ? (
-                            <span className="badge badge-gold">Main Syllabus</span>
-                          ) : (
-                            <span className="badge badge-secondary">Reference</span>
-                          )}
-                          <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
-                            {book.branch_name}
-                          </span>
-                        </div>
-
-                        {book.hasAccess ? (
-                          <span className="badge badge-success" title="Unlocked for your account">
-                            <Unlock size={11} /> Unlocked
-                          </span>
-                        ) : (
-                          <span className="badge badge-danger" title="Access requires branch permission">
-                            <Lock size={11} /> Locked
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Title & Author */}
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: '6px' }}>
-                        {book.title}
-                      </h4>
-                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                        by {book.author || 'Author not specified'}
-                      </p>
-
-                      {/* Copies Availability Indicator with live radar pulse */}
-                      {book.totalCopies > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                          <span className="status-live-dot" style={{
-                            backgroundColor: book.availableCopies > 0 ? '#10b981' : '#ef4444',
-                            boxShadow: book.availableCopies > 0 ? '0 0 6px #10b981' : 'none'
-                          }}>
-                            {book.availableCopies > 0 && (
-                              <span className="status-live-ping" style={{ backgroundColor: '#10b981' }} />
-                            )}
-                          </span>
-                          <span>{book.availableCopies} available / {book.totalCopies} total copies</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom Action Footer */}
-                    <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '12px', marginTop: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        <span>{book.category_name || 'General Engineering'}</span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {book.hasAccess ? (
-                          <>
-                            <button
-                              onClick={() => onSelectBook(book)}
-                              className="btn btn-primary btn-shine"
-                              style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem' }}
-                            >
-                              <BookOpen size={14} /> Read
-                            </button>
-                            <button
-                              onClick={() => handleDownload(book)}
-                              className="btn btn-secondary"
-                              style={{ padding: '8px 12px' }}
-                              title="Download PDF Chapter"
-                            >
-                              <Download size={14} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {isRequestPending(book.branch_id) ? (
-                              <button
-                                className="btn btn-secondary"
-                                style={{ width: '100%', cursor: 'not-allowed', fontSize: '0.8rem', opacity: 0.7 }}
-                                disabled
-                              >
-                                Permission Requested
-                              </button>
-                            ) : isRequestRejected(book.branch_id) ? (
-                              <button
-                                onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
-                                className="btn btn-danger"
-                                style={{ width: '100%', fontSize: '0.8rem' }}
-                                disabled={actionLoading[book.branch_id]}
-                              >
-                                {actionLoading[book.branch_id] ? 'Submitting...' : 'Request Again'}
-                              </button>
+                {filteredBooks.map((book, idx) => {
+                  const access = getBookAccess(book);
+                  return (
+                    <div
+                      key={book.id}
+                      className="glass-panel glass-panel-hover animate-stagger-in"
+                      style={{
+                        padding: '18px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        minHeight: '260px',
+                        animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
+                      }}
+                    >
+                      <div>
+                        {/* Top Chips */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {book.priority === 'main' ? (
+                              <span className="badge badge-gold">Main Syllabus</span>
                             ) : (
-                              <button
-                                onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
-                                className="btn btn-secondary"
-                                style={{ width: '100%', borderColor: 'var(--primary)', color: 'var(--primary)', fontSize: '0.8rem' }}
-                                disabled={actionLoading[book.branch_id]}
-                              >
-                                {actionLoading[book.branch_id] ? 'Submitting...' : `Request ${book.branch_name} Access`}
-                              </button>
+                              <span className="badge badge-secondary">Reference</span>
                             )}
-                          </>
+                            <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                              {book.branch_name || 'All Branches'}
+                            </span>
+                          </div>
+
+                          {access.hasAccess ? (
+                            <span className="badge badge-success" title={access.isHomeBranch ? "Unlocked for your department" : "Permission granted by Admin"}>
+                              <Unlock size={11} /> {access.isHomeBranch ? "Unlocked" : "Access Granted"}
+                            </span>
+                          ) : (
+                            <span className="badge badge-danger" title="Access requires admin permission">
+                              <Lock size={11} /> Locked
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Title & Author */}
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: '6px' }}>
+                          {book.title}
+                        </h4>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                          by {book.author || 'Author not specified'}
+                        </p>
+
+                        {/* Copies Availability Indicator with live radar pulse */}
+                        {book.totalCopies > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                            <span className="status-live-dot" style={{
+                              backgroundColor: book.availableCopies > 0 ? '#10b981' : '#ef4444',
+                              boxShadow: book.availableCopies > 0 ? '0 0 6px #10b981' : 'none'
+                            }}>
+                              {book.availableCopies > 0 && (
+                                <span className="status-live-ping" style={{ backgroundColor: '#10b981' }} />
+                              )}
+                            </span>
+                            <span>{book.availableCopies} available / {book.totalCopies} total copies</span>
+                          </div>
                         )}
                       </div>
+
+                      {/* Bottom Action Footer */}
+                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '12px', marginTop: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          <span>{book.category_name || 'General Engineering'}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {access.hasAccess ? (
+                            <>
+                              <button
+                                onClick={() => handleOpenBook(book)}
+                                className="btn btn-primary btn-shine"
+                                style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem' }}
+                              >
+                                <BookOpen size={14} /> Read
+                              </button>
+                              <button
+                                onClick={() => handleDownload(book)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 12px' }}
+                                title="Download PDF Document"
+                              >
+                                <Download size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {access.status === 'pending' ? (
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ width: '100%', cursor: 'not-allowed', fontSize: '0.8rem', opacity: 0.85, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                                  disabled
+                                >
+                                  <Clock size={13} /> Permission Requested (Pending Admin Approval)
+                                </button>
+                              ) : access.status === 'rejected' ? (
+                                <button
+                                  onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                  className="btn btn-danger"
+                                  style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                  disabled={actionLoading[book.branch_id]}
+                                >
+                                  <ShieldAlert size={13} /> {actionLoading[book.branch_id] ? 'Submitting...' : 'Permission Denied - Request Again'}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                  className="btn btn-primary btn-shine"
+                                  style={{ width: '100%', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                  disabled={actionLoading[book.branch_id]}
+                                >
+                                  <Lock size={13} /> {actionLoading[book.branch_id] ? 'Requesting...' : `Request Permission to Read`}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
