@@ -142,15 +142,26 @@ INSERT INTO library_settings (id, loan_duration_days, fine_per_day, max_fine)
 VALUES (1, 14, 5.00, 200.00)
 ON CONFLICT (id) DO NOTHING;
 
--- 11. Branch Access Permissions
+-- 11. Individual Book Access Permissions
 CREATE TABLE IF NOT EXISTS permissions (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, branch_id)
+  UNIQUE(user_id, book_id)
 );
+
+-- Migration for existing installations:
+ALTER TABLE permissions ADD COLUMN IF NOT EXISTS book_id INTEGER REFERENCES books(id) ON DELETE CASCADE;
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_user_id_branch_id_key;
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'permissions_user_id_book_id_key') THEN
+    ALTER TABLE permissions ADD CONSTRAINT permissions_user_id_book_id_key UNIQUE (user_id, book_id);
+  END IF;
+END $$;
 
 -- 12. User Book Progress
 CREATE TABLE IF NOT EXISTS user_book_progress (

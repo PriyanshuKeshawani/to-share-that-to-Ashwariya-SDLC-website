@@ -68,25 +68,35 @@ const Dashboard = ({ onSelectBook }) => {
     return () => clearTimeout(timer);
   }, [fetchData]);
 
-  const handleRequestAccess = async (branchId, branchName) => {
+  const handleRequestAccess = async (book) => {
+    if (!book) return;
+    const actionKey = `book-${book.id}`;
     try {
-      setActionLoading(prev => ({ ...prev, [branchId]: true }));
+      setActionLoading(prev => ({ ...prev, [actionKey]: true }));
       const data = await apiCall('/permissions/request', {
         method: 'POST',
-        body: JSON.stringify({ branch_id: branchId })
+        body: JSON.stringify({
+          book_id: book.id,
+          book_title: book.title,
+          branch_id: book.branch_id,
+          branch_name: book.branch_name
+        })
       });
-      showFeedback(data.message || `Requested access for ${branchName}`, 'success');
+      showFeedback(data.message || `Requested access for "${book.title}"`, 'success');
       
       // Optimistically update requests
-      setRequests(prev => [...prev, { branch_id: branchId, status: 'pending' }]);
+      setRequests(prev => [
+        ...prev.filter(r => String(r.book_id) !== String(book.id)),
+        { book_id: book.id, book_title: book.title, branch_id: book.branch_id, status: 'pending' }
+      ]);
       
       // Refresh requests list
       const reqsData = await apiCall('/permissions/my-requests');
       setRequests(reqsData);
     } catch (err) {
-      showFeedback(err.message || 'Failed to request branch access', 'error');
+      showFeedback(err.message || 'Failed to request book access', 'error');
     } finally {
-      setActionLoading(prev => ({ ...prev, [branchId]: false }));
+      setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
   };
 
@@ -154,12 +164,12 @@ const Dashboard = ({ onSelectBook }) => {
     }
   };
 
-  const isRequestPending = (branchId) => {
-    return requests.some(r => r.branch_id === branchId && r.status === 'pending');
+  const isBookPending = (bookId) => {
+    return requests.some(r => String(r.book_id) === String(bookId) && r.status === 'pending');
   };
 
-  const isRequestRejected = (branchId) => {
-    return requests.some(r => r.branch_id === branchId && r.status === 'rejected');
+  const isBookRejected = (bookId) => {
+    return requests.some(r => String(r.book_id) === String(bookId) && r.status === 'rejected');
   };
 
   // Filter books based on activeTab, search, selectedCategory, and selectedBranch
@@ -461,7 +471,7 @@ const Dashboard = ({ onSelectBook }) => {
                           </>
                         ) : (
                           <>
-                            {isRequestPending(book.branch_id) ? (
+                            {isBookPending(book.id) ? (
                               <button
                                 className="btn btn-secondary"
                                 style={{ width: '100%', cursor: 'not-allowed', fontSize: '0.85rem' }}
@@ -469,23 +479,23 @@ const Dashboard = ({ onSelectBook }) => {
                               >
                                 Request Pending Approval
                               </button>
-                            ) : isRequestRejected(book.branch_id) ? (
+                            ) : isBookRejected(book.id) ? (
                               <button
-                                onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                onClick={() => handleRequestAccess(book)}
                                 className="btn btn-danger"
                                 style={{ width: '100%', fontSize: '0.85rem' }}
-                                disabled={actionLoading[book.branch_id]}
+                                disabled={actionLoading[`book-${book.id}`]}
                               >
-                                {actionLoading[book.branch_id] ? 'Submitting...' : 'Rejected - Request Again'}
+                                {actionLoading[`book-${book.id}`] ? 'Submitting...' : 'Rejected - Request Again'}
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                onClick={() => handleRequestAccess(book)}
                                 className="btn btn-secondary"
                                 style={{ width: '100%', borderColor: 'var(--primary)', color: 'var(--primary)', fontSize: '0.85rem' }}
-                                disabled={actionLoading[book.branch_id]}
+                                disabled={actionLoading[`book-${book.id}`]}
                               >
-                                {actionLoading[book.branch_id] ? 'Submitting...' : 'Request Branch Access'}
+                                {actionLoading[`book-${book.id}`] ? 'Submitting...' : 'Request Permission to Read'}
                               </button>
                             )}
                           </>

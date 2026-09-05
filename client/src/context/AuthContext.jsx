@@ -67,22 +67,22 @@ export const AuthProvider = ({ children }) => {
         `).order('created_at', { ascending: false });
         if (error) throw error;
         
-        let approvedBranches = [];
+        let approvedBookIds = [];
         if (user && user.role === 'student') {
           try {
             const { data: perms } = await supabase
               .from('permissions')
-              .select('branch_id')
+              .select('book_id')
               .eq('user_id', user.id)
               .eq('status', 'approved');
-            approvedBranches = (perms || []).map(p => p.branch_id);
+            approvedBookIds = (perms || []).map(p => p.book_id).filter(Boolean);
           } catch {}
 
           const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
           const userLocalApproved = localPerms
-            .filter(p => p.user_id === user.id && p.status === 'approved')
-            .map(p => p.branch_id);
-          approvedBranches = [...new Set([...approvedBranches, ...userLocalApproved])];
+            .filter(p => p.user_id === user.id && p.status === 'approved' && p.book_id != null)
+            .map(p => p.book_id);
+          approvedBookIds = [...new Set([...approvedBookIds, ...userLocalApproved])];
         }
 
         return (data || []).map(b => {
@@ -93,8 +93,8 @@ export const AuthProvider = ({ children }) => {
           let hasAccess = true;
           if (user && user.role === 'student') {
             const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
-            const isApproved = approvedBranches.some(bId => String(bId) === String(b.branch_id));
-            hasAccess = isHomeBranch || isApproved;
+            const isBookApproved = approvedBookIds.some(bId => String(bId) === String(b.id));
+            hasAccess = isHomeBranch || isBookApproved;
           }
 
           const availableCopies = (b.copies || []).filter(c => c.status === 'available').length;
@@ -397,27 +397,36 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // 5. Permissions / Requests
+    // 5. Permissions / Requests (Per-Book)
     if (endpoint === '/permissions/pending-requests') {
       let serverRequests = [];
       try {
-        const { data, error } = await supabase.from('permissions').select('*, user:user_id(full_name, roll_number, branch_name), branch:branch_id(name)').eq('status', 'pending').order('created_at', { ascending: false });
+        const { data, error } = await supabase
+          .from('permissions')
+          .select('*, user:user_id(full_name, roll_number, branch_name), branch:branch_id(name)')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
         if (!error && data) serverRequests = data;
       } catch (e) {
         console.warn('Notice loading server permissions:', e);
       }
 
-      // Merge local demo permissions
-      const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]').filter(p => p.status === 'pending');
       const { data: allBranches } = await supabase.from('branches').select('id, name');
       const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
 
+      const { data: allBooks } = await supabase.from('books').select('id, title, branch_id');
+      const bookMap = new Map((allBooks || []).map(b => [b.id, b.title]));
+
+      // Merge local demo permissions
+      const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]').filter(p => p.status === 'pending');
+
       const enrichedLocal = localPerms.map(p => ({
         ...p,
-        full_name: 'Demo Student (CS)',
-        roll_number: '0187CS211001',
-        student_branch: 'Computer Science and Engineering',
-        requested_branch_name: branchMap.get(p.branch_id) || 'Requested Branch'
+        full_name: p.full_name || 'Student',
+        roll_number: p.roll_number || 'N/A',
+        student_branch: p.student_branch || 'Engineering',
+        book_title: p.book_title || (p.book_id ? bookMap.get(p.book_id) : null) || 'Requested Book',
+        requested_branch_name: p.requested_branch_name || branchMap.get(p.branch_id) || 'Requested Branch'
       }));
 
       const combined = [...serverRequests, ...enrichedLocal];
@@ -426,7 +435,9 @@ export const AuthProvider = ({ children }) => {
         full_name: p.user ? p.user.full_name : (p.full_name || 'Student'),
         roll_number: p.user ? p.user.roll_number : (p.roll_number || 'N/A'),
         student_branch: p.user ? p.user.branch_name : (p.student_branch || 'Engineering'),
-        requested_branch_name: p.branch ? p.branch.name : (p.requested_branch_name || 'Branch')
+        book_id: p.book_id,
+        book_title: p.book_title || (p.book_id ? bookMap.get(p.book_id) : null) || 'Book Access',
+        requested_branch_name: p.branch ? p.branch.name : (p.requested_branch_name || branchMap.get(p.branch_id) || 'Branch')
       }));
     }
 
@@ -447,14 +458,20 @@ export const AuthProvider = ({ children }) => {
       const { data: allBranches } = await supabase.from('branches').select('id, name');
       const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
 
+      const { data: allBooks } = await supabase.from('books').select('id, title');
+      const bookMap = new Map((allBooks || []).map(b => [b.id, b.title]));
+
       const combined = [...serverRequests, ...userLocal];
       const unique = [];
       const seen = new Set();
       for (const req of combined) {
-        if (!seen.has(req.branch_id)) {
-          seen.add(req.branch_id);
+        const key = req.book_id ? `book-${req.book_id}` : `branch-${req.branch_id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
           unique.push({
             ...req,
+            book_id: req.book_id,
+            book_title: req.book_title || (req.book_id ? bookMap.get(req.book_id) : null) || 'Book',
             branch_name: req.branch ? req.branch.name : (branchMap.get(req.branch_id) || 'Branch')
           });
         }
@@ -472,18 +489,38 @@ export const AuthProvider = ({ children }) => {
       }
       const { data, error } = await supabase.from('permissions').update({ status: body.status }).eq('id', permId).select().single();
       if (error) throw error;
+
+      // Automatically notify the student of admin decision
+      if (data && data.user_id) {
+        try {
+          const isApproved = body.status === 'approved';
+          await supabase.from('notifications').insert([{
+            user_id: data.user_id,
+            title: isApproved ? 'Book Access Granted' : 'Book Access Denied',
+            message: isApproved 
+              ? 'Administrator granted your request to read this book.' 
+              : 'Administrator declined your request to read this book.',
+            type: isApproved ? 'approval' : 'warning'
+          }]);
+        } catch (notifErr) {
+          console.warn('Permission notification note:', notifErr.message);
+        }
+      }
+
       return { message: `Permission ${body.status}`, data };
     }
 
     if (endpoint === '/permissions/request' && method === 'POST') {
       const branchId = parseInt(body.branchId || body.branch_id, 10);
+      const bookId = body.book_id || body.bookId ? parseInt(body.book_id || body.bookId, 10) : null;
+      const bookTitle = body.book_title || body.bookTitle || '';
+      const branchName = body.branch_name || body.branchName || '';
 
       // 1. Resolve valid user_id for Supabase foreign key
       let effectiveUserId = user?.id;
       if (user?.id) {
         const { data: userRow } = await supabase.from('users').select('id').eq('id', user.id).maybeSingle();
         if (!userRow) {
-          // If demo user or unlinked UUID, map to an existing student in users table
           const { data: anyStudent } = await supabase.from('users').select('id').eq('role', 'student').limit(1).maybeSingle();
           if (anyStudent) {
             effectiveUserId = anyStudent.id;
@@ -491,27 +528,29 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // 2. Check for existing request
+      // 2. Check for existing request by book_id
       let existing = null;
-      if (effectiveUserId) {
+      if (effectiveUserId && bookId) {
         try {
           const { data: ex } = await supabase
             .from('permissions')
             .select('id, status')
             .eq('user_id', effectiveUserId)
-            .eq('branch_id', branchId)
+            .eq('book_id', bookId)
             .maybeSingle();
           existing = ex;
         } catch {}
       }
 
       const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-      const localExisting = localPerms.find(p => p.branch_id === branchId && (p.user_id === user?.id || p.user_id === effectiveUserId));
+      const localExisting = localPerms.find(p => 
+        (bookId != null && p.book_id === bookId && (p.user_id === user?.id || p.user_id === effectiveUserId))
+      );
 
       if (existing || localExisting) {
         const currentStatus = existing?.status || localExisting?.status;
         if (currentStatus === 'pending') {
-          throw new Error('You already have a pending request for this branch');
+          throw new Error(`You already have a pending request for "${bookTitle || 'this book'}"`);
         }
         if (existing) {
           const { data, error } = await supabase
@@ -528,11 +567,14 @@ export const AuthProvider = ({ children }) => {
       let insertErr = null;
       if (effectiveUserId) {
         try {
-          const { data, error } = await supabase.from('permissions').insert([{
+          const insertPayload = {
             user_id: effectiveUserId,
             branch_id: branchId,
             status: 'pending'
-          }]).select().single();
+          };
+          if (bookId) insertPayload.book_id = bookId;
+
+          const { data, error } = await supabase.from('permissions').insert([insertPayload]).select().single();
           if (!error && data) return data;
           insertErr = error;
         } catch (e) {
@@ -540,12 +582,18 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // 4. Fallback for demo/bypass accounts to prevent foreign key errors
-      console.warn('Saved permission in demo storage fallback:', insertErr?.message);
+      // 4. Fallback in demo/local storage with book details
+      console.warn('Saved book permission in local storage fallback:', insertErr?.message);
       const demoPerm = {
         id: `demo-perm-${Date.now()}`,
         user_id: user?.id || 'demo-student',
+        full_name: user?.fullName || 'Student',
+        roll_number: user?.rollNumber || 'N/A',
+        student_branch: user?.branchName || 'Engineering',
         branch_id: branchId,
+        book_id: bookId,
+        book_title: bookTitle,
+        requested_branch_name: branchName,
         status: 'pending',
         created_at: new Date().toISOString()
       };

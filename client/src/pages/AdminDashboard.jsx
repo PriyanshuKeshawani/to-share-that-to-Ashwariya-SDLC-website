@@ -673,7 +673,7 @@ const AdminDashboard = () => {
               className={`btn ${activeTab === 'permissions' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
             >
-              <Key size={16} /> Branch Requests ({pendingRequests.length})
+              <Key size={16} /> Book Requests ({pendingRequests.length})
             </button>
             <button 
               onClick={() => setActiveTab('loans')}
@@ -1033,19 +1033,19 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Branch Access Requests Tab */}
+            {/* Book Access Requests Tab */}
             {activeTab === 'permissions' && (
               <div className="animate-section-enter">
                 <div style={{ marginBottom: '32px' }}>
-                  <h2>Cross-Branch Access Requests</h2>
-                  <p style={{ marginTop: '4px' }}>Students are restricted to reading books in their own branch. Approve requests to allow access to additional branches.</p>
+                  <h2>Book Access Requests</h2>
+                  <p style={{ marginTop: '4px' }}>Students require separate permission to read each book outside their home branch. Approve or deny requests per book.</p>
                 </div>
 
                 {pendingRequests.length === 0 ? (
                   <EmptyState
                     icon={Key}
-                    title="All branch requests reviewed!"
-                    description="There are no pending cross-branch access requests from students."
+                    title="All book requests reviewed!"
+                    description="There are no pending permission requests from students."
                   />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1056,13 +1056,20 @@ const AdminDashboard = () => {
                             <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{r.full_name}</h4>
                             <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>({r.roll_number})</span>
                           </div>
-                          <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                            Home Branch: <strong>{r.student_branch}</strong> → Requested Access to:{' '}
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--primary-light, #60a5fa)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <BookOpen size={16} /> {r.book_title || 'Book Access'}
+                            </span>
                             <span className="badge badge-secondary" style={{ fontSize: '0.74rem', textTransform: 'none' }}>
                               {r.requested_branch_name}
                             </span>
+                          </div>
+
+                          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '4px 0' }}>
+                            Student's Home Branch: <strong>{r.student_branch}</strong>
                           </p>
-                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginTop: '5px' }}>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                             Requested: {new Date(r.created_at).toLocaleString()}
                           </span>
                         </div>
@@ -1071,16 +1078,16 @@ const AdminDashboard = () => {
                           <button
                             onClick={() => handleBranchApproval(r.id, 'approved')}
                             className="btn btn-success"
-                            style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                            style={{ padding: '8px 16px', fontSize: '0.84rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <Check size={15} /> Grant Access
+                            <Check size={15} /> Grant Book Access
                           </button>
                           <button
                             onClick={() => handleBranchApproval(r.id, 'rejected')}
                             className="btn btn-danger"
-                            style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                            style={{ padding: '8px 16px', fontSize: '0.84rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <X size={15} /> Deny Access
+                            <X size={15} /> Deny
                           </button>
                         </div>
                       </div>

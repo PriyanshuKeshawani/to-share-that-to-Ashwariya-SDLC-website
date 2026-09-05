@@ -140,22 +140,32 @@ const StudentDashboard = ({ onSelectBook }) => {
     }
   };
 
-  // Branch Access Request
-  const handleRequestAccess = async (branchId, branchName) => {
+  // Individual Book Access Request
+  const handleRequestAccess = async (book) => {
+    if (!book) return;
+    const actionKey = `book-${book.id}`;
     try {
-      setActionLoading(prev => ({ ...prev, [branchId]: true }));
+      setActionLoading(prev => ({ ...prev, [actionKey]: true }));
       const data = await apiCall('/permissions/request', {
         method: 'POST',
-        body: JSON.stringify({ branch_id: branchId })
+        body: JSON.stringify({
+          book_id: book.id,
+          book_title: book.title,
+          branch_id: book.branch_id,
+          branch_name: book.branch_name || book.branch?.name || ''
+        })
       });
-      showFeedback(data.message || `Requested access for ${branchName}`);
-      setRequests(prev => [...prev, { branch_id: branchId, status: 'pending' }]);
+      showFeedback(data.message || `Requested reading permission for "${book.title}"`);
+      setRequests(prev => [
+        ...prev.filter(r => String(r.book_id) !== String(book.id)),
+        { book_id: book.id, book_title: book.title, branch_id: book.branch_id, status: 'pending' }
+      ]);
       const reqsData = await apiCall('/permissions/my-requests');
       setRequests(reqsData);
     } catch (err) {
-      showFeedback(err.message || 'Failed to request branch access', 'error');
+      showFeedback(err.message || 'Failed to request book permission', 'error');
     } finally {
-      setActionLoading(prev => ({ ...prev, [branchId]: false }));
+      setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
   };
 
@@ -231,7 +241,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   const isRequestPending = (branchId) => requests.some(r => String(r.branch_id) === String(branchId) && r.status === 'pending');
   const isRequestRejected = (branchId) => requests.some(r => String(r.branch_id) === String(branchId) && r.status === 'rejected');
 
-  // Compute live branch access for every book
+  // Compute live branch access for every book (separate per-book permission)
   const getBookAccess = useCallback((book) => {
     if (!book) return { hasAccess: false, isHomeBranch: false, status: 'none' };
     if (user?.role === 'admin') return { hasAccess: true, isHomeBranch: true, status: 'approved' };
@@ -239,16 +249,15 @@ const StudentDashboard = ({ onSelectBook }) => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
     const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
 
-    // 1. Same department/branch = automatic unlock
+    // 1. Same department/branch = automatic unlock for all books in home branch
     const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
     if (isHomeBranch) {
       return { hasAccess: true, isHomeBranch: true, status: 'approved' };
     }
 
-    // 2. Different department = must have approved permission from admin
+    // 2. Different department = separate request required for EACH individual book
     const req = requests.find(r => 
-      (book.branch_id != null && String(r.branch_id) === String(book.branch_id)) ||
-      (r.branch_name && book.branch_name && r.branch_name.trim().toLowerCase() === book.branch_name.trim().toLowerCase())
+      book.id != null && r.book_id != null && String(r.book_id) === String(book.id)
     );
 
     if (req && req.status === 'approved') {
@@ -1108,21 +1117,21 @@ const StudentDashboard = ({ onSelectBook }) => {
                                 </button>
                               ) : access.status === 'rejected' ? (
                                 <button
-                                  onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                  onClick={() => handleRequestAccess(book)}
                                   className="btn btn-danger"
                                   style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                  disabled={actionLoading[book.branch_id]}
+                                  disabled={actionLoading[`book-${book.id}`]}
                                 >
-                                  <ShieldAlert size={13} /> {actionLoading[book.branch_id] ? 'Submitting...' : 'Permission Denied - Request Again'}
+                                  <ShieldAlert size={13} /> {actionLoading[`book-${book.id}`] ? 'Submitting...' : 'Permission Denied - Request Again'}
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => handleRequestAccess(book.branch_id, book.branch_name)}
+                                  onClick={() => handleRequestAccess(book)}
                                   className="btn btn-primary btn-shine"
                                   style={{ width: '100%', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                  disabled={actionLoading[book.branch_id]}
+                                  disabled={actionLoading[`book-${book.id}`]}
                                 >
-                                  <Lock size={13} /> {actionLoading[book.branch_id] ? 'Requesting...' : `Request Permission to Read`}
+                                  <Lock size={13} /> {actionLoading[`book-${book.id}`] ? 'Requesting...' : `Request Permission to Read`}
                                 </button>
                               )}
                             </>
