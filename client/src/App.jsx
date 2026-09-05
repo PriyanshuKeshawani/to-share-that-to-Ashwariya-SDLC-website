@@ -14,7 +14,7 @@ const AppContent = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div style={{
         display: 'flex',

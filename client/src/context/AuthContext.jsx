@@ -9,9 +9,22 @@ const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lib_custom_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('lib_custom_user');
+    } catch {
+      return true;
+    }
+  });
   const [needsProfile, setNeedsProfile] = useState(false);
   const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
 
@@ -1154,9 +1167,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Restore User Session
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent && !localStorage.getItem('lib_custom_user')) {
+        setLoading(true);
+      }
 
       // 1. Check if user is logged in via credentials/admin session or bypass
       const savedUserStr = localStorage.getItem('lib_custom_user');
@@ -1178,6 +1193,7 @@ export const AuthProvider = ({ children }) => {
       
       if (sessionError || !currentSession) {
         if (!savedUserStr) clearSession();
+        setLoading(false);
         return;
       }
 
@@ -1237,13 +1253,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    loadUser();
+    loadUser(true);
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (event === 'SIGNED_OUT') {
         clearSession();
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        loadUser();
+      } else if (event === 'SIGNED_IN') {
+        loadUser(true);
+      } else if (event === 'TOKEN_REFRESHED') {
+        if (currentSession) setSession(currentSession);
       }
     });
 
