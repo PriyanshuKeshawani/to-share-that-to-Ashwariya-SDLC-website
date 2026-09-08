@@ -111,6 +111,13 @@ CREATE TABLE IF NOT EXISTS user_book_progress (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   last_page_read INTEGER DEFAULT 1,
+  total_pages INTEGER DEFAULT 0,
+  reading_time_minutes INTEGER DEFAULT 0,
+  session_count INTEGER DEFAULT 0,
+  progress_percentage INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'in_progress' CHECK(status IN ('in_progress', 'completed')),
+  session_start_at TIMESTAMP WITH TIME ZONE,
+  last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   accessed_count INTEGER DEFAULT 0,
   downloaded_count INTEGER DEFAULT 0,
   is_downloaded INTEGER DEFAULT 0,
@@ -118,6 +125,26 @@ CREATE TABLE IF NOT EXISTS user_book_progress (
   last_accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, book_id)
 );
+
+-- Migration: add new analytics columns to existing user_book_progress
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS total_pages INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS reading_time_minutes INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS session_count INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS progress_percentage INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'in_progress';
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS session_start_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- Add check constraint for status (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_book_progress_status_check') THEN
+    ALTER TABLE user_book_progress ADD CONSTRAINT user_book_progress_status_check CHECK (status IN ('in_progress', 'completed'));
+  END IF;
+END $$;
+
+-- Add total_pages column to books for accurate page counts
+ALTER TABLE books ADD COLUMN IF NOT EXISTS total_pages INTEGER DEFAULT 0;
 
 -- =========================================================
 -- 7. Notifications (ebook-only: permissions, books, system)
@@ -175,10 +202,14 @@ CREATE INDEX IF NOT EXISTS idx_users_roll ON users(roll_number);
 CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role, status);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_books_branch_cat ON books(branch_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_books_total_pages ON books(total_pages);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE is_read = FALSE;
 CREATE INDEX IF NOT EXISTS idx_permissions_user_book ON permissions(user_id, book_id);
+CREATE INDEX IF NOT EXISTS idx_user_book_progress_status ON user_book_progress(status);
+CREATE INDEX IF NOT EXISTS idx_user_book_progress_last_active ON user_book_progress(last_active_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_book_progress_session_start ON user_book_progress(session_start_at DESC);
 
 -- =========================================================
 -- 11. Storage bucket (legacy PDFs, optional)

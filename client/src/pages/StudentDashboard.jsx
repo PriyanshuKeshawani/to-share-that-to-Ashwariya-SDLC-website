@@ -603,6 +603,26 @@ const StudentDashboard = ({ onSelectBook }) => {
                         animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
                       }}
                     >
+                      {/* Book Cover Thumbnail */}
+                      {book.cover_url && (
+                        <div style={{
+                          width: '100%',
+                          height: '140px',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          marginBottom: '12px',
+                          background: 'var(--input-bg)',
+                          border: '1px solid var(--border-glass)'
+                        }}>
+                          <img
+                            src={book.cover_url}
+                            alt={book.title}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        </div>
+                      )}
+
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

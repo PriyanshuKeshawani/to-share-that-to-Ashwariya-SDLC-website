@@ -208,8 +208,8 @@ const Login = ({ onToggleView }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {[
                 'Instant cross-department catalog search',
-                'QR-based study table check-in & occupancy',
-                'Digital reader with offline bookmarks & tracking'
+                'Digital reader with offline bookmarks & tracking',
+                'Personalized reading history & analytics'
               ].map((text, i) => (
                 <div 
                   key={i} 

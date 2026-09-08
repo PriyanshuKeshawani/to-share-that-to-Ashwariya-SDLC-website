@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Bell, Check, X, BookOpen, AlertTriangle, CheckCheck, MapPin } from 'lucide-react';
+import { Bell, Check, X, BookOpen, CheckCheck } from 'lucide-react';
 
 const NotificationBell = () => {
   const { user, apiCall } = useAuth();
@@ -63,12 +63,13 @@ const NotificationBell = () => {
 
   const getNotificationIcon = (type) => {
     switch (type) {
-      case 'loan': return <BookOpen size={16} color="var(--primary)" />;
-      case 'return': return <Check size={16} color="var(--success)" />;
-      case 'fine': return <AlertTriangle size={16} color="var(--warning)" />;
-      case 'table':
-      case 'desk': return <MapPin size={16} color="var(--secondary)" />;
-      default: return <Bell size={16} color="var(--primary)" />;
+      case 'approval':
+      case 'rejection':
+        return <Check size={16} color="var(--success)" />;
+      case 'download':
+        return <BookOpen size={16} color="var(--primary)" />;
+      default:
+        return <Bell size={16} color="var(--primary)" />;
     }
   };
 
@@ -335,7 +336,7 @@ const NotificationBell = () => {
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '240px', margin: '0 auto', lineHeight: 1.45 }}>
                     {activeTab === 'unread'
                       ? "You've read all your recent notifications!"
-                      : "Book loans, seat check-ins, and library announcements will appear here."}
+                      : "Book access requests and library announcements will appear here."}
                   </p>
                 </div>
               ) : (
@@ -370,11 +371,7 @@ const NotificationBell = () => {
                       width: '32px',
                       height: '32px',
                       borderRadius: '10px',
-                      background: notif.type === 'loan' ? 'rgba(59, 130, 246, 0.12)' 
-                        : notif.type === 'return' ? 'rgba(16, 185, 129, 0.12)' 
-                        : notif.type === 'fine' ? 'rgba(245, 158, 11, 0.12)' 
-                        : notif.type === 'table' ? 'rgba(6, 182, 212, 0.12)' 
-                        : 'rgba(255, 255, 255, 0.05)',
+                      background: 'rgba(59, 130, 246, 0.12)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
-  Search, ShieldAlert, Award, FileText, Download, TrendingUp,
-  CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
-  Menu, Settings, UploadCloud, Activity
-} from 'lucide-react';
+  import { 
+    Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
+    Search, ShieldAlert, Award, FileText, Download, TrendingUp,
+    CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
+    Menu, Settings, UploadCloud, Activity, Image
+  } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -45,10 +45,13 @@ const AdminDashboard = () => {
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookSaving, setBookSaving] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
-  const [bookFormData, setBookFormData] = useState({ title: '', author: '', category_id: '', branch_id: '', priority: 'main' });
+  const [bookFormData, setBookFormData] = useState({ title: '', author: '', category_id: '', branch_id: '', priority: 'main', description: '', cover_url: '' });
   const [pdfFile, setPdfFile] = useState(null);
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [bookModalError, setBookModalError] = useState('');
   const pdfInputRef = useRef(null);
+  const thumbnailInputRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ text: '', type: '' });
@@ -385,6 +388,8 @@ const AdminDashboard = () => {
   // Open Book Modal (Add / Edit)
   const openBookModal = (book = null) => {
     setPdfFile(null);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
     setBookModalError('');
     if (book) {
       setEditingBook(book);
@@ -394,7 +399,8 @@ const AdminDashboard = () => {
         category_id: book.category_id.toString(),
         branch_id: book.branch_id.toString(),
         priority: book.priority,
-        pdf_url: book.pdf_url || ''
+        pdf_url: book.pdf_url || '',
+        cover_url: book.cover_url || ''
       });
     } else {
       setEditingBook(null);
@@ -404,7 +410,8 @@ const AdminDashboard = () => {
         category_id: categories.length > 0 ? categories[0].id.toString() : '',
         branch_id: branches.length > 0 ? branches[0].id.toString() : '',
         priority: 'main',
-        pdf_url: ''
+        pdf_url: '',
+        cover_url: ''
       });
     }
     setShowBookModal(true);
@@ -437,8 +444,13 @@ const AdminDashboard = () => {
       formData.append('category_id', category_id);
       formData.append('branch_id', branch_id);
       formData.append('priority', priority);
+      formData.append('description', bookFormData.description || '');
+      formData.append('cover_url', bookFormData.cover_url || '');
       if (pdfFile) {
         formData.append('pdf', pdfFile);
+      }
+      if (thumbnailFile) {
+        formData.append('thumbnail', thumbnailFile);
       }
 
       if (editingBook) {
@@ -457,6 +469,8 @@ const AdminDashboard = () => {
 
       setShowBookModal(false);
       setPdfFile(null);
+      setThumbnailFile(null);
+      setThumbnailPreview(null);
       setBookModalError('');
       // Refresh
       const bList = await apiCall('/books');
@@ -1004,6 +1018,7 @@ const AdminDashboard = () => {
                               style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
                             />
                           </th>
+                          <th style={{ padding: '16px', width: '70px' }}>Cover</th>
                           <th style={{ padding: '16px' }}>Title</th>
                           <th style={{ padding: '16px' }}>Author</th>
                           <th style={{ padding: '16px' }}>Branch</th>
@@ -1015,7 +1030,7 @@ const AdminDashboard = () => {
                       <tbody>
                         {filteredBooks.length === 0 ? (
                           <tr>
-                            <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center' }}>
+                            <td colSpan={8} style={{ padding: '32px 16px', textAlign: 'center' }}>
                               <EmptyState
                                 icon={BookOpen}
                                 title="No Books Found"
@@ -1035,6 +1050,13 @@ const AdminDashboard = () => {
                                 onChange={e => handleSelectBook(b.id, e.target.checked)}
                                 style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
                               />
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                              {b.cover_url ? (
+                                <img src={b.cover_url} alt={b.title} style={{ width: '40px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-glass)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
+                              )}
                             </td>
                             <td style={{ padding: '16px', fontWeight: 600 }}>{b.title}</td>
                             <td style={{ padding: '16px' }}>{b.author}</td>
@@ -1990,6 +2012,99 @@ const AdminDashboard = () => {
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+
+              {/* Book Cover / Thumbnail */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Book Cover / Thumbnail
+                </label>
+
+                {/* Hidden Real File Input */}
+                <input
+                  type="file"
+                  ref={thumbnailInputRef}
+                  style={{ display: 'none' }}
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setThumbnailFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => setThumbnailPreview(reader.result);
+                      reader.readAsDataURL(file);
+                      if (bookModalError) setBookModalError('');
+                    }
+                  }}
+                />
+
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  {/* Thumbnail Preview */}
+                  <div style={{
+                    width: '80px',
+                    height: '110px',
+                    borderRadius: '8px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-glass)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    flexShrink: 0
+                  }}>
+                    {thumbnailPreview ? (
+                      <img src={thumbnailPreview} alt="Cover preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : bookFormData.cover_url ? (
+                      <img src={bookFormData.cover_url} alt="Current cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Image size={24} style={{ color: 'var(--text-muted)' }} />
+                    )}
+                  </div>
+
+                  {/* Upload / URL Controls */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <UploadCloud size={14} />
+                      {thumbnailFile ? 'Change Image' : 'Upload Image'}
+                    </button>
+
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>or</div>
+
+                    <input
+                      type="text"
+                      className="glass-input"
+                      placeholder="Paste image URL here..."
+                      value={bookFormData.cover_url || ''}
+                      onChange={(e) => {
+                        setBookFormData({ ...bookFormData, cover_url: e.target.value });
+                        setThumbnailPreview(null);
+                        setThumbnailFile(null);
+                      }}
+                      style={{ fontSize: '0.8rem' }}
+                    />
+                  </div>
+                </div>
+
+                {(thumbnailFile || bookFormData.cover_url) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setThumbnailFile(null);
+                      setThumbnailPreview(null);
+                      setBookFormData({ ...bookFormData, cover_url: '' });
+                      if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+                    }}
+                    className="btn btn-secondary"
+                    style={{ marginTop: '8px', padding: '6px 12px', fontSize: '0.75rem', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)' }}
+                  >
+                    Remove Cover
+                  </button>
                 )}
               </div>
 

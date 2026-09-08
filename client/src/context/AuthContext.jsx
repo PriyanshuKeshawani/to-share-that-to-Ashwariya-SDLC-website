@@ -165,6 +165,28 @@ export const AuthProvider = ({ children }) => {
             }
           }
         }
+
+        const thumbnailFile = formData.get('thumbnail');
+        if (thumbnailFile && thumbnailFile.name) {
+          const fileName = `covers/${Date.now()}-${thumbnailFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+          const { error: thumbErr } = await supabase.storage
+            .from('pdfs')
+            .upload(fileName, thumbnailFile, { upsert: true });
+          if (!thumbErr) {
+            const { data: thumbUrlData } = supabase.storage.from('pdfs').getPublicUrl(fileName);
+            payload.cover_url = thumbUrlData ? thumbUrlData.publicUrl : null;
+          } else {
+            console.warn('Thumbnail upload notice:', thumbErr.message);
+            if (thumbnailFile.size <= 2 * 1024 * 1024) {
+              payload.cover_url = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(thumbnailFile);
+              }).catch(() => null);
+            }
+          }
+        }
       } else {
         payload = { ...body };
         if (payload.drive_link) {
