@@ -3,19 +3,19 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
   Search, ShieldAlert, Award, FileText, Download, TrendingUp,
-  Upload, Layers, CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
-  Menu, ArrowLeftRight, MapPin, Settings, Package, UploadCloud, Activity
+  CheckCircle2, SkipForward, XCircle, UserCheck, UserX, AlertTriangle,
+  Menu, Settings, UploadCloud, Activity
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import SettingsView from '../components/SettingsView';
-import RoomSeatingManager from '../components/RoomSeatingManager';
 import StudentActivityModal from '../components/StudentActivityModal';
+import BookActivityModal from '../components/BookActivityModal';
 
 const AdminDashboard = () => {
   const { logout, apiCall } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'users', 'permissions', 'books', 'students', 'logs', 'loans', 'rooms', 'settings'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'users', 'permissions', 'books', 'students', 'logs', 'settings'
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -39,6 +39,7 @@ const AdminDashboard = () => {
   const [bulkDeleteBooksLoading, setBulkDeleteBooksLoading] = useState(false);
   const [deleteBookConfirm, setDeleteBookConfirm] = useState(null); // { id, title }
   const [deleteBookLoading, setDeleteBookLoading] = useState(false);
+  const [selectedBookForActivity, setSelectedBookForActivity] = useState(null);
 
   // Book CRUD Modal State
   const [showBookModal, setShowBookModal] = useState(false);
@@ -48,20 +49,6 @@ const AdminDashboard = () => {
   const [pdfFile, setPdfFile] = useState(null);
   const [bookModalError, setBookModalError] = useState('');
   const pdfInputRef = useRef(null);
-
-  // Bulk Upload Modal State
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkFiles, setBulkFiles] = useState([]);
-  const [bulkFormData, setBulkFormData] = useState({
-    category_id: '',
-    branch_id: '',
-    priority: 'main',
-    author: ''
-  });
-  const [bulkResults, setBulkResults] = useState(null); // null = not submitted yet
-  const [bulkUploading, setBulkUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const bulkFileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ text: '', type: '' });
@@ -74,35 +61,6 @@ const AdminDashboard = () => {
   const [logsLoading, setLogsLoading] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const [toastExiting, setToastExiting] = useState(false);
-
-  // Loan Management State
-  const [loans, setLoans] = useState([]);
-  const [loanSearch, setLoanSearch] = useState('');
-  const [loanStatusFilter, setLoanStatusFilter] = useState('');
-
-  // Book Issue/Return State
-  const [showIssueModal, setShowIssueModal] = useState(false);
-  const [issueFormData, setIssueFormData] = useState({ copy_id: '', user_id: '', due_date: '' });
-  const [issueLoading, setIssueLoading] = useState(false);
-  const [returnModal, setReturnModal] = useState(null); // loan object
-
-  // Room & Table Management State
-  const [rooms, setRooms] = useState([]);
-  const [allTables, setAllTables] = useState([]);
-  const [showRoomModal, setShowRoomModal] = useState(false);
-  const [showTableModal, setShowTableModal] = useState(false);
-  const [roomName, setRoomName] = useState('');
-  const [roomDesc, setRoomDesc] = useState('');
-  const [tableFormData, setTableFormData] = useState({ room_id: '', table_number: '', qr_identifier: '' });
-
-  // Library Settings State
-  const [librarySettings, setLibrarySettings] = useState({ loan_duration_days: 14, fine_per_day: 5, max_fine: 200 });
-  const [settingsSaving, setSettingsSaving] = useState(false);
-
-  // Book Copies State
-  const [bookCopies, setBookCopies] = useState([]);
-  const [showCopyModal, setShowCopyModal] = useState(false);
-  const [copyFormData, setCopyFormData] = useState({ book_id: '', qr_code: '' });
 
   // Memoized selector values to optimize rendering performance
   const uniqueStudentBranches = useMemo(() => {
@@ -155,19 +113,14 @@ const AdminDashboard = () => {
   const fetchAllAdminData = useCallback(async () => {
     try {
       setLoading(true);
-      const [dash, pUsers, pReqs, bList, brList, catList, allStudents, loansList, roomsList, tablesList, settings, copiesList] = await Promise.all([
+      const [dash, pUsers, pReqs, bList, brList, catList, allStudents] = await Promise.all([
         apiCall('/analytics/dashboard'),
         apiCall('/auth/pending-users'),
         apiCall('/permissions/pending-requests'),
         apiCall('/books'),
         apiCall('/books/branches'),
         apiCall('/books/categories'),
-        apiCall('/auth/users'),
-        apiCall('/book-loans'),
-        apiCall('/rooms'),
-        apiCall('/tables'),
-        apiCall('/library-settings'),
-        apiCall('/book-copies')
+        apiCall('/auth/users')
       ]);
 
       setDashboardData(dash);
@@ -177,20 +130,10 @@ const AdminDashboard = () => {
       setBranches(brList);
       setCategories(catList);
       setStudents(allStudents.filter(u => u.role === 'student'));
-      setLoans(loansList || []);
-      setRooms(roomsList || []);
-      setAllTables(tablesList || []);
-      setLibrarySettings(settings || { loan_duration_days: 14, fine_per_day: 5, max_fine: 200 });
-      setBookCopies(copiesList || []);
 
       // Set initial values for book form dropdowns if not empty
       if (catList.length > 0 && brList.length > 0) {
         setBookFormData(prev => ({
-          ...prev,
-          category_id: catList[0].id.toString(),
-          branch_id: brList[0].id.toString()
-        }));
-        setBulkFormData(prev => ({
           ...prev,
           category_id: catList[0].id.toString(),
           branch_id: brList[0].id.toString()
@@ -523,87 +466,8 @@ const AdminDashboard = () => {
     } catch (err) {
       setBookModalError(err.message || 'Failed to save book');
       showFeedback(err.message || 'Failed to save book', 'error');
-    } finally {
+} finally {
       setBookSaving(false);
-    }
-  };
-
-  // Open Bulk Upload Modal
-  const openBulkModal = () => {
-    setBulkFiles([]);
-    setBulkResults(null);
-    setBulkUploading(false);
-    setBulkFormData({
-      category_id: categories.length > 0 ? categories[0].id.toString() : '',
-      branch_id: branches.length > 0 ? branches[0].id.toString() : '',
-      priority: 'main',
-      author: ''
-    });
-    setShowBulkModal(true);
-  };
-
-  // Handle drag-and-drop files
-  const handleBulkDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-    setBulkFiles(prev => {
-      const existing = new Set(prev.map(f => f.name));
-      return [...prev, ...dropped.filter(f => !existing.has(f.name))];
-    });
-  };
-
-  const handleBulkFileSelect = (e) => {
-    const selected = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
-    setBulkFiles(prev => {
-      const existing = new Set(prev.map(f => f.name));
-      return [...prev, ...selected.filter(f => !existing.has(f.name))];
-    });
-  };
-
-  const removeBulkFile = (name) => {
-    setBulkFiles(prev => prev.filter(f => f.name !== name));
-  };
-
-  // Submit Bulk Upload
-  const handleBulkUpload = async () => {
-    if (bulkFiles.length === 0) {
-      showFeedback('Please select at least one PDF file', 'error');
-      return;
-    }
-    if (!bulkFormData.category_id || !bulkFormData.branch_id || !bulkFormData.priority) {
-      showFeedback('Please fill in Branch, Category, and Priority', 'error');
-      return;
-    }
-
-    setBulkUploading(true);
-    setBulkResults(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('category_id', bulkFormData.category_id);
-      formData.append('branch_id', bulkFormData.branch_id);
-      formData.append('priority', bulkFormData.priority);
-      formData.append('author', bulkFormData.author);
-      bulkFiles.forEach(f => formData.append('pdfs', f));
-
-      const data = await apiCall('/books/bulk', {
-        method: 'POST',
-        body: formData
-      });
-
-      setBulkResults(data);
-      showFeedback(`Bulk import done: ${data.imported} added, ${data.skipped} skipped, ${data.errors} errors`);
-
-      // Refresh books list
-      const bList = await apiCall('/books');
-      setBooks(bList);
-      const dash = await apiCall('/analytics/dashboard');
-      setDashboardData(dash);
-    } catch (err) {
-      showFeedback(err.message || 'Bulk upload failed', 'error');
-    } finally {
-      setBulkUploading(false);
     }
   };
 
@@ -615,8 +479,6 @@ const AdminDashboard = () => {
     );
     return maxVal > 0 ? Math.ceil(maxVal * 1.2) : 10;
   };
-
-
 
   return (
     <div className="app-container">
@@ -676,32 +538,11 @@ const AdminDashboard = () => {
               <Key size={16} /> Book Requests ({pendingRequests.length})
             </button>
             <button 
-              onClick={() => setActiveTab('loans')}
-              className={`btn ${activeTab === 'loans' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-            >
-              <ArrowLeftRight size={16} /> Book Circulation ({loans.filter(l => l.status === 'issued').length})
-            </button>
-            <button 
-              onClick={() => setActiveTab('rooms')}
-              className={`btn ${activeTab === 'rooms' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-            >
-              <MapPin size={16} /> Rooms & Tables
-            </button>
-            <button 
               onClick={() => setActiveTab('books')}
               className={`btn ${activeTab === 'books' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
             >
               <BookOpen size={16} /> Book Inventory
-            </button>
-            <button 
-              onClick={() => setActiveTab('copies')}
-              className={`btn ${activeTab === 'copies' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-            >
-              <Package size={16} /> Book Copies
             </button>
             <button 
               onClick={() => setActiveTab('students')}
@@ -1107,13 +948,6 @@ const AdminDashboard = () => {
                   </div>
                   <div className="book-inventory-actions" style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
                     <button
-                      onClick={() => openBulkModal()}
-                      className="btn btn-secondary"
-                      style={{ border: '1px solid rgba(6,182,212,0.3)', color: 'var(--secondary)' }}
-                    >
-                      <Layers size={16} /> Bulk Upload PDFs
-                    </button>
-                    <button
                       onClick={() => openBookModal(null)}
                       className="btn btn-primary"
                     >
@@ -1217,6 +1051,14 @@ const AdminDashboard = () => {
                             </td>
                             <td style={{ padding: '16px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                <button
+                                  onClick={() => setSelectedBookForActivity(b)}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '6px 10px', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--primary)' }}
+                                  title="View Reading Activity"
+                                >
+                                  <Activity size={14} />
+                                </button>
                                 <button
                                   onClick={() => openBookModal(b)}
                                   className="btn btn-secondary"
@@ -1631,273 +1473,13 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Book Circulation / Loans Tab */}
-            {activeTab === 'loans' && (
-              <div className="animate-section-enter">
-                <div style={{ marginBottom: '32px' }}>
-                  <h2>Book Circulation Management</h2>
-                  <p style={{ marginTop: '4px' }}>Track issued books, process returns, and manage overdue fines.</p>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-                    <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      className="glass-input"
-                      placeholder="Search loans by book, student..."
-                      value={loanSearch}
-                      onChange={e => setLoanSearch(e.target.value)}
-                      style={{ paddingLeft: '40px' }}
-                    />
-                  </div>
-                  <select
-                    className="glass-input glass-select"
-                    value={loanStatusFilter}
-                    onChange={e => setLoanStatusFilter(e.target.value)}
-                    style={{ width: '160px' }}
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="issued">Issued</option>
-                    <option value="returned">Returned</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                  <button
-                    onClick={() => setShowIssueModal(true)}
-                    className="btn btn-primary"
-                    style={{ padding: '10px 18px' }}
-                  >
-                    <Plus size={16} /> Issue Book
-                  </button>
-                </div>
-
-                {(() => {
-                  const filtered = loans.filter(l => {
-                    const q = loanSearch.toLowerCase();
-                    const matchSearch = !q || l.book_title?.toLowerCase().includes(q) || l.borrower_name?.toLowerCase().includes(q);
-                    let matchStatus = true;
-                    if (loanStatusFilter === 'issued') matchStatus = l.status === 'issued';
-                    else if (loanStatusFilter === 'returned') matchStatus = l.status === 'returned';
-                    else if (loanStatusFilter === 'overdue') matchStatus = l.status === 'issued' && new Date(l.due_date) < new Date();
-                    return matchSearch && matchStatus;
-                  });
-
-                  if (filtered.length === 0) {
-                    return (
-                      <EmptyState
-                        icon={ArrowLeftRight}
-                        title="No circulation records found"
-                        description="No book loans match your current search query or status filter."
-                      />
-                    );
-                  }
-
-                  return (
-                    <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                      <div className="table-responsive-wrapper">
-                        <table className="custom-table">
-                          <thead>
-                            <tr>
-                              <th>Book Details</th>
-                              <th>Borrower (Student)</th>
-                              <th>Issued Date</th>
-                              <th>Due Date</th>
-                              <th>Status</th>
-                              <th style={{ textAlign: 'center' }}>Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filtered.map(loan => (
-                              <tr key={loan.id}>
-                                <td>
-                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loan.book_title}</div>
-                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{loan.book_author}</div>
-                                </td>
-                                <td>
-                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loan.borrower_name}</div>
-                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{loan.borrower_roll}</div>
-                                </td>
-                                <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{new Date(loan.issued_at).toLocaleDateString()}</td>
-                                <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{new Date(loan.due_date).toLocaleDateString()}</td>
-                                <td>
-                                  <StatusBadge status={loan.status} />
-                                </td>
-                                <td style={{ textAlign: 'center' }}>
-                                  {loan.status === 'issued' && (
-                                    <button
-                                      onClick={() => setReturnModal(loan)}
-                                      className="btn btn-success"
-                                      style={{ padding: '5px 12px', fontSize: '0.78rem' }}
-                                    >
-                                      Return
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Rooms & Interactive BookMyShow Seating Tab */}
-            {activeTab === 'rooms' && (
-              <RoomSeatingManager
-                rooms={rooms}
-                tables={allTables}
-                apiCall={apiCall}
-                showFeedback={showFeedback}
-                onRefresh={fetchAllAdminData}
-                onAddRoomModal={() => setShowRoomModal(true)}
-                onAddTableModal={() => setShowTableModal(true)}
-              />
-            )}
-
-            {/* Book Copies Tab */}
-            {activeTab === 'copies' && (
-              <div className="animate-section-enter">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }} className="responsive-grid-1col">
-                  <div>
-                    <h2>Physical Book Copies</h2>
-                    <p style={{ marginTop: '4px' }}>Manage physical copies with unique UUIDs and QR labels.</p>
-                  </div>
-                  <button onClick={() => setShowCopyModal(true)} className="btn btn-primary" style={{ padding: '10px 18px', marginTop: '12px' }}>
-                    <Plus size={16} /> Add Copy
-                  </button>
-                </div>
-
-                <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.1)' }}>
-                          <th style={{ padding: '16px' }}>Book</th>
-                          <th style={{ padding: '16px' }}>Copy UUID</th>
-                          <th style={{ padding: '16px' }}>QR Code</th>
-                          <th style={{ padding: '16px' }}>Status</th>
-                          <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bookCopies.map(copy => (
-                          <tr key={copy.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <td style={{ padding: '16px', fontWeight: 600 }}>{copy.book_title}</td>
-                            <td style={{ padding: '16px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{copy.copy_uuid}</td>
-                            <td style={{ padding: '16px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{copy.qr_code}</td>
-                            <td style={{ padding: '16px' }}>
-                              <span className={`badge ${copy.status === 'available' ? 'badge-success' : copy.status === 'issued' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '0.65rem' }}>
-                                {copy.status}
-                              </span>
-                            </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              <button
-                                onClick={async () => {
-                                  const newStatus = copy.status === 'available' ? 'issued' : 'available';
-                                  await apiCall(`/book-copies/${copy.id}`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
-                                  setBookCopies(prev => prev.map(c => c.id === copy.id ? { ...c, status: newStatus } : c));
-                                  showFeedback(`Copy marked as ${newStatus}`);
-                                }}
-                                className="btn btn-secondary"
-                                style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                              >
-                                Toggle Status
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Settings & System Preferences Tab */}
+            {/* Settings Tab */}
             {activeTab === 'settings' && (
-              <div className="animate-section-enter" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                {/* Visual Appearance & Themes */}
+              <div className="animate-section-enter">
                 <SettingsView isAdmin={true} />
-
-                {/* Library Circulation Rules & Fine Structure */}
-                <div className="glass-panel" style={{ padding: '24px', maxWidth: '860px', margin: '0 auto', width: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)' }}>
-                      <Settings size={18} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Circulation Rules & Fine Structure</h3>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Configure checkout duration and overdue penalty limits across the campus</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Default Loan Duration (Days)
-                      </label>
-                      <input
-                        type="number"
-                        className="glass-input"
-                        value={librarySettings.loan_duration_days}
-                        onChange={e => setLibrarySettings({ ...librarySettings, loan_duration_days: parseInt(e.target.value) || 0 })}
-                        min="1"
-                        max="90"
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Fine Rate (₹ / Overdue Day)
-                      </label>
-                      <input
-                        type="number"
-                        className="glass-input"
-                        value={librarySettings.fine_per_day}
-                        onChange={e => setLibrarySettings({ ...librarySettings, fine_per_day: parseFloat(e.target.value) || 0 })}
-                        min="0"
-                        step="0.5"
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Maximum Fine Cap (₹)
-                      </label>
-                      <input
-                        type="number"
-                        className="glass-input"
-                        value={librarySettings.max_fine}
-                        onChange={e => setLibrarySettings({ ...librarySettings, max_fine: parseFloat(e.target.value) || 0 })}
-                        min="0"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      setSettingsSaving(true);
-                      try {
-                        await apiCall('/library-settings', { method: 'PUT', body: JSON.stringify(librarySettings) });
-                        showFeedback('Circulation rules updated successfully');
-                      } catch (err) {
-                        showFeedback(err.message || 'Failed to update settings', 'error');
-                      } finally {
-                        setSettingsSaving(false);
-                      }
-                    }}
-                    className="btn btn-primary"
-                    style={{ padding: '10px 20px', fontSize: '0.88rem' }}
-                    disabled={settingsSaving}
-                  >
-                    {settingsSaving ? 'Saving Rules...' : 'Save Circulation Rules'}
-                  </button>
-                </div>
               </div>
             )}
+
           </>
         )}
       </main>
@@ -2444,243 +2026,6 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Bulk Upload Modal ────────────────────────────────────── */}
-      {showBulkModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1100, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%', maxWidth: '680px',
-            padding: '32px',
-            boxShadow: 'var(--shadow-glass)',
-            maxHeight: '90vh', overflowY: 'auto'
-          }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(6,182,212,0.15)', color: 'var(--secondary)' }}>
-                  <Layers size={20} />
-                </div>
-                <div>
-                  <h3 style={{ marginBottom: '2px' }}>Bulk Upload Books</h3>
-                  <p style={{ fontSize: '0.8rem', margin: 0 }}>Upload multiple PDFs at once — titles are auto-extracted from filenames</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowBulkModal(false)}
-                className="btn btn-secondary"
-                style={{ padding: '6px', borderRadius: '50%' }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Shared Metadata */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Branch</label>
-                <select
-                  className="glass-input glass-select"
-                  value={bulkFormData.branch_id}
-                  onChange={e => setBulkFormData({ ...bulkFormData, branch_id: e.target.value })}
-                >
-                  {branches.map(br => <option key={br.id} value={br.id}>{br.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category</label>
-                <select
-                  className="glass-input glass-select"
-                  value={bulkFormData.category_id}
-                  onChange={e => setBulkFormData({ ...bulkFormData, category_id: e.target.value })}
-                >
-                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Priority</label>
-                <select
-                  className="glass-input glass-select"
-                  value={bulkFormData.priority}
-                  onChange={e => setBulkFormData({ ...bulkFormData, priority: e.target.value })}
-                >
-                  <option value="main">Main Subject (1st Priority)</option>
-                  <option value="sub">Sub Subject (2nd Priority)</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Author (Optional — applies to all)</label>
-                <input
-                  type="text"
-                  className="glass-input"
-                  placeholder="e.g. Various Authors"
-                  value={bulkFormData.author}
-                  onChange={e => setBulkFormData({ ...bulkFormData, author: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Drag & Drop Zone */}
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleBulkDrop}
-              onClick={() => bulkFileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragOver ? 'var(--secondary)' : 'rgba(255,255,255,0.15)'}`,
-                borderRadius: '12px',
-                padding: '32px 20px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: dragOver ? 'rgba(6,182,212,0.06)' : 'rgba(255,255,255,0.02)',
-                transition: 'all 0.2s ease',
-                marginBottom: '16px'
-              }}
-            >
-              <Upload size={32} style={{ color: 'var(--secondary)', marginBottom: '10px' }} />
-              <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>Drop PDF files here or click to browse</p>
-              <p style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>Supports multiple PDFs — up to 50 files at once</p>
-              <input
-                ref={bulkFileInputRef}
-                type="file"
-                accept="application/pdf"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleBulkFileSelect}
-              />
-            </div>
-
-            {/* Selected Files List */}
-            {bulkFiles.length > 0 && (
-              <div style={{
-                background: 'rgba(0,0,0,0.2)',
-                borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.07)',
-                maxHeight: '220px',
-                overflowY: 'auto',
-                marginBottom: '16px'
-              }}>
-                <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    {bulkFiles.length} file{bulkFiles.length !== 1 ? 's' : ''} selected
-                  </span>
-                  <button
-                    onClick={() => setBulkFiles([])}
-                    style={{ fontSize: '0.75rem', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    Clear all
-                  </button>
-                </div>
-                {bulkFiles.map((f, i) => {
-                  // Find result for this file if upload was done
-                  const res = bulkResults?.results?.find(r => r.file === f.name);
-                  return (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '8px 14px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      fontSize: '0.82rem'
-                    }}>
-                      <FileText size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                        {(f.size / 1024 / 1024).toFixed(1)} MB
-                      </span>
-                      {/* Result badge */}
-                      {res && res.status === 'success' && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)', fontSize: '0.72rem', flexShrink: 0 }}>
-                          <CheckCircle2 size={13} /> Added
-                        </span>
-                      )}
-                      {res && res.status === 'skipped' && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--warning)', fontSize: '0.72rem', flexShrink: 0 }}>
-                          <SkipForward size={13} /> Skipped
-                        </span>
-                      )}
-                      {res && res.status === 'error' && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', fontSize: '0.72rem', flexShrink: 0 }}>
-                          <XCircle size={13} /> Error
-                        </span>
-                      )}
-                      {/* Remove button (only if not yet uploaded) */}
-                      {!bulkResults && (
-                        <button
-                          onClick={() => removeBulkFile(f.name)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}
-                          title="Remove"
-                        >
-                          <X size={13} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Summary after upload */}
-            {bulkResults && (
-              <div style={{
-                display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap'
-              }}>
-                <div style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--success)' }}>{bulkResults.imported}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Added</div>
-                </div>
-                <div style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--warning)' }}>{bulkResults.skipped}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Skipped</div>
-                </div>
-                <div style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--danger)' }}>{bulkResults.errors}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Errors</div>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '12px' }}>
-              {!bulkResults ? (
-                <button
-                  onClick={handleBulkUpload}
-                  disabled={bulkUploading || bulkFiles.length === 0}
-                  className="btn btn-primary"
-                  style={{ flex: 1, padding: '12px', opacity: (bulkUploading || bulkFiles.length === 0) ? 0.6 : 1 }}
-                >
-                  {bulkUploading ? (
-                    <>
-                      <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      Uploading {bulkFiles.length} files...
-                    </>
-                  ) : (
-                    <><Upload size={16} /> Upload {bulkFiles.length > 0 ? `${bulkFiles.length} PDF${bulkFiles.length !== 1 ? 's' : ''}` : 'PDFs'}</>
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={() => { setBulkFiles([]); setBulkResults(null); }}
-                  className="btn btn-secondary"
-                  style={{ flex: 1, padding: '12px', border: '1px solid rgba(6,182,212,0.3)', color: 'var(--secondary)' }}
-                >
-                  <Layers size={16} /> Upload More Files
-                </button>
-              )}
-              <button
-                onClick={() => setShowBulkModal(false)}
-                className="btn btn-secondary"
-                style={{ padding: '12px 20px' }}
-              >
-                {bulkResults ? 'Close' : 'Cancel'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Mobile Top Header */}
       <header className="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2741,11 +2086,23 @@ const AdminDashboard = () => {
           <span>Approvals</span>
         </button>
         <button 
-          onClick={() => setActiveTab('loans')}
-          className={`bottom-nav-item ${activeTab === 'loans' ? 'active' : ''}`}
+          onClick={() => setActiveTab('permissions')}
+          className={`bottom-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
         >
-          <ArrowLeftRight size={19} />
-          <span>Circulation</span>
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <Key size={19} />
+            {pendingRequests.length > 0 && (
+              <span style={{
+                position: 'absolute', top: '-4px', right: '-8px',
+                background: 'var(--primary)', color: '#fff',
+                fontSize: '0.62rem', fontWeight: 700, width: '15px', height: '15px',
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                {pendingRequests.length}
+              </span>
+            )}
+          </div>
+          <span>Access</span>
         </button>
         <button 
           onClick={() => setActiveTab('books')}
@@ -2821,27 +2178,6 @@ const AdminDashboard = () => {
                 <Key size={16} /> Access Requests ({pendingRequests.length})
               </button>
               <button 
-                onClick={() => { setActiveTab('loans'); setShowMenuDrawer(false); }}
-                className={`btn ${activeTab === 'loans' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-              >
-                <ArrowLeftRight size={16} /> Circulation ({loans.filter(l => l.status === 'issued').length})
-              </button>
-              <button 
-                onClick={() => { setActiveTab('rooms'); setShowMenuDrawer(false); }}
-                className={`btn ${activeTab === 'rooms' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-              >
-                <MapPin size={16} /> Rooms & Tables
-              </button>
-              <button 
-                onClick={() => { setActiveTab('copies'); setShowMenuDrawer(false); }}
-                className={`btn ${activeTab === 'copies' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-              >
-                <Package size={16} /> Book Copies
-              </button>
-              <button 
                 onClick={() => { setActiveTab('settings'); setShowMenuDrawer(false); }}
                 className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
@@ -2880,260 +2216,6 @@ const AdminDashboard = () => {
                 <X size={16} /> Log Out
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Issue Book Modal ────────────────────────────────────── */}
-      {showIssueModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '480px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3>Issue Book</h3>
-              <button onClick={() => setShowIssueModal(false)} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '50%' }}><X size={16} /></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (issueLoading) return;
-              setIssueLoading(true);
-              try {
-                const dueDate = new Date();
-                dueDate.setDate(dueDate.getDate() + librarySettings.loan_duration_days);
-                await apiCall('/book-loans', {
-                  method: 'POST',
-                  body: JSON.stringify({ copy_id: issueFormData.copy_id, user_id: issueFormData.user_id, due_date: dueDate.toISOString() })
-                });
-                showFeedback('Book issued successfully');
-                setShowIssueModal(false);
-                setIssueFormData({ copy_id: '', user_id: '', due_date: '' });
-                const loansList = await apiCall('/book-loans');
-                setLoans(loansList || []);
-              } catch (err) {
-                showFeedback(err.message || 'Failed to issue book', 'error');
-              } finally {
-                setIssueLoading(false);
-              }
-            }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Book Copy</label>
-                <select
-                  className="glass-input glass-select"
-                  value={issueFormData.copy_id}
-                  onChange={e => setIssueFormData({ ...issueFormData, copy_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select copy</option>
-                  {bookCopies.filter(c => c.status === 'available').map(copy => (
-                    <option key={copy.id} value={copy.id}>{copy.book_title} ({copy.copy_uuid?.slice(0, 8)}...)</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Student</label>
-                <select
-                  className="glass-input glass-select"
-                  value={issueFormData.user_id}
-                  onChange={e => setIssueFormData({ ...issueFormData, user_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select student</option>
-                  {students.filter(s => s.status === 'approved').map(s => (
-                    <option key={s.id} value={s.id}>{s.full_name} ({s.roll_number})</option>
-                  ))}
-                </select>
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px' }} disabled={issueLoading}>
-                {issueLoading ? 'Issuing...' : 'Issue Book'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Return Book Modal ───────────────────────────────────── */}
-      {returnModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '28px', textAlign: 'center' }}>
-            <h3 style={{ marginBottom: '12px' }}>Return Book</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              {returnModal.book_title} by {returnModal.book_author}
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button onClick={() => setReturnModal(null)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
-              <button
-                onClick={async () => {
-                  try {
-                    const now = new Date().toISOString();
-                    const dueDate = new Date(returnModal.due_date);
-                    const daysOverdue = now > dueDate.toISOString() ? Math.floor((new Date(now) - dueDate) / (1000 * 60 * 60 * 24)) : 0;
-                    const fineAmount = Math.min(daysOverdue * librarySettings.fine_per_day, librarySettings.max_fine);
-                    await apiCall(`/book-loans/${returnModal.id}/return`, {
-                      method: 'POST',
-                      body: JSON.stringify({ fine_amount: fineAmount })
-                    });
-                    showFeedback(fineAmount > 0 ? `Returned with fine ₹${fineAmount}` : 'Returned successfully');
-                    setReturnModal(null);
-                    const loansList = await apiCall('/book-loans');
-                    setLoans(loansList || []);
-                  } catch (err) {
-                    showFeedback(err.message || 'Failed to return book', 'error');
-                  }
-                }}
-                className="btn btn-success"
-                style={{ padding: '10px 20px' }}
-              >
-                Confirm Return
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Add Room Modal ─────────────────────────────────────── */}
-      {showRoomModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3>Add Room</h3>
-              <button onClick={() => setShowRoomModal(false)} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '50%' }}><X size={16} /></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const data = await apiCall('/rooms', { method: 'POST', body: JSON.stringify({ name: roomName, description: roomDesc }) });
-                setRooms(prev => [...prev, data.data]);
-                setShowRoomModal(false);
-                setRoomName('');
-                setRoomDesc('');
-                showFeedback('Room added');
-              } catch (err) {
-                showFeedback(err.message || 'Failed to add room', 'error');
-              }
-            }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Room Name</label>
-                <input type="text" className="glass-input" value={roomName} onChange={e => setRoomName(e.target.value)} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Description</label>
-                <input type="text" className="glass-input" value={roomDesc} onChange={e => setRoomDesc(e.target.value)} />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px' }}>Save Room</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Add Table Modal ────────────────────────────────────── */}
-      {showTableModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3>Add Table</h3>
-              <button onClick={() => setShowTableModal(false)} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '50%' }}><X size={16} /></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const data = await apiCall('/tables', { method: 'POST', body: JSON.stringify(tableFormData) });
-                setAllTables(prev => [...prev, data.data]);
-                setShowTableModal(false);
-                setTableFormData({ room_id: '', table_number: '', qr_identifier: '' });
-                showFeedback('Table added');
-              } catch (err) {
-                showFeedback(err.message || 'Failed to add table', 'error');
-              }
-            }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Room</label>
-                <select
-                  className="glass-input glass-select"
-                  value={tableFormData.room_id}
-                  onChange={e => setTableFormData({ ...tableFormData, room_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select room</option>
-                  {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Table Number</label>
-                <input type="text" className="glass-input" value={tableFormData.table_number} onChange={e => setTableFormData({ ...tableFormData, table_number: e.target.value })} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>QR Identifier</label>
-                <input type="text" className="glass-input" value={tableFormData.qr_identifier} onChange={e => setTableFormData({ ...tableFormData, qr_identifier: e.target.value })} required />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px' }}>Save Table</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Add Copy Modal ─────────────────────────────────────── */}
-      {showCopyModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3>Add Book Copy</h3>
-              <button onClick={() => setShowCopyModal(false)} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '50%' }}><X size={16} /></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const qrCode = copyFormData.qr_code || `COPY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-                const data = await apiCall('/book-copies', { method: 'POST', body: JSON.stringify({ ...copyFormData, qr_code: qrCode }) });
-                setBookCopies(prev => [...prev, data.data]);
-                setShowCopyModal(false);
-                setCopyFormData({ book_id: '', qr_code: '' });
-                showFeedback('Copy added');
-              } catch (err) {
-                showFeedback(err.message || 'Failed to add copy', 'error');
-              }
-            }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Book</label>
-                <select
-                  className="glass-input glass-select"
-                  value={copyFormData.book_id}
-                  onChange={e => setCopyFormData({ ...copyFormData, book_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select book</option>
-                  {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>QR Code (optional)</label>
-                <input type="text" className="glass-input" value={copyFormData.qr_code} onChange={e => setCopyFormData({ ...copyFormData, qr_code: e.target.value })} />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px' }}>Add Copy</button>
-            </form>
           </div>
         </div>
       )}
@@ -3209,6 +2291,14 @@ const AdminDashboard = () => {
             handleToggleBlock(id, blockStatus);
             setSelectedStudentForActivity(prev => prev ? { ...prev, is_blocked: blockStatus ? 1 : 0 } : null);
           }}
+        />
+      )}
+
+      {/* Book Activity Monitoring Modal */}
+      {selectedBookForActivity && (
+        <BookActivityModal
+          book={selectedBookForActivity}
+          onClose={() => setSelectedBookForActivity(null)}
         />
       )}
     </div>

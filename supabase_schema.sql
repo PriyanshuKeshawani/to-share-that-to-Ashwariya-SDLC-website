@@ -1,13 +1,15 @@
--- SISTEC Library Portal Complete Supabase Schema
--- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/ddjqajadhrwepcybfzam/sql
+-- SISTEC Library Portal — Ebook-Only Schema with Google Drive
+-- Run this in your Supabase SQL Editor to migrate to ebook-only mode.
 
+-- =========================================================
 -- 1. Branches
+-- =========================================================
 CREATE TABLE IF NOT EXISTS branches (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL
 );
 
-INSERT INTO branches (name) VALUES 
+INSERT INTO branches (name) VALUES
   ('Computer Science and Engineering'),
   ('Information Technology'),
   ('Electronics and Communication'),
@@ -16,21 +18,25 @@ INSERT INTO branches (name) VALUES
   ('Electrical Engineering')
 ON CONFLICT (name) DO NOTHING;
 
+-- =========================================================
 -- 2. Categories
+-- =========================================================
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   parent_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL
 );
 
-INSERT INTO categories (name) VALUES 
+INSERT INTO categories (name) VALUES
   ('Core Engineering'),
   ('Programming & Software'),
   ('Mathematics & Science'),
   ('Humanities & Management')
 ON CONFLICT DO NOTHING;
 
--- 3. Users profile table (linked with Supabase Auth UUID)
+-- =========================================================
+-- 3. Users
+-- =========================================================
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
@@ -49,100 +55,35 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Books
+-- =========================================================
+-- 4. Books (with Google Drive support)
+-- =========================================================
 CREATE TABLE IF NOT EXISTS books (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   author TEXT NOT NULL,
-  category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
-  branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
-  priority TEXT NOT NULL CHECK(priority IN ('main', 'sub')),
-  pdf_url TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 5. Physical Book Copies
-CREATE TABLE IF NOT EXISTS physical_book_copies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
-  copy_uuid UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
-  status TEXT DEFAULT 'available' CHECK(status IN ('available', 'issued', 'reserved', 'maintenance')),
-  qr_code TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 6. Book Loans
-CREATE TABLE IF NOT EXISTS book_loans (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  copy_id UUID REFERENCES physical_book_copies(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  issued_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  due_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  returned_at TIMESTAMP WITH TIME ZONE,
-  status TEXT DEFAULT 'issued' CHECK(status IN ('pending', 'issued', 'returned', 'overdue')),
-  fine_amount DECIMAL(10,2) DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 7. Rooms & Tables
-CREATE TABLE IF NOT EXISTS rooms (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+  priority TEXT NOT NULL CHECK(priority IN ('main', 'sub')) DEFAULT 'main',
+  pdf_url TEXT,                       -- legacy / fallback (uploaded PDF or data URL)
+  drive_file_id TEXT,                 -- Google Drive file ID (preferred for reading)
+  drive_link TEXT,                    -- Full Google Drive share URL (preferred for reading)
   description TEXT,
+  cover_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS tables (
-  id SERIAL PRIMARY KEY,
-  room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
-  table_number TEXT NOT NULL,
-  qr_identifier TEXT UNIQUE NOT NULL,
-  current_occupant_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  session_started_at TIMESTAMP WITH TIME ZONE,
-  status TEXT DEFAULT 'free' CHECK(status IN ('free', 'occupied', 'reserved')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Migration for existing books
+ALTER TABLE books ADD COLUMN IF NOT EXISTS drive_file_id TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS drive_link TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS cover_url TEXT;
+ALTER TABLE books ALTER COLUMN category_id DROP NOT NULL;
+ALTER TABLE books ALTER COLUMN branch_id DROP NOT NULL;
 
--- 8. Library Sessions
-CREATE TABLE IF NOT EXISTS library_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  table_id INTEGER REFERENCES tables(id) ON DELETE SET NULL,
-  entered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  exited_at TIMESTAMP WITH TIME ZONE,
-  duration_minutes INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 9. Notifications
-CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  type TEXT,
-  is_read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 10. Library Settings
-CREATE TABLE IF NOT EXISTS library_settings (
-  id SERIAL PRIMARY KEY,
-  loan_duration_days INTEGER DEFAULT 14,
-  fine_per_day DECIMAL(10,2) DEFAULT 5.00,
-  max_fine DECIMAL(10,2) DEFAULT 200.00,
-  seating_templates JSONB DEFAULT '[]'::jsonb,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE library_settings ADD COLUMN IF NOT EXISTS seating_templates JSONB DEFAULT '[]'::jsonb;
-
-INSERT INTO library_settings (id, loan_duration_days, fine_per_day, max_fine)
-VALUES (1, 14, 5.00, 200.00)
-ON CONFLICT (id) DO NOTHING;
-
--- 11. Individual Book Access Permissions
+-- =========================================================
+-- 5. Per-Book Access Permissions
+-- =========================================================
 CREATE TABLE IF NOT EXISTS permissions (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -153,17 +94,18 @@ CREATE TABLE IF NOT EXISTS permissions (
   UNIQUE(user_id, book_id)
 );
 
--- Migration for existing installations:
 ALTER TABLE permissions ADD COLUMN IF NOT EXISTS book_id INTEGER REFERENCES books(id) ON DELETE CASCADE;
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_user_id_branch_id_key;
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'permissions_user_id_book_id_key') THEN
     ALTER TABLE permissions ADD CONSTRAINT permissions_user_id_book_id_key UNIQUE (user_id, book_id);
   END IF;
 END $$;
 
--- 12. User Book Progress
+-- =========================================================
+-- 6. User Reading Progress
+-- =========================================================
 CREATE TABLE IF NOT EXISTS user_book_progress (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -177,7 +119,22 @@ CREATE TABLE IF NOT EXISTS user_book_progress (
   UNIQUE(user_id, book_id)
 );
 
--- 13. Activity Logs
+-- =========================================================
+-- 7. Notifications (ebook-only: permissions, books, system)
+-- =========================================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =========================================================
+-- 8. Activity Logs (ebook-only)
+-- =========================================================
 CREATE TABLE IF NOT EXISTS activity_logs (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -187,28 +144,23 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable RLS and public access policies for anon role (development configuration)
+-- =========================================================
+-- 9. RLS - Open for development
+-- =========================================================
 ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE books ENABLE ROW LEVEL SECURITY;
-ALTER TABLE physical_book_copies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE book_loans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tables ENABLE ROW LEVEL SECURITY;
-ALTER TABLE library_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE library_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_book_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations for authenticated & anon clients
 DO $$
 DECLARE
   tbl TEXT;
 BEGIN
-  FOR tbl IN 
+  FOR tbl IN
     SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS "Public access for all" ON %I', tbl);
@@ -216,24 +168,21 @@ BEGIN
   END LOOP;
 END $$;
 
--- 14. High-Performance B-Tree Indexes (Optimized for 100,000 Users Scale)
+-- =========================================================
+-- 10. Indexes
+-- =========================================================
 CREATE INDEX IF NOT EXISTS idx_users_roll ON users(roll_number);
 CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role, status);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_tables_qr ON tables(qr_identifier);
-CREATE INDEX IF NOT EXISTS idx_tables_room_status ON tables(room_id, status);
-CREATE INDEX IF NOT EXISTS idx_physical_copies_qr ON physical_book_copies(qr_code);
-CREATE INDEX IF NOT EXISTS idx_physical_copies_book ON physical_book_copies(book_id, status);
-CREATE INDEX IF NOT EXISTS idx_book_loans_user ON book_loans(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_book_loans_copy ON book_loans(copy_id);
-CREATE INDEX IF NOT EXISTS idx_library_sessions_user_active ON library_sessions(user_id) WHERE exited_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_library_sessions_table ON library_sessions(table_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE is_read = FALSE;
 CREATE INDEX IF NOT EXISTS idx_books_branch_cat ON books(branch_id, category_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE is_read = FALSE;
+CREATE INDEX IF NOT EXISTS idx_permissions_user_book ON permissions(user_id, book_id);
 
--- 15. Supabase Storage Bucket & Policies for Digital PDFs
+-- =========================================================
+-- 11. Storage bucket (legacy PDFs, optional)
+-- =========================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('pdfs', 'pdfs', true, 52428800, ARRAY['application/pdf']::text[])
 ON CONFLICT (id) DO UPDATE SET public = true;
@@ -250,8 +199,17 @@ CREATE POLICY "Anyone can update pdfs" ON storage.objects FOR UPDATE USING (buck
 DROP POLICY IF EXISTS "Anyone can delete pdfs" ON storage.objects;
 CREATE POLICY "Anyone can delete pdfs" ON storage.objects FOR DELETE USING (bucket_id = 'pdfs');
 
--- 16. Relax Permissions User FK (Supports Demo Students, Bypass Logins & External Users)
+-- =========================================================
+-- 12. Drop physical-library tables (safe to run multiple times)
+-- =========================================================
+DROP TABLE IF EXISTS book_loans CASCADE;
+DROP TABLE IF EXISTS physical_book_copies CASCADE;
+DROP TABLE IF EXISTS tables CASCADE;
+DROP TABLE IF EXISTS rooms CASCADE;
+DROP TABLE IF EXISTS library_sessions CASCADE;
+DROP TABLE IF EXISTS library_settings CASCADE;
+
+-- =========================================================
+-- 13. Relax permission FK (for demo/bypass users)
+-- =========================================================
 ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
-
-
-

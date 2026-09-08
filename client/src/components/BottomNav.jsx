@@ -1,34 +1,29 @@
-import React, { useRef } from 'react';
-import { Home, BookOpen, BookMarked, Activity, Menu } from 'lucide-react';
+import React from 'react';
+import { Home, BookOpen, Compass, Activity, Settings } from 'lucide-react';
 
 const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
   const navItems = [
     { id: 'all', label: 'Home', icon: Home },
-    { id: 'catalog', label: 'Books', icon: BookOpen },
-    { id: 'loans', label: 'My Books', icon: BookMarked, badge: badges.loans },
+    { id: 'home', label: 'My Branch', icon: BookOpen },
+    { id: 'other', label: 'Other', icon: Compass },
     { id: 'history', label: 'Activity', icon: Activity },
-    { id: 'menu', label: 'More', icon: Menu, isAction: true },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
     <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = !item.isAction && activeTab === item.id;
+        const isActive = activeTab === item.id;
 
         return (
           <button
             key={item.id}
             onClick={(e) => {
-              if (item.isAction) {
-                onOpenMenu();
-              } else {
-                onSelectTab(item.id);
-                // Haptic-like visual feedback
-                const btn = e.currentTarget;
-                btn.style.transform = 'scale(0.85)';
-                setTimeout(() => { btn.style.transform = ''; }, 150);
-              }
+              onSelectTab(item.id);
+              const btn = e.currentTarget;
+              btn.style.transform = 'scale(0.85)';
+              setTimeout(() => { btn.style.transform = ''; }, 150);
             }}
             className={`bottom-nav-item ${isActive ? 'active' : ''}`}
             type="button"
@@ -37,19 +32,11 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
               <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} style={{ transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} />
               {item.badge > 0 && (
                 <span style={{
-                  position: 'absolute',
-                  top: '-5px',
-                  right: '-9px',
+                  position: 'absolute', top: '-5px', right: '-9px',
                   background: 'linear-gradient(135deg, var(--primary), #1d4ed8)',
-                  color: '#ffffff',
-                  fontSize: '0.6rem',
-                  fontWeight: 700,
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  color: '#ffffff', fontSize: '0.6rem', fontWeight: 700,
+                  width: '16px', height: '16px', borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)',
                   animation: isActive ? 'pulseGlow 2s infinite' : 'none',
                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth, BASE_URL } from '../context/AuthContext';
 import {
   ArrowLeft,
@@ -30,14 +30,29 @@ const TAG_COLORS = {
 };
 
 const BookReader = ({ book, onClose }) => {
-  const { apiCall, user } = useAuth();
+  const { apiCall, user, extractDriveFileId } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
-  const isUploaded = Boolean(
-    book.pdf_url &&
-    (book.pdf_url.startsWith('/uploads/') ||
-     book.pdf_url.startsWith('http') ||
-     book.pdf_url.startsWith('data:'))
-  );
+
+  // Determine source: Drive (preferred) > PDF URL > Mock
+  const driveEmbed = (() => {
+    if (book.drive_link) {
+      const { embed } = extractDriveFileId(book.drive_link);
+      return embed;
+    }
+    if (book.drive_file_id) {
+      return `https://drive.google.com/file/d/${book.drive_file_id}/preview`;
+    }
+    return null;
+  })();
+
+  const pdfSource = (() => {
+    if (!book.pdf_url) return null;
+    if (book.pdf_url.startsWith('/uploads/')) return `${BASE_URL}${book.pdf_url}`;
+    if (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('data:')) return book.pdf_url;
+    return null;
+  })();
+
+  const isUploaded = Boolean(driveEmbed || pdfSource);
   const [totalPages] = useState(isUploaded ? 9999 : 60);
   const [saving, setSaving] = useState(false);
 
@@ -107,7 +122,8 @@ const BookReader = ({ book, onClose }) => {
           body: JSON.stringify({
             book_id: book.id,
             action_type: 'view',
-            last_page_read: restoredPage
+            last_page_read: restoredPage,
+            details: `Opened "${book.title}" — resumed from page ${restoredPage}`
           })
         });
       } catch (err) {
@@ -118,24 +134,31 @@ const BookReader = ({ book, onClose }) => {
     initReader();
   }, [book.id, book.title, apiCall]);
 
-  // Update backend reading progress
-  const saveProgress = async (page) => {
-    try {
-      setSaving(true);
-      await apiCall('/analytics/track', {
-        method: 'POST',
-        body: JSON.stringify({
-          book_id: book.id,
-          action_type: 'view',
-          last_page_read: page
-        })
-      });
-    } catch (err) {
-      console.error('Error auto-saving page progress:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Debounce timer ref — prevents flooding API on rapid page changes
+  const saveDebounceRef = useRef(null);
+
+  // Update backend reading progress (debounced: waits 1.5s after last change)
+  const saveProgress = useCallback((page) => {
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    saveDebounceRef.current = setTimeout(async () => {
+      try {
+        setSaving(true);
+        await apiCall('/analytics/track', {
+          method: 'POST',
+          body: JSON.stringify({
+            book_id: book.id,
+            action_type: 'view',
+            last_page_read: page,
+            details: `Reading "${book.title}" — page ${page}`
+          })
+        });
+      } catch (err) {
+        console.error('Error auto-saving page progress:', err);
+      } finally {
+        setSaving(false);
+      }
+    }, 1500);
+  }, [apiCall, book.id, book.title]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -286,11 +309,8 @@ const BookReader = ({ book, onClose }) => {
     );
   };
 
-  const fileUrl = isUploaded
-    ? (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('data:')
-        ? book.pdf_url
-        : `${BASE_URL}${book.pdf_url}`)
-    : null;
+  const fileUrl = driveEmbed || pdfSource;
+  const openInNewTabUrl = book.drive_link || (book.drive_file_id ? `https://drive.google.com/file/d/${book.drive_file_id}/view` : null) || pdfSource;
 
   return (
     <div className="animate-fade-in" style={{
@@ -495,10 +515,10 @@ const BookReader = ({ book, onClose }) => {
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Sparkles size={14} color="var(--primary)" />
-                  In-Built Digital PDF Viewer • {book.title}
+                  {driveEmbed ? `Google Drive • ${book.title}` : `In-Built Digital PDF Viewer • ${book.title}`}
                 </span>
                 <a
-                  href={fileUrl}
+                  href={openInNewTabUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
