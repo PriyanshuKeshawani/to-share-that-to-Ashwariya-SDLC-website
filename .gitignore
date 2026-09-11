@@ -36,5 +36,6 @@ Thumbs.db
 # Editor / Agent directories
 .kilo/
 
-# Local Data Feed (excluded from git)
+# Local Data Feed & Large Books (excluded from git)
 data_feed/
+books/
