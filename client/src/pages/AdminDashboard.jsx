@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, normalizeBranch } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
   import { 
     Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
     Search, ShieldAlert, Award, FileText, Download, TrendingUp,
     UserCheck, UserX, AlertTriangle, User,
     Menu, Settings, UploadCloud, Activity, Image, FolderUp, CheckCircle2, Sparkles,
-    ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw
+    ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch
   } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -63,6 +63,12 @@ const AdminDashboard = () => {
   const [deleteBookConfirm, setDeleteBookConfirm] = useState(null); // { id, title }
   const [deleteBookLoading, setDeleteBookLoading] = useState(false);
   const [selectedBookForActivity, setSelectedBookForActivity] = useState(null);
+
+  // Branch Management State
+  const [newBranchName, setNewBranchName] = useState('');
+  const [branchActionLoading, setBranchActionLoading] = useState(false);
+  const [branchDeleteConfirm, setBranchDeleteConfirm] = useState(null); // { id, name }
+  const [editingBranch, setEditingBranch] = useState(null); // { id, name }
 
   // Real-time Analytics & Drilldown State
   const [analyticsTimeframe, setAnalyticsTimeframe] = useState('all'); // 'all', 'today', '7d', '30d'
@@ -579,6 +585,69 @@ const AdminDashboard = () => {
     }
   };
 
+  // Branch Management Handlers
+  const handleCreateBranch = async (e) => {
+    e?.preventDefault();
+    if (!newBranchName.trim()) {
+      showFeedback('Please enter a branch name', 'error');
+      return;
+    }
+    try {
+      setBranchActionLoading(true);
+      await apiCall('/books/branches', {
+        method: 'POST',
+        body: JSON.stringify({ name: newBranchName.trim() })
+      });
+      setNewBranchName('');
+      showFeedback('Branch created successfully', 'success');
+      const updatedBranches = await apiCall('/books/branches');
+      setBranches(updatedBranches);
+    } catch (err) {
+      showFeedback(err.message || 'Failed to create branch', 'error');
+    } finally {
+      setBranchActionLoading(false);
+    }
+  };
+
+  const handleUpdateBranch = async (id, name) => {
+    if (!name?.trim()) {
+      showFeedback('Branch name cannot be empty', 'error');
+      return;
+    }
+    try {
+      setBranchActionLoading(true);
+      await apiCall(`/books/branches/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: name.trim() })
+      });
+      setEditingBranch(null);
+      showFeedback('Branch updated successfully', 'success');
+      const updatedBranches = await apiCall('/books/branches');
+      setBranches(updatedBranches);
+    } catch (err) {
+      showFeedback(err.message || 'Failed to update branch', 'error');
+    } finally {
+      setBranchActionLoading(false);
+    }
+  };
+
+  const handleDeleteBranch = async (id) => {
+    try {
+      setBranchActionLoading(true);
+      await apiCall(`/books/branches/${id}`, {
+        method: 'DELETE'
+      });
+      setBranchDeleteConfirm(null);
+      showFeedback('Branch deleted successfully', 'success');
+      const updatedBranches = await apiCall('/books/branches');
+      setBranches(updatedBranches);
+    } catch (err) {
+      showFeedback(err.message || 'Failed to delete branch', 'error');
+    } finally {
+      setBranchActionLoading(false);
+    }
+  };
+
   // Open Book Modal (Add / Edit)
   const openBookModal = (book = null) => {
     setPdfFile(null);
@@ -893,6 +962,13 @@ const AdminDashboard = () => {
               style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
             >
               <UserCheck size={16} /> All Students ({students.length})
+            </button>
+            <button 
+              onClick={() => switchTab('branches')}
+              className={`btn ${activeTab === 'branches' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+            >
+              <GitBranch size={16} /> Branches ({branches.length})
             </button>
             <button 
               onClick={() => switchTab('settings')}
@@ -2096,16 +2172,26 @@ const AdminDashboard = () => {
                   </div>
 
                   {/* Search bar */}
-                  <div style={{ position: 'relative' }}>
-                    <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <div className="search-input-wrapper">
+                    <span className="search-icon"><Search size={16} /></span>
                     <input
                       type="text"
-                      className="glass-input"
+                      className="glass-input has-search-icon"
                       placeholder="Search requests by student name, roll number, book title, or department..."
                       value={permissionSearch}
                       onChange={(e) => setPermissionSearch(e.target.value)}
-                      style={{ paddingLeft: 40, width: '100%', fontSize: '0.85rem' }}
+                      style={{ width: '100%', fontSize: '0.85rem' }}
                     />
+                    {permissionSearch && (
+                      <button
+                        type="button"
+                        className="search-clear-btn"
+                        onClick={() => setPermissionSearch('')}
+                        aria-label="Clear search"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2335,16 +2421,25 @@ const AdminDashboard = () => {
 
                 {/* Filter and Search */}
                 <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <div className="search-input-wrapper" style={{ flex: 1 }}>
+                    <span className="search-icon"><Search size={18} /></span>
                     <input
                       type="text"
-                      className="glass-input"
+                      className="glass-input has-search-icon"
                       placeholder="Search books by title, author, category, or branch..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ paddingLeft: '48px' }}
                     />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="search-clear-btn"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
                   {selectedBookIds.length > 0 && (
                     <button
@@ -2508,16 +2603,25 @@ const AdminDashboard = () => {
 
                   {/* Search & Filter Bar */}
                   <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-                      <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <div className="search-input-wrapper" style={{ flex: 1, minWidth: '220px' }}>
+                      <span className="search-icon"><Search size={16} /></span>
                       <input
                         type="text"
-                        className="glass-input"
+                        className="glass-input has-search-icon"
                         placeholder="Search by name, roll no., username, BT..."
                         value={studentSearch}
                         onChange={e => setStudentSearch(e.target.value)}
-                        style={{ paddingLeft: '40px' }}
                       />
+                      {studentSearch && (
+                        <button
+                          type="button"
+                          className="search-clear-btn"
+                          onClick={() => setStudentSearch('')}
+                          aria-label="Clear search"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
                     </div>
                     <select
                       className="glass-input glass-select"
@@ -2865,6 +2969,167 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* Branches Management Tab */}
+            {activeTab === 'branches' && (
+              <div className="animate-section-enter">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '14px' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Academic Branches Management</h2>
+                    <p style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                      Configure institutional academic departments, manage course branches, and monitor departmental books and enrolled students.
+                    </p>
+                  </div>
+                  <div className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                    <GitBranch size={16} /> {branches.length} Registered Branches
+                  </div>
+                </div>
+
+                {/* Add New Branch Card */}
+                <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Plus size={18} color="var(--primary)" /> Add New Academic Branch
+                  </h3>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                    Branch names will appear during student signup, book categorization, and cross-department permissions.
+                  </p>
+                  <form onSubmit={handleCreateBranch} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="glass-input"
+                      placeholder="e.g. Artificial Intelligence & Data Science (AIDS)"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      style={{ flex: 1, minWidth: '280px' }}
+                      disabled={branchActionLoading}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={branchActionLoading || !newBranchName.trim()}
+                      style={{ padding: '12px 24px', gap: '8px', minWidth: '160px' }}
+                    >
+                      {branchActionLoading ? (
+                        <>
+                          <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={16} /> Add Branch
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Branches List Table */}
+                <div className="glass-panel" style={{ overflow: 'hidden' }}>
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Active Branches Directory</h3>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{branches.length} Total</span>
+                  </div>
+
+                  {branches.length === 0 ? (
+                    <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <GitBranch size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                      <p style={{ fontWeight: 600 }}>No academic branches found in the database.</p>
+                      <p style={{ fontSize: '0.82rem' }}>Add your first branch using the form above.</p>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border-glass)', background: 'rgba(0,0,0,0.08)' }}>
+                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
+                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch Name</th>
+                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Catalog Books</th>
+                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enrolled Students</th>
+                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {branches.map((br) => {
+                            const branchBooksCount = books.filter(b => b.branch_id === br.id || normalizeBranch(b.branch_name) === normalizeBranch(br.name)).length;
+                            const branchStudentsCount = students.filter(s => normalizeBranch(s.branch_name) === normalizeBranch(br.name)).length;
+                            const isEditing = editingBranch && editingBranch.id === br.id;
+
+                            return (
+                              <tr key={br.id} style={{ borderBottom: '1px solid var(--border-glass)', transition: 'background 0.15s ease' }}>
+                                <td style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 600 }}>#{br.id}</td>
+                                <td style={{ padding: '14px 20px' }}>
+                                  {isEditing ? (
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                      <input
+                                        type="text"
+                                        className="glass-input"
+                                        value={editingBranch.name}
+                                        onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                                        style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => handleUpdateBranch(br.id, editingBranch.name)}
+                                        className="btn btn-success"
+                                        style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                                        disabled={branchActionLoading}
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingBranch(null)}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                                      {br.name}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ padding: '14px 20px' }}>
+                                  <span className="badge badge-primary" style={{ fontSize: '0.78rem' }}>
+                                    {branchBooksCount} Books
+                                  </span>
+                                </td>
+                                <td style={{ padding: '14px 20px' }}>
+                                  <span className="badge badge-success" style={{ fontSize: '0.78rem' }}>
+                                    {branchStudentsCount} Students
+                                  </span>
+                                </td>
+                                <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                    <button
+                                      onClick={() => setEditingBranch({ id: br.id, name: br.name })}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                      title="Edit Branch Name"
+                                    >
+                                      <Edit size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => setBranchDeleteConfirm(br)}
+                                      className="btn btn-danger"
+                                      style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                      title="Delete Branch"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
           </>
         )}
       </main>
@@ -2929,6 +3194,70 @@ const AdminDashboard = () => {
               >
                 <Trash2 size={16} />
                 {deleteLoading ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Branch Delete Confirmation Modal ──────────────────────────────── */}
+      {branchDeleteConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(5, 7, 12, 0.85)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: '20px'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%', maxWidth: '440px',
+            padding: '36px', textAlign: 'center',
+            border: '1px solid rgba(239,68,68,0.25)',
+            boxShadow: '0 0 40px rgba(239,68,68,0.12), var(--shadow-glass)'
+          }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 20px',
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--danger)'
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '10px' }}>Delete Academic Branch?</h3>
+            <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+              You are about to delete the following academic branch:
+            </p>
+            <div style={{
+              padding: '12px 20px', borderRadius: '10px',
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              marginBottom: '20px'
+            }}>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+                {branchDeleteConfirm.name}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.6 }}>
+              Existing books linked to this branch will have their branch reference set to unassigned. Students registered with this branch name will remain intact.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setBranchDeleteConfirm(null)}
+                className="btn btn-secondary"
+                style={{ padding: '10px 24px', minWidth: '120px' }}
+                disabled={branchActionLoading}
+              >
+                <X size={16} /> Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteBranch(branchDeleteConfirm.id)}
+                className="btn btn-danger"
+                style={{ padding: '10px 24px', minWidth: '140px' }}
+                disabled={branchActionLoading}
+              >
+                <Trash2 size={16} />
+                {branchActionLoading ? 'Deleting...' : 'Yes, Delete Branch'}
               </button>
             </div>
           </div>
@@ -3645,23 +3974,11 @@ const AdminDashboard = () => {
           <span>Approvals</span>
         </button>
         <button 
-          onClick={() => switchTab('permissions')}
-          className={`bottom-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
+          onClick={() => switchTab('students')}
+          className={`bottom-nav-item ${activeTab === 'students' ? 'active' : ''}`}
         >
-          <div style={{ position: 'relative', display: 'inline-flex' }}>
-            <Key size={19} />
-            {pendingRequests.length > 0 && (
-              <span style={{
-                position: 'absolute', top: '-4px', right: '-8px',
-                background: 'var(--primary)', color: '#fff',
-                fontSize: '0.62rem', fontWeight: 700, width: '15px', height: '15px',
-                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                {pendingRequests.length}
-              </span>
-            )}
-          </div>
-          <span>Access</span>
+          <UserCheck size={19} />
+          <span>Students</span>
         </button>
         <button 
           onClick={() => switchTab('books')}
@@ -3756,6 +4073,13 @@ const AdminDashboard = () => {
                 style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
               >
                 <UserCheck size={16} /> All Students ({students.length})
+              </button>
+              <button 
+                onClick={() => { switchTab('branches'); setShowMenuDrawer(false); }}
+                className={`btn ${activeTab === 'branches' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+              >
+                <GitBranch size={16} /> Academic Branches ({branches.length})
               </button>
               <button 
                 onClick={() => { switchTab('logs'); setShowMenuDrawer(false); }}

@@ -5,6 +5,32 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 
 export const BASE_URL = typeof window !== 'undefined' ? window.location.origin : '';
 
+// Normalize branch names: '&' -> 'and', expand common acronyms
+export const normalizeBranch = (name) => {
+  if (!name) return '';
+  let normalized = String(name).trim().toLowerCase();
+  normalized = normalized.replace(/&/g, 'and');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  const acronymMap = {
+    'cse': 'computer science and engineering',
+    'it': 'information technology',
+    'ece': 'electronics and communication',
+    'me': 'mechanical engineering',
+    'ce': 'civil engineering',
+    'ee': 'electrical engineering'
+  };
+
+  if (acronymMap[normalized]) return acronymMap[normalized];
+
+  Object.entries(acronymMap).forEach(([abbr, full]) => {
+    const regex = new RegExp(`\\b${abbr}\\b`, 'g');
+    normalized = normalized.replace(regex, full);
+  });
+
+  return normalized;
+};
+
 const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
@@ -122,9 +148,46 @@ export const AuthProvider = ({ children }) => {
 
     // 1. Branches
     if (endpoint === '/auth/branches' || endpoint === '/books/branches') {
-      const { data, error } = await supabase.from('branches').select('*').order('name', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      if (method === 'GET') {
+        const { data, error } = await supabase.from('branches').select('*').order('name', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      }
+
+      if (method === 'POST') {
+        const name = body?.name || body?.branchName;
+        if (!name || !String(name).trim()) {
+          throw new Error('Branch name is required.');
+        }
+        const { data, error } = await supabase.from('branches').insert([{ name: String(name).trim() }]).select().single();
+        if (error) throw error;
+        return data;
+      }
+
+      throw new Error(`Unsupported method ${method} for ${endpoint}`);
+    }
+
+    // 1b. Branch by ID (DELETE /books/branches/:id or /auth/branches/:id, PUT /books/branches/:id or /auth/branches/:id)
+    if (endpoint.startsWith('/auth/branches/') || endpoint.startsWith('/books/branches/')) {
+      const branchId = endpoint.split('/').pop();
+
+      if (method === 'DELETE') {
+        const { error } = await supabase.from('branches').delete().eq('id', branchId);
+        if (error) throw error;
+        return { message: 'Branch deleted successfully' };
+      }
+
+      if (method === 'PUT') {
+        const name = body?.name || body?.branchName;
+        if (!name || !String(name).trim()) {
+          throw new Error('Branch name is required.');
+        }
+        const { data, error } = await supabase.from('branches').update({ name: String(name).trim() }).eq('id', branchId).select().single();
+        if (error) throw error;
+        return { message: 'Branch updated successfully', data };
+      }
+
+      throw new Error(`Unsupported method ${method} for ${endpoint}`);
     }
 
     // 2. Categories
@@ -164,7 +227,7 @@ export const AuthProvider = ({ children }) => {
 
         let hasAccess = true;
         if (user && user.role === 'student') {
-          const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
+          const isHomeBranch = Boolean(userBranch && bookBranch && (userBranch === bookBranch || normalizeBranch(userBranch) === normalizeBranch(bookBranch)));
           const isBookApproved = approvedBookIds.some(bId => String(bId) === String(b.id));
           hasAccess = isHomeBranch || isBookApproved;
         }
@@ -1839,7 +1902,7 @@ export const AuthProvider = ({ children }) => {
       user, session, loading, login, logout, register,
       loginWithGoogle, completeGoogleProfile, needsProfile,
       pendingGoogleUser, apiCall, refreshUser: loadUser,
-      bypassLogin, extractDriveFileId
+      bypassLogin, extractDriveFileId, normalizeBranch
     }}>
       {children}
     </AuthContext.Provider>

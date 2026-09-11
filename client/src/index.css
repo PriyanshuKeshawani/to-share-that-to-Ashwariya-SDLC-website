@@ -172,6 +172,60 @@ body {
 }
 .glass-select option { background-color: var(--bg-card-solid); color: var(--text-primary); padding: 8px 12px; }
 
+/* ═══ SEARCH INPUT WRAPPER ═══ */
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  z-index: 2;
+}
+.search-input-wrapper input.glass-input,
+.glass-input.has-search-icon {
+  padding-left: 42px !important;
+}
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s var(--ease-smooth);
+  z-index: 2;
+}
+.search-clear-btn:hover {
+  color: var(--primary);
+  background: var(--primary-glow);
+}
+
+/* ═══ QUICK FILTER SCROLL — horizontal scroll, no visible scrollbars ═══ */
+.quick-filter-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.quick-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ═══ BUTTONS — Smooth press, hover, shine ═══ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -640,8 +694,9 @@ p { color: var(--text-secondary); line-height: 1.65; }
 .theme-mode-knob.active { transform: translateX(24px); }
 
 /* ═══ MOBILE NAV (base hidden) ═══ */
-.mobile-header { display: none !important; }
-.mobile-bottom-nav { display: none !important; }
+.mobile-header, .admin-mobile-header { display: none !important; }
+.mobile-bottom-nav, .admin-mobile-bottom-nav { display: none !important; }
+.admin-sidebar-drawer { display: none !important; }
 
 .bottom-nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -813,9 +868,38 @@ p { color: var(--text-secondary); line-height: 1.65; }
   .settings-section-header { flex-direction: column !important; gap: 8px !important; }
 
   /* Admin Dashboard mobile */
-  .admin-mobile-header { display: flex !important; }
+  .admin-mobile-header {
+    display: flex !important;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 58px;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border-bottom: 1px solid var(--border-glass);
+    padding: 0 14px;
+    z-index: 1000;
+    animation: slideDown 0.3s var(--ease-out-expo) forwards;
+  }
   .admin-sidebar-drawer { display: flex !important; }
-  .admin-mobile-bottom-nav { display: flex !important; }
+  .admin-mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 62px;
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border-top: 1px solid var(--border-glass);
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+    padding: 2px 6px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+    animation: slideUp 0.3s var(--ease-out-expo) forwards;
+  }
 
   /* BookReader mobile & tablet */
   .reader-layout { flex-direction: column !important; min-height: auto !important; gap: 14px !important; }
@@ -898,7 +982,7 @@ p { color: var(--text-secondary); line-height: 1.65; }
   .login-form-side { padding: 20px 16px !important; }
   .theme-studio-panel { padding: 16px !important; }
   .btn { padding: 8px 12px !important; font-size: 0.82rem !important; min-height: 38px; }
-  .glass-input { padding: 9px 12px !important; font-size: 0.84rem !important; }
+  .glass-input { padding: 9px 12px; font-size: 0.84rem !important; }
 }
 
 /* ════ Touch & Smooth Scroll UX ════ */

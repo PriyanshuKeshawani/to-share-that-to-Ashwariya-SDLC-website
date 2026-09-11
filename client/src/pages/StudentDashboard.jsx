@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, normalizeBranch } from '../context/AuthContext';
 import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
@@ -210,10 +210,10 @@ const StudentDashboard = ({ onSelectBook }) => {
     if (!book) return { hasAccess: false, isHomeBranch: false, status: 'none' };
     if (user?.role === 'admin') return { hasAccess: true, isHomeBranch: true, status: 'approved' };
 
-    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
-    const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
+    const userBranch = (user?.branchName || user?.branch_name || '').trim();
+    const bookBranch = (book.branch_name || book.branch?.name || '').trim();
 
-    const isHomeBranch = Boolean(userBranch && bookBranch && userBranch === bookBranch);
+    const isHomeBranch = Boolean(userBranch && bookBranch && normalizeBranch(userBranch) === normalizeBranch(bookBranch));
     if (isHomeBranch) {
       return { hasAccess: true, isHomeBranch: true, status: 'approved' };
     }
@@ -245,16 +245,16 @@ const StudentDashboard = ({ onSelectBook }) => {
   };
 
   const filteredBooks = useMemo(() => {
-    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
+    const userBranch = (user?.branchName || user?.branch_name || '').trim();
 
     return books.filter(book => {
-      const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
-      const isHome = Boolean(userBranch && bookBranch && userBranch === bookBranch);
+      const bookBranch = (book.branch_name || book.branch?.name || '').trim();
+      const isHome = Boolean(userBranch && bookBranch && normalizeBranch(userBranch) === normalizeBranch(bookBranch));
 
       if (selectedBranch) {
         const selectedBranchObj = branches.find(b => String(b.id) === String(selectedBranch));
         const matchBranchId = book.branch_id != null && String(book.branch_id) === String(selectedBranch);
-        const matchBranchName = selectedBranchObj && bookBranch === selectedBranchObj.name.trim().toLowerCase();
+        const matchBranchName = selectedBranchObj && normalizeBranch(bookBranch) === normalizeBranch(selectedBranchObj.name);
         if (!matchBranchId && !matchBranchName) return false;
       } else {
         if (activeTab === 'home' && !isHome) return false;
@@ -263,20 +263,26 @@ const StudentDashboard = ({ onSelectBook }) => {
 
       if (selectedCategory) {
         const selectedCatObj = categories.find(c => String(c.id) === String(selectedCategory));
-        const bookCatName = (book.category_name || book.category?.name || '').trim().toLowerCase();
+        const bookCatName = (book.category_name || book.category?.name || '').trim();
         const matchCatId = book.category_id != null && String(book.category_id) === String(selectedCategory);
-        const matchCatName = selectedCatObj && bookCatName === selectedCatObj.name.trim().toLowerCase();
+        const matchCatName = selectedCatObj && normalizeBranch(bookCatName) === normalizeBranch(selectedCatObj.name);
         if (!matchCatId && !matchCatName) return false;
       }
 
       if (search) {
         const q = search.toLowerCase().trim();
-        const matchTitle = (book.title || '').toLowerCase().includes(q);
-        const matchAuthor = (book.author || '').toLowerCase().includes(q);
-        const matchBranch = bookBranch.includes(q);
-        const matchCat = (book.category_name || book.category?.name || '').toLowerCase().includes(q);
-        const matchPriority = (book.priority || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchAuthor && !matchBranch && !matchCat && !matchPriority) {
+        const queryWords = q.split(/\s+/).filter(Boolean);
+        const haystack = [
+          (book.title || ''),
+          (book.author || ''),
+          (book.description || ''),
+          (book.branch_name || book.branch?.name || ''),
+          (book.category_name || book.category?.name || ''),
+          (book.priority || '')
+        ].join(' ').toLowerCase();
+
+        const matches = queryWords.every(word => haystack.includes(word.toLowerCase()));
+        if (!matches) {
           return false;
         }
       }
@@ -684,24 +690,28 @@ const StudentDashboard = ({ onSelectBook }) => {
                   </button>
                 </div>
 
-                <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 200px' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input
-                    type="text"
-                    className="glass-input"
-                    placeholder="Search requested books..."
-                    value={requestSearch}
-                    onChange={(e) => setRequestSearch(e.target.value)}
-                    style={{ paddingLeft: '34px', paddingRight: '28px', fontSize: '0.8rem', width: '100%', height: '36px' }}
-                  />
-                  {requestSearch && (
-                    <button
-                      onClick={() => setRequestSearch('')}
-                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
+                <div style={{ minWidth: '220px', flex: '1 1 200px' }}>
+                  <div className="search-input-wrapper">
+                    <span className="search-icon">
+                      <Search size={14} />
+                    </span>
+                    <input
+                      type="text"
+                      className="glass-input has-search-icon"
+                      placeholder="Search requested books..."
+                      value={requestSearch}
+                      onChange={(e) => setRequestSearch(e.target.value)}
+                      style={{ fontSize: '0.8rem', width: '100%', height: '36px' }}
+                    />
+                    {requestSearch && (
+                      <button
+                        className="search-clear-btn"
+                        onClick={() => setRequestSearch('')}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -859,24 +869,28 @@ const StudentDashboard = ({ onSelectBook }) => {
             <div className="glass-panel" style={{ padding: '16px 18px', marginBottom: '22px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
                 <div style={{ flex: '1 1 240px', position: 'relative' }}>
-                  <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input
-                    type="text"
-                    className="glass-input"
-                    placeholder="Search books by title, author, topic, branch..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ paddingLeft: '40px', width: '100%' }}
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch('')}
-                      style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                      title="Clear search"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
+                  <div className="search-input-wrapper">
+                    <span className="search-icon">
+                      <Search size={16} />
+                    </span>
+                    <input
+                      type="text"
+                      className="glass-input has-search-icon"
+                      placeholder="Search books by title, author, topic, branch..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      style={{ width: '100%' }}
+                    />
+                    {search && (
+                      <button
+                        className="search-clear-btn"
+                        onClick={() => setSearch('')}
+                        title="Clear search"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ flex: '1 1 180px' }}>
@@ -929,56 +943,60 @@ const StudentDashboard = ({ onSelectBook }) => {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Quick Filter:
                 </span>
-                <button
-                  onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
-                  style={{
-                    padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    background: activeTab === 'all' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                    color: activeTab === 'all' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
-                    border: activeTab === 'all' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
-                  }}
-                >
-                  All Catalog ({books.length})
-                </button>
-                <button
-                  onClick={() => { setSelectedBranch(''); setActiveTab('home'); }}
-                  style={{
-                    padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    background: activeTab === 'home' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                    color: activeTab === 'home' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
-                    border: activeTab === 'home' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
-                  }}
-                >
-                  My Branch ({user?.branchName || 'Department'})
-                </button>
-                <button
-                  onClick={() => { setSelectedBranch(''); setActiveTab('other'); }}
-                  style={{
-                    padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    background: activeTab === 'other' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                    color: activeTab === 'other' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
-                    border: activeTab === 'other' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
-                  }}
-                >
-                  Other Branches
-                </button>
-                <button
-                  onClick={() => { setActiveTab('requests'); }}
-                  style={{
-                    padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    background: activeTab === 'requests' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                    color: activeTab === 'requests' ? 'var(--primary)' : 'var(--text-secondary)',
-                    border: activeTab === 'requests' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
-                    display: 'flex', alignItems: 'center', gap: '5px'
-                  }}
-                >
-                  <BookMarked size={12} />
-                  My Requests ({requests.length})
-                </button>
+                <div className="quick-filter-scroll">
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: 'max-content' }}>
+                    <button
+                      onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'all' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'all' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: activeTab === 'all' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                      }}
+                    >
+                      All Catalog ({books.length})
+                    </button>
+                    <button
+                      onClick={() => { setSelectedBranch(''); setActiveTab('home'); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'home' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'home' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: activeTab === 'home' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                      }}
+                    >
+                      My Branch ({user?.branchName || 'Department'})
+                    </button>
+                    <button
+                      onClick={() => { setSelectedBranch(''); setActiveTab('other'); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'other' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'other' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: activeTab === 'other' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                      }}
+                    >
+                      Other Branches
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('requests'); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'requests' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'requests' ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: activeTab === 'requests' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                        display: 'flex', alignItems: 'center', gap: '5px'
+                      }}
+                    >
+                      <BookMarked size={12} />
+                      My Requests ({requests.length})
+                    </button>
+                  </div>
+                </div>
                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredBooks.length}</strong> of {books.length} books
                 </span>
@@ -988,10 +1006,14 @@ const StudentDashboard = ({ onSelectBook }) => {
             {filteredBooks.length === 0 ? (
               <EmptyState
                 icon={BookOpen}
-                title="No books match your criteria"
-                description="Try clearing your search query or switching to another department category."
-                actionLabel="Reset Search Filters"
-                onAction={() => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); setActiveTab('all'); }}
+                title={activeTab === 'home' ? `No books available in ${user?.branchName || 'your branch'} yet` : "No books match your criteria"}
+                description={activeTab === 'home'
+                  ? "Your department catalog is currently empty. Browse the full library catalog to find available books."
+                  : "Try clearing your search query or switching to another department category."}
+                actionLabel={activeTab === 'home' ? `Browse All Catalog (${books.length})` : "Reset Search Filters"}
+                onAction={activeTab === 'home'
+                  ? () => { setActiveTab('all'); setSelectedBranch(''); }
+                  : () => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); setActiveTab('all'); }}
               />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
