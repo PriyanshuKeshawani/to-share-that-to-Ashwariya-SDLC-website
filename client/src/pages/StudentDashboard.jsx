@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth, normalizeBranch } from '../context/AuthContext';
+import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
@@ -213,11 +213,13 @@ const StudentDashboard = ({ onSelectBook }) => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim();
     const bookBranch = (book.branch_name || book.branch?.name || '').trim();
 
-    const isHomeBranch = Boolean(userBranch && bookBranch && normalizeBranch(userBranch) === normalizeBranch(bookBranch));
-    if (isHomeBranch) {
+    // 1. HOME BRANCH: Instant, direct access (NO admin request needed)
+    const isHome = isSameBranch(userBranch, bookBranch) || Boolean(book.isHomeBranch);
+    if (isHome) {
       return { hasAccess: true, isHomeBranch: true, status: 'approved' };
     }
 
+    // 2. OUTSIDE HOME BRANCH: Requires admin permission
     const req = requests.find(r =>
       book.id != null && r.book_id != null && String(r.book_id) === String(book.id)
     );
@@ -238,23 +240,33 @@ const StudentDashboard = ({ onSelectBook }) => {
   const handleOpenBook = (book) => {
     const access = getBookAccess(book);
     if (!access.hasAccess) {
-      showFeedback(`Permission required: You must request permission to read books from ${book.branch_name || 'other departments'}.`, 'error');
+      showFeedback(`Permission required: "${book.title}" is from ${book.branch_name || 'another department'}. Please request access below.`, 'error');
       return;
     }
     onSelectBook(book);
   };
+
+  const homeBooksCount = useMemo(() => {
+    const userBranch = (user?.branchName || user?.branch_name || '').trim();
+    if (!userBranch) return 0;
+    return books.filter(b => isSameBranch(userBranch, b.branch_name || b.branch?.name) || b.isHomeBranch).length;
+  }, [books, user]);
+
+  const otherBooksCount = useMemo(() => {
+    return Math.max(0, books.length - homeBooksCount);
+  }, [books, homeBooksCount]);
 
   const filteredBooks = useMemo(() => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim();
 
     return books.filter(book => {
       const bookBranch = (book.branch_name || book.branch?.name || '').trim();
-      const isHome = Boolean(userBranch && bookBranch && normalizeBranch(userBranch) === normalizeBranch(bookBranch));
+      const isHome = isSameBranch(userBranch, bookBranch) || Boolean(book.isHomeBranch);
 
       if (selectedBranch) {
         const selectedBranchObj = branches.find(b => String(b.id) === String(selectedBranch));
         const matchBranchId = book.branch_id != null && String(book.branch_id) === String(selectedBranch);
-        const matchBranchName = selectedBranchObj && normalizeBranch(bookBranch) === normalizeBranch(selectedBranchObj.name);
+        const matchBranchName = selectedBranchObj && isSameBranch(bookBranch, selectedBranchObj.name);
         if (!matchBranchId && !matchBranchName) return false;
       } else {
         if (activeTab === 'home' && !isHome) return false;
@@ -265,7 +277,7 @@ const StudentDashboard = ({ onSelectBook }) => {
         const selectedCatObj = categories.find(c => String(c.id) === String(selectedCategory));
         const bookCatName = (book.category_name || book.category?.name || '').trim();
         const matchCatId = book.category_id != null && String(book.category_id) === String(selectedCategory);
-        const matchCatName = selectedCatObj && normalizeBranch(bookCatName) === normalizeBranch(selectedCatObj.name);
+        const matchCatName = selectedCatObj && isSameBranch(bookCatName, selectedCatObj.name);
         if (!matchCatId && !matchCatName) return false;
       }
 
@@ -967,7 +979,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                         border: activeTab === 'home' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
                       }}
                     >
-                      My Branch ({user?.branchName || 'Department'})
+                      Home Branch ({homeBooksCount})
                     </button>
                     <button
                       onClick={() => { setSelectedBranch(''); setActiveTab('other'); }}
@@ -979,7 +991,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                         border: activeTab === 'other' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
                       }}
                     >
-                      Other Branches
+                      Other Branches ({otherBooksCount})
                     </button>
                     <button
                       onClick={() => { setActiveTab('requests'); }}
@@ -1003,6 +1015,47 @@ const StudentDashboard = ({ onSelectBook }) => {
               </div>
             </div>
 
+            {/* Department Access Context Banner */}
+            {activeTab === 'home' && (
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: 'rgba(34, 197, 94, 0.08)',
+                border: '1px solid rgba(34, 197, 94, 0.25)',
+                color: '#4ade80',
+                fontSize: '0.82rem',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <CheckCircle size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Home Department Catalog:</strong> All books in your department (<strong>{user?.branchName || 'Your Branch'}</strong>) are unlocked for immediate reading and download. No permission required!
+                </span>
+              </div>
+            )}
+
+            {activeTab === 'other' && (
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                color: '#60a5fa',
+                fontSize: '0.82rem',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Cross-Department Books:</strong> As per college policy, accessing books outside your registered department requires permission from the Central Library Administrator. Click <strong>"Request Access"</strong> on any book to get approved.
+                </span>
+              </div>
+            )}
+
             {filteredBooks.length === 0 ? (
               <EmptyState
                 icon={BookOpen}
@@ -1016,7 +1069,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                   : () => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); setActiveTab('all'); }}
               />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
+              <div className="book-pinterest-grid">
                 {filteredBooks.map((book, idx) => {
                   const access = getBookAccess(book);
                   const hasDrive = !!(book.drive_link || book.drive_file_id);
@@ -1024,42 +1077,87 @@ const StudentDashboard = ({ onSelectBook }) => {
                   return (
                     <div
                       key={book.id}
-                      className="glass-panel glass-panel-hover animate-stagger-in"
+                      className="book-pinterest-card animate-stagger-in"
                       style={{
-                        padding: '18px', display: 'flex', flexDirection: 'column',
-                        justifyContent: 'space-between', minHeight: '260px',
-                        animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
+                        animationDelay: `${Math.min(idx * 0.03, 0.35)}s`
                       }}
                     >
-                      {/* Book Cover Thumbnail */}
-                      {book.cover_url && (
-                        <div style={{
-                          width: '100%',
-                          height: '140px',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          marginBottom: '12px',
-                          background: 'var(--input-bg)',
-                          border: '1px solid var(--border-glass)'
-                        }}>
-                          <img
-                            src={book.cover_url}
-                            alt={book.title}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        </div>
-                      )}
+                      {/* Realistic 3D Physical Book Container */}
+                      <div
+                        className="realistic-book-wrapper"
+                        onClick={() => access.hasAccess ? handleOpenBook(book) : handleRequestAccess(book)}
+                        title={access.hasAccess ? `Click to read "${book.title}"` : `Click to request access for "${book.title}"`}
+                      >
+                        <div className="realistic-book-cover">
+                          {/* Book Spine Crease & Hinge Shadow */}
+                          <div className="book-spine-crease" />
+                          {/* Paper Page Edge */}
+                          <div className="book-page-edge" />
 
+                          {/* Fluid Book Cover Image */}
+                          {book.cover_url ? (
+                            <img
+                              src={book.cover_url}
+                              alt={book.title}
+                              className="realistic-book-img"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fb = e.currentTarget.parentElement?.querySelector('.realistic-book-fallback');
+                                if (fb) fb.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+
+                          {/* Fallback Physical Hardcover (when cover_url is absent or fails) */}
+                          <div
+                            className="realistic-book-fallback"
+                            style={{ display: book.cover_url ? 'none' : 'flex' }}
+                          >
+                            <div>
+                              <div className="fallback-sistec-seal">
+                                <Library size={13} /> SISTec Library
+                              </div>
+                              <div className="fallback-emboss-title" style={{ marginTop: '14px' }}>
+                                {book.title}
+                              </div>
+                              <div className="fallback-emboss-author">
+                                {book.author || 'Department Resource'}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>
+                              <span>{book.branch_name || 'Central Edition'}</span>
+                              <BookOpen size={15} style={{ opacity: 0.6 }} />
+                            </div>
+                          </div>
+
+                          {/* Interactive Hover Pill */}
+                          <div className="book-cover-hover-overlay">
+                            <div className="book-hover-pill">
+                              {access.hasAccess ? (
+                                <>
+                                  <BookOpen size={13} /> Read Book
+                                </>
+                              ) : (
+                                <>
+                                  <Lock size={13} /> Request Access
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Book Metadata & Badges */}
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
                             {book.priority === 'main' ? (
                               <span className="badge badge-gold">Main Syllabus</span>
                             ) : (
                               <span className="badge badge-secondary">Reference</span>
                             )}
-                            <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                            <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                               {book.branch_name || 'All Branches'}
                             </span>
                             {hasDrive && (
@@ -1071,7 +1169,7 @@ const StudentDashboard = ({ onSelectBook }) => {
 
                           {access.hasAccess ? (
                             <span className="badge badge-success" title={access.isHomeBranch ? "Unlocked for your department" : "Permission granted by Admin"}>
-                              <Unlock size={11} /> {access.isHomeBranch ? "Unlocked" : "Access Granted"}
+                              <Unlock size={11} /> {access.isHomeBranch ? "Unlocked" : "Granted"}
                             </span>
                           ) : (
                             <span className="badge badge-danger" title="Access requires admin permission">
@@ -1080,10 +1178,21 @@ const StudentDashboard = ({ onSelectBook }) => {
                           )}
                         </div>
 
-                        <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: '6px' }}>
+                        <h4
+                          style={{
+                            fontSize: '1.02rem',
+                            fontWeight: 700,
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.35,
+                            marginBottom: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => access.hasAccess ? handleOpenBook(book) : handleRequestAccess(book)}
+                          title={book.title}
+                        >
                           {book.title}
                         </h4>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                           by {book.author || 'Author not specified'}
                         </p>
                         {!hasDrive && !hasPdf && (
@@ -1093,8 +1202,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                         )}
                       </div>
 
-                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '12px', marginTop: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {/* Card Action Controls */}
+                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                           <span>{book.category_name || 'General Engineering'}</span>
                         </div>
 
@@ -1106,7 +1216,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                                 className="btn btn-primary btn-shine"
                                 style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem' }}
                               >
-                                <BookOpen size={14} /> Read
+                                <BookOpen size={14} /> Read Book
                               </button>
                               {(hasDrive || hasPdf) && (
                                 <button

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAuth, normalizeBranch } from '../context/AuthContext';
+import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
   import { 
     Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
@@ -3049,8 +3049,8 @@ const AdminDashboard = () => {
                         </thead>
                         <tbody>
                           {branches.map((br) => {
-                            const branchBooksCount = books.filter(b => b.branch_id === br.id || normalizeBranch(b.branch_name) === normalizeBranch(br.name)).length;
-                            const branchStudentsCount = students.filter(s => normalizeBranch(s.branch_name) === normalizeBranch(br.name)).length;
+                            const branchBooksCount = books.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name)).length;
+                            const branchStudentsCount = students.filter(s => isSameBranch(s.branch_name, br.name)).length;
                             const isEditing = editingBranch && editingBranch.id === br.id;
 
                             return (

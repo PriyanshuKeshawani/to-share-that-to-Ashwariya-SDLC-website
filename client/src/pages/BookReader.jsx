@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAuth, BASE_URL } from '../context/AuthContext';
+import { useAuth, BASE_URL, isSameBranch } from '../context/AuthContext';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -16,7 +16,8 @@ import {
   ExternalLink,
   X,
   FileDown,
-  Lock
+  Lock,
+  Clock
 } from 'lucide-react';
 
 const TAG_COLORS = {
@@ -58,13 +59,40 @@ const BookReader = ({ book, onClose }) => {
   const hasAccess = useMemo(() => {
     if (!book) return false;
     if (user?.role === 'admin') return true;
-    if (book.hasAccess !== undefined) return Boolean(book.hasAccess);
 
-    const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
-    const bookBranch = (book.branch_name || book.branch?.name || '').trim().toLowerCase();
-    if (userBranch && bookBranch && userBranch === bookBranch) return true;
+    const userBranch = (user?.branchName || user?.branch_name || '').trim();
+    const bookBranch = (book.branch_name || book.branch?.name || '').trim();
+
+    // Home branch books ALWAYS have instant direct access (no request required)
+    if (isSameBranch(userBranch, bookBranch) || book.isHomeBranch) return true;
+
+    // For books outside home branch, verify admin approved status
+    if (book.hasAccess !== undefined) return Boolean(book.hasAccess);
     return false;
   }, [book, user]);
+
+  const [requestingAccess, setRequestingAccess] = useState(false);
+  const [requestedDone, setRequestedDone] = useState(false);
+
+  const handleDirectRequest = async () => {
+    try {
+      setRequestingAccess(true);
+      await apiCall('/permissions/request', {
+        method: 'POST',
+        body: JSON.stringify({
+          book_id: book.id,
+          book_title: book.title,
+          branch_id: book.branch_id,
+          branch_name: book.branch_name || book.branch?.name || ''
+        })
+      });
+      setRequestedDone(true);
+    } catch (err) {
+      alert(err.message || 'Failed to submit permission request');
+    } finally {
+      setRequestingAccess(false);
+    }
+  };
 
   // Notes state
   const storageKey = `sistec_reader_notes_${book.id}`;
@@ -361,12 +389,41 @@ const BookReader = ({ book, onClose }) => {
               <strong>"{book.title}"</strong> is part of the <strong>{book.branch_name || 'different department'}</strong> catalog.
               As per institutional library policy, you must request permission from the Central Library Administrator to access books outside your registered branch.
             </p>
+
+            {requestedDone ? (
+              <div style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                color: '#fbbf24',
+                fontSize: '0.86rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '14px'
+              }}>
+                <Clock size={16} /> Request Submitted! Waiting for Admin Approval.
+              </div>
+            ) : (
+              <button
+                onClick={handleDirectRequest}
+                disabled={requestingAccess}
+                className="btn btn-primary btn-shine"
+                style={{ width: '100%', padding: '11px 18px', fontSize: '0.9rem', justifyContent: 'center', marginBottom: '10px' }}
+              >
+                <Lock size={16} /> {requestingAccess ? 'Submitting Request...' : 'Request Access from Admin'}
+              </button>
+            )}
+
             <button
               onClick={onClose}
-              className="btn btn-primary btn-shine"
-              style={{ width: '100%', padding: '10px 18px', fontSize: '0.9rem', justifyContent: 'center' }}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '10px 18px', fontSize: '0.88rem', justifyContent: 'center' }}
             >
-              <ArrowLeft size={16} /> Return to Catalog & Request Access
+              <ArrowLeft size={16} /> Return to Catalog
             </button>
           </div>
         </div>

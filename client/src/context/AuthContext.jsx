@@ -5,30 +5,50 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 
 export const BASE_URL = typeof window !== 'undefined' ? window.location.origin : '';
 
-// Normalize branch names: '&' -> 'and', expand common acronyms
-export const normalizeBranch = (name) => {
+// Canonical branch key identifier for 100% accurate branch matching across abbreviations, acronyms, and variations
+export const canonicalBranch = (name) => {
   if (!name) return '';
-  let normalized = String(name).trim().toLowerCase();
-  normalized = normalized.replace(/&/g, 'and');
-  normalized = normalized.replace(/\s+/g, ' ').trim();
+  let s = String(name).toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
 
-  const acronymMap = {
-    'cse': 'computer science and engineering',
-    'it': 'information technology',
-    'ece': 'electronics and communication',
-    'me': 'mechanical engineering',
-    'ce': 'civil engineering',
-    'ee': 'electrical engineering'
-  };
+  // AI / Data Science check must come before general CSE check!
+  if (s.includes('aids') || (s.includes('artificial') && (s.includes('intelligence') || s.includes('intel')))) {
+    return 'aids';
+  }
+  if (s.includes('cyber')) return 'cyber';
+  if (s.includes('m.tech') || s.includes('mtech')) {
+    if (s.includes('cse') || s.includes('computer')) return 'mtech_cse';
+    return 'mtech';
+  }
+  if (s.includes('computer science') || s.includes('cse')) return 'cse';
+  if (s.includes('information technology') || /\bit\b/.test(s)) return 'it';
+  if (s.includes('electronics') || s.includes('ece')) return 'ece';
+  if (s.includes('mechanical') || /\bme\b/.test(s)) return 'me';
+  if (s.includes('civil') || /\bce\b/.test(s)) return 'civil';
+  if (s.includes('electrical') || /\bee\b/.test(s) || /\bex\b/.test(s)) return 'ee';
+  if (s.includes('vlsi')) return 'vlsi';
+  if (s.includes('digital comm')) return 'digital_comm';
+  if (s.includes('pharmaceutics')) return 'mpharm_ceutics';
+  if (s.includes('pharmaceutical')) return 'mpharm_chem';
+  if (s.includes('m.pharm') || s.includes('mpharm')) return 'mpharm';
+  if (s.includes('b.pharm') || s.includes('bpharm')) return 'bpharm';
+  if (s.includes('mba')) return 'mba';
+  if (s.includes('bba')) return 'bba';
+  if (s.includes('construction') || s.includes('ctm')) return 'ctm';
+  if (s.includes('structural') || /\bse\b/.test(s)) return 'se';
+  if (s.includes('thermal')) return 'thermal';
+  if (s.includes('machine design')) return 'machine_design';
 
-  if (acronymMap[normalized]) return acronymMap[normalized];
+  return s.replace(/[^a-z0-9]/g, '');
+};
 
-  Object.entries(acronymMap).forEach(([abbr, full]) => {
-    const regex = new RegExp(`\\b${abbr}\\b`, 'g');
-    normalized = normalized.replace(regex, full);
-  });
+export const normalizeBranch = (name) => canonicalBranch(name);
 
-  return normalized;
+export const isSameBranch = (branchA, branchB) => {
+  if (!branchA || !branchB) return false;
+  const a = String(branchA).trim();
+  const b = String(branchB).trim();
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  return canonicalBranch(a) === canonicalBranch(b);
 };
 
 const AuthContext = createContext(null);
@@ -222,13 +242,16 @@ export const AuthProvider = ({ children }) => {
 
       return (data || []).map(b => {
         const branchName = b.branch ? b.branch.name : null;
-        const userBranch = (user?.branchName || user?.branch_name || '').trim().toLowerCase();
-        const bookBranch = (branchName || '').trim().toLowerCase();
+        const userBranch = (user?.branchName || user?.branch_name || '').trim();
+        const bookBranch = (branchName || '').trim();
 
         let hasAccess = true;
+        let isHomeBranch = false;
         if (user && user.role === 'student') {
-          const isHomeBranch = Boolean(userBranch && bookBranch && (userBranch === bookBranch || normalizeBranch(userBranch) === normalizeBranch(bookBranch)));
+          isHomeBranch = Boolean(userBranch && bookBranch && isSameBranch(userBranch, bookBranch));
           const isBookApproved = approvedBookIds.some(bId => String(bId) === String(b.id));
+          // Home branch books NEVER require a request (direct access).
+          // Outside home branch books require admin approval.
           hasAccess = isHomeBranch || isBookApproved;
         }
 
@@ -236,7 +259,8 @@ export const AuthProvider = ({ children }) => {
           ...b,
           category_name: b.category ? b.category.name : null,
           branch_name: branchName,
-          hasAccess
+          hasAccess,
+          isHomeBranch
         };
       });
     }
@@ -1476,6 +1500,7 @@ export const AuthProvider = ({ children }) => {
           isHeadquarters: isHq,
           status: data.status,
           branchName: data.branch_name || (data.role === 'admin' ? 'Central Library' : ''),
+          branch_name: data.branch_name || (data.role === 'admin' ? 'Central Library' : ''),
           adminBranch: !isHq && data.role === 'admin' ? data.branch_name : null,
           rollNumber: data.roll_number,
           year: data.year,
@@ -1686,6 +1711,7 @@ export const AuthProvider = ({ children }) => {
       isHeadquarters: isHqAdmin,
       status: userRecord.status,
       branchName: userRecord.branch_name || (userRecord.role === 'admin' ? 'Central Library' : ''),
+      branch_name: userRecord.branch_name || (userRecord.role === 'admin' ? 'Central Library' : ''),
       adminBranch: !isHqAdmin && userRecord.role === 'admin' ? userRecord.branch_name : null,
       rollNumber: userRecord.roll_number,
       year: userRecord.year,
@@ -1902,7 +1928,7 @@ export const AuthProvider = ({ children }) => {
       user, session, loading, login, logout, register,
       loginWithGoogle, completeGoogleProfile, needsProfile,
       pendingGoogleUser, apiCall, refreshUser: loadUser,
-      bypassLogin, extractDriveFileId, normalizeBranch
+      bypassLogin, extractDriveFileId, normalizeBranch, isSameBranch, canonicalBranch
     }}>
       {children}
     </AuthContext.Provider>
