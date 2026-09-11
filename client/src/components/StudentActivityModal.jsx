@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X, BookOpen, Clock,
   Printer,
   Search, Bookmark,
   History, Laptop, UserCheck, UserX, User,
-  Download, Activity, Eye, FileDown, CheckCircle2
+  Download, Activity, Eye, FileDown, CheckCircle2,
+  Radio
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 import StatusBadge from './StatusBadge';
 import { printStudentTranscript } from '../utils/studentTranscriptGenerator';
 export { printStudentTranscript };
@@ -31,23 +33,68 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'ebooks', 'permissions', 'logs'
   const [bookSearch, setBookSearch] = useState('');
   const [logFilter, setLogFilter] = useState('all'); // 'all', 'reads', 'downloads', 'auth'
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadActivity = async () => {
+    isMountedRef.current = true;
+
+    const loadActivity = async (isSilent = false) => {
       if (!student?.id) return;
       try {
-        setLoading(true);
+        if (!isSilent) setLoading(true);
         const data = await apiCall(`/students/${student.id}/activity`);
-        if (!cancelled) setActivityData(data);
+        if (isMountedRef.current && data) {
+          setActivityData(data);
+        }
       } catch (err) {
-        if (!cancelled) console.error('Failed to load student activity:', err);
+        if (isMountedRef.current) console.error('Failed to load student activity:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (isMountedRef.current && !isSilent) setLoading(false);
       }
     };
-    loadActivity();
-    return () => { cancelled = true; };
+
+    // 1. Initial Load
+    loadActivity(false);
+
+    // 2. Real-time Supabase Subscription to user_book_progress and activity_logs
+    const channel = supabase
+      .channel(`live-student-progress-${student.id}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_book_progress',
+          filter: `user_id=eq.${student.id}`
+        },
+        () => {
+          loadActivity(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `user_id=eq.${student.id}`
+        },
+        () => {
+          loadActivity(true);
+        }
+      )
+      .subscribe();
+
+    // 3. Heartbeat polling fallback (every 2s) to guarantee real-time updates even under connection blips
+    const heartbeat = setInterval(() => {
+      loadActivity(true);
+    }, 2000);
+
+    return () => {
+      isMountedRef.current = false;
+      supabase.removeChannel(channel);
+      clearInterval(heartbeat);
+    };
   }, [apiCall, student?.id]);
 
   // Close on Escape key
@@ -303,7 +350,28 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                   <span>·</span>
                   <span>{student.branch_name || 'General Branch'}</span>
                   <span>·</span>
-                  <span>Year {student.year} · Sem {student.semester}</span>
+                  <span>·</span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: '#34d399',
+                    padding: '1px 7px',
+                    borderRadius: '10px',
+                    fontSize: '0.68rem',
+                    fontWeight: 700
+                  }}>
+                    <span style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: '#10b981',
+                      boxShadow: '0 0 6px #10b981'
+                    }} />
+                    Live 100%
+                  </span>
                   {student.created_at && (
                     <>
                       <span>·</span>
@@ -498,8 +566,11 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {bookProgress.slice(0, 4).map((item) => {
-                          const estPages = item.total_pages || 40;
-                          const progressPct = Math.min(100, Math.round(((item.last_page_read || 1) / estPages) * 100));
+                          const totalPgs = item.total_pages || item.book?.total_pages || 100;
+                          const lastRead = item.last_page_read || 1;
+                          const progressPct = item.progress_percentage && item.progress_percentage > 0
+                            ? item.progress_percentage
+                            : Math.min(100, Math.max(1, Math.round((lastRead / totalPgs) * 100)));
                           return (
                             <div
                               key={item.id}
@@ -528,7 +599,9 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                                 </div>
                               </div>
                               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)' }}>Page {item.last_page_read || 1} ({progressPct}%)</div>
+                                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)' }}>
+                                  Page {lastRead} / {totalPgs} ({progressPct}%)
+                                </div>
                                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} reads · {relativeTime(item.last_accessed_at)}</div>
                               </div>
                             </div>
@@ -587,8 +660,11 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {filteredBooks.map((item, idx) => {
-                        const estPages = item.total_pages || 40;
-                        const progressPct = Math.min(100, Math.round(((item.last_page_read || 1) / estPages) * 100));
+                        const totalPgs = item.total_pages || item.book?.total_pages || 100;
+                        const lastRead = item.last_page_read || 1;
+                        const progressPct = item.progress_percentage && item.progress_percentage > 0
+                          ? item.progress_percentage
+                          : Math.min(100, Math.max(1, Math.round((lastRead / totalPgs) * 100)));
                         return (
                           <div
                             key={item.id || idx}
@@ -626,7 +702,9 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                                 <div style={{ flex: 1, maxWidth: 160, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
                                   <div style={{ width: `${progressPct}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary), #8b5cf6)', borderRadius: 2 }} />
                                 </div>
-                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>{progressPct}% completed</span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                  Page {lastRead} of {totalPgs} · {progressPct}% completed
+                                </span>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                                 <Clock size={10} style={{ display: 'inline', marginRight: 3 }} />
@@ -634,8 +712,18 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                               </div>
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: '0.72rem', fontWeight: 700, marginBottom: 4 }}>
-                                Page {item.last_page_read || 1}
+                              <div style={{
+                                background: 'rgba(59,130,246,0.15)',
+                                color: '#60a5fa',
+                                border: '1px solid rgba(59,130,246,0.25)',
+                                borderRadius: 6,
+                                padding: '4px 10px',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                marginBottom: 4,
+                                whiteSpace: 'nowrap'
+                              }}>
+                                Page {lastRead} / {totalPgs}
                               </div>
                               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} sessions</div>
                               {(item.is_downloaded === 1 || item.downloaded_count > 0) && (

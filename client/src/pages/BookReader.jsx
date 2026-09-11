@@ -52,7 +52,9 @@ const BookReader = ({ book, onClose }) => {
   })();
 
   const isUploaded = Boolean(driveEmbed || pdfSource);
-  const [totalPages] = useState(isUploaded ? 9999 : 60);
+  const totalPages = book?.total_pages && book.total_pages > 0
+    ? book.total_pages
+    : (isUploaded ? 100 : 60);
   const [saving, setSaving] = useState(false);
 
   // Strictly enforce permission access for non-home branch books
@@ -133,9 +135,9 @@ const BookReader = ({ book, onClose }) => {
       let restoredPage = 1;
       try {
         const history = await apiCall('/analytics/my-history');
-        const record = history?.find(h => h.book_title === book.title);
+        const record = history?.find(h => Number(h.book_id) === Number(book.id) || h.book_title === book.title);
         if (record && record.last_page_read) {
-          restoredPage = record.last_page_read;
+          restoredPage = Math.max(1, Math.min(record.last_page_read, totalPages));
           setCurrentPage(restoredPage);
         }
       } catch (err) {
@@ -149,7 +151,8 @@ const BookReader = ({ book, onClose }) => {
             book_id: book.id,
             action_type: 'view',
             last_page_read: restoredPage,
-            details: `Opened "${book.title}" — resumed from page ${restoredPage}`
+            total_pages: totalPages,
+            details: `Opened "${book.title}" — resumed from page ${restoredPage} of ${totalPages}`
           })
         });
       } catch (err) {
@@ -163,19 +166,20 @@ const BookReader = ({ book, onClose }) => {
   // Debounce timer ref — prevents flooding API on rapid page changes
   const saveDebounceRef = useRef(null);
 
-  // Update backend reading progress (debounced: waits 1.5s after last change)
+  // Update backend reading progress in real time (debounced 300ms)
   const saveProgress = useCallback((page) => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    setSaving(true);
     saveDebounceRef.current = setTimeout(async () => {
       try {
-        setSaving(true);
         await apiCall('/analytics/track', {
           method: 'POST',
           body: JSON.stringify({
             book_id: book.id,
             action_type: 'view',
             last_page_read: page,
-            details: `Reading "${book.title}" — page ${page}`
+            total_pages: totalPages,
+            details: `Reading "${book.title}" — page ${page} of ${totalPages}`
           })
         });
       } catch (err) {
@@ -183,15 +187,31 @@ const BookReader = ({ book, onClose }) => {
       } finally {
         setSaving(false);
       }
-    }, 1500);
-  }, [apiCall, book.id, book.title]);
+    }, 300);
+  }, [apiCall, book.id, book.title, totalPages]);
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = useCallback((newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
       saveProgress(newPage);
     }
-  };
+  }, [totalPages, saveProgress]);
+
+  // Keyboard arrow navigation for seamless reading
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault();
+        handlePageChange(currentPage + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        handlePageChange(currentPage - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPage, handlePageChange]);
 
   // Notes actions
   const handleAddNote = (e) => {
@@ -336,6 +356,14 @@ const BookReader = ({ book, onClose }) => {
   };
 
   const fileUrl = driveEmbed || pdfSource;
+  const activePdfUrl = useMemo(() => {
+    if (driveEmbed) return driveEmbed;
+    if (pdfSource) {
+      const base = pdfSource.split('#')[0];
+      return `${base}#page=${currentPage}&navpanes=0`;
+    }
+    return null;
+  }, [driveEmbed, pdfSource, currentPage]);
   const openInNewTabUrl = book.drive_link || (book.drive_file_id ? `https://drive.google.com/file/d/${book.drive_file_id}/view` : null) || pdfSource;
 
   return (
@@ -467,26 +495,67 @@ const BookReader = ({ book, onClose }) => {
 
         {/* Right: Actions (Bookmark, Download PDF, Toggle Notes) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Bookmark page input */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <Bookmark size={15} color="var(--primary, #3b82f6)" />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Page:</span>
-            <input
-              type="number"
-              min="1"
-              max={totalPages}
-              value={currentPage}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (val > 0) {
-                  setCurrentPage(val);
-                  saveProgress(val);
-                }
-              }}
-              className="glass-input"
-              style={{ width: '56px', padding: '4px 6px', textAlign: 'center', fontSize: '0.85rem' }}
-              title="Current reading page"
-            />
+          {/* Interactive Live Page Stepper */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '4px 8px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+          }}>
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="btn btn-secondary"
+              style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
+              title="Previous Page (Left Arrow)"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
+              <Bookmark size={13} color="var(--primary, #3b82f6)" />
+              <span style={{ color: 'var(--text-muted)' }}>Pg</span>
+              <input
+                type="number"
+                min="1"
+                max={totalPages}
+                value={currentPage}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1) {
+                    handlePageChange(Math.min(val, totalPages));
+                  }
+                }}
+                className="glass-input"
+                style={{ width: '48px', padding: '3px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
+                title={`Enter page number (1 - ${totalPages})`}
+              />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
+              <span style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                color: 'var(--primary)',
+                background: 'rgba(59, 130, 246, 0.15)',
+                padding: '2px 5px',
+                borderRadius: '5px'
+              }}>
+                {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
+              </span>
+            </div>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="btn btn-secondary"
+              style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
+              title="Next Page (Right Arrow)"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
 
           {/* Quick Download PDF button */}
@@ -592,7 +661,7 @@ const BookReader = ({ book, onClose }) => {
 
               {/* PDF Embed / Iframe */}
               <iframe
-                src={fileUrl}
+                src={activePdfUrl || fileUrl}
                 width="100%"
                 height="100%"
                 style={{
@@ -603,6 +672,100 @@ const BookReader = ({ book, onClose }) => {
                 }}
                 title={book.title}
               />
+
+              {/* Real-time Reading Scrubber & Progress Bar */}
+              <div style={{
+                padding: '8px 16px',
+                background: 'rgba(11, 15, 25, 0.95)',
+                backdropFilter: 'blur(12px)',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 5))}
+                    disabled={currentPage <= 1}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.74rem' }}
+                    title="Jump back 5 pages"
+                  >
+                    -5
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage <= 1}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 10px', fontSize: '0.78rem', gap: '4px' }}
+                    title="Previous page (Left Arrow)"
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                </div>
+
+                {/* Range slider scrubber */}
+                <div style={{ flex: 1, minWidth: '160px', maxWidth: '440px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="range"
+                    min="1"
+                    max={totalPages}
+                    value={currentPage}
+                    onChange={(e) => handlePageChange(parseInt(e.target.value, 10))}
+                    style={{
+                      width: '100%',
+                      cursor: 'pointer',
+                      accentColor: 'var(--primary, #3b82f6)',
+                      height: '4px'
+                    }}
+                    title="Scrub reading pages"
+                  />
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    {currentPage} / {totalPages}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage >= totalPages}
+                    className="btn btn-primary"
+                    style={{ padding: '4px 10px', fontSize: '0.78rem', gap: '4px' }}
+                    title="Next page (Right Arrow)"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 5))}
+                    disabled={currentPage >= totalPages}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.74rem' }}
+                    title="Jump forward 5 pages"
+                  >
+                    +5
+                  </button>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '0.72rem',
+                    color: saving ? '#f59e0b' : '#10b981',
+                    marginLeft: '6px',
+                    fontWeight: 600
+                  }}>
+                    <span style={{
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      background: saving ? '#f59e0b' : '#10b981',
+                      boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
+                    }} />
+                    {saving ? 'Syncing...' : 'Live'}
+                  </span>
+                </div>
+              </div>
             </div>
           ) : (
             /* Mock Document Book Reader */

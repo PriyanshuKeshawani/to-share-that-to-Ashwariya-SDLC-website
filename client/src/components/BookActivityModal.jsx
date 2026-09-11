@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X, BookOpen, Users, Download, TrendingUp, Clock,
   Award, Activity, Eye, FileDown, Loader2, Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 
 // Relative time helper
 const relativeTime = (iso) => {
@@ -33,23 +34,65 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('readers');
   const [readerSearch, setReaderSearch] = useState('');
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadActivity = async () => {
+    isMountedRef.current = true;
+
+    const loadActivity = async (isSilent = false) => {
       if (!book?.id) return;
       try {
-        setLoading(true);
+        if (!isSilent) setLoading(true);
         const result = await apiCall(`/books/${book.id}/activity`);
-        if (!cancelled) setData(result);
+        if (isMountedRef.current && result) setData(result);
       } catch (err) {
-        if (!cancelled) console.error('Failed to load book activity:', err);
+        if (isMountedRef.current) console.error('Failed to load book activity:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (isMountedRef.current && !isSilent) setLoading(false);
       }
     };
-    loadActivity();
-    return () => { cancelled = true; };
+
+    loadActivity(false);
+
+    // Supabase Real-time Channel for book reading activity
+    const channel = supabase
+      .channel(`live-book-progress-${book.id}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_book_progress',
+          filter: `book_id=eq.${book.id}`
+        },
+        () => {
+          loadActivity(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `book_id=eq.${book.id}`
+        },
+        () => {
+          loadActivity(true);
+        }
+      )
+      .subscribe();
+
+    // Heartbeat fallback polling (every 2s)
+    const heartbeat = setInterval(() => {
+      loadActivity(true);
+    }, 2000);
+
+    return () => {
+      isMountedRef.current = false;
+      supabase.removeChannel(channel);
+      clearInterval(heartbeat);
+    };
   }, [apiCall, book?.id]);
 
   useEffect(() => {
@@ -517,8 +560,8 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
                                 </div>
                               </div>
                               <div className="bam-reader-stats">
-                                <div className="bam-page-badge">
-                                  Page {r.last_page_read || 1}
+                                <div className="bam-page-badge" style={{ whiteSpace: 'nowrap' }}>
+                                  Page {r.last_page_read || 1} / {r.total_pages || book?.total_pages || 100} ({r.progress_percentage || Math.min(100, Math.round(((r.last_page_read || 1) / (r.total_pages || book?.total_pages || 100)) * 100))}%)
                                 </div>
                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right' }}>
                                   {r.accessed_count || 1} reads
