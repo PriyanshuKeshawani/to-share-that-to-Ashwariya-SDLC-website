@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { resolveBookCover } from '../utils/bookCoverResolver';
 
 export const BASE_URL = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -29,6 +30,62 @@ const extractDriveFileId = (input) => {
     }
   }
   return { id: null, embed: raw };
+};
+
+// System settings persistence helper (gracefully prevents 404 network errors if table does not exist in DB)
+let systemSettingsAvailable = typeof window !== 'undefined' ? localStorage.getItem('lib_has_system_settings') !== 'false' : true;
+
+const getSystemRegistrationPolicy = async () => {
+  if (systemSettingsAvailable) {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'registration_policy')
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST205' || error.status === 404 || error.message?.includes('schema cache')) {
+          systemSettingsAvailable = false;
+          if (typeof window !== 'undefined') localStorage.setItem('lib_has_system_settings', 'false');
+        }
+      } else if (data?.value?.policy) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('lib_has_system_settings', 'true');
+          localStorage.setItem('lib_registration_policy', data.value.policy);
+        }
+        return data.value.policy;
+      }
+    } catch {
+      systemSettingsAvailable = false;
+      if (typeof window !== 'undefined') localStorage.setItem('lib_has_system_settings', 'false');
+    }
+  }
+  return (typeof window !== 'undefined' ? localStorage.getItem('lib_registration_policy') : null) || 'manual';
+};
+
+const setSystemRegistrationPolicy = async (newPolicy, username) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('lib_registration_policy', newPolicy);
+  }
+  if (systemSettingsAvailable) {
+    try {
+      const { error } = await supabase.from('system_settings').upsert({
+        key: 'registration_policy',
+        value: { policy: newPolicy, updated_at: new Date().toISOString(), updated_by: username || 'admin' }
+      }, { onConflict: 'key' });
+
+      if (error && (error.code === 'PGRST205' || error.status === 404 || error.message?.includes('schema cache'))) {
+        systemSettingsAvailable = false;
+        if (typeof window !== 'undefined') localStorage.setItem('lib_has_system_settings', 'false');
+      } else if (!error) {
+        if (typeof window !== 'undefined') localStorage.setItem('lib_has_system_settings', 'true');
+      }
+    } catch {
+      systemSettingsAvailable = false;
+      if (typeof window !== 'undefined') localStorage.setItem('lib_has_system_settings', 'false');
+    }
+  }
 };
 
 export const AuthProvider = ({ children }) => {
@@ -95,13 +152,9 @@ export const AuthProvider = ({ children }) => {
             .eq('user_id', user.id)
             .eq('status', 'approved');
           approvedBookIds = (perms || []).map(p => p.book_id).filter(Boolean);
-        } catch {}
-
-        const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-        const userLocalApproved = localPerms
-          .filter(p => p.user_id === user.id && p.status === 'approved' && p.book_id != null)
-          .map(p => p.book_id);
-        approvedBookIds = [...new Set([...approvedBookIds, ...userLocalApproved])];
+        } catch {
+          // ignore permissions fetch error
+        }
       }
 
       return (data || []).map(b => {
@@ -125,18 +178,139 @@ export const AuthProvider = ({ children }) => {
       });
     }
 
-    // Create or update book (FormData OR plain JSON)
-    if (endpoint === '/books' || (endpoint.startsWith('/books/') && (method === 'POST' || method === 'PUT'))) {
+    // 1. Bulk delete books (must be checked before generic /books endpoints)
+    if (endpoint === '/books/bulk-delete' && method === 'POST') {
+      const { bookIds } = body;
+      const { error } = await supabase.from('books').delete().in('id', bookIds);
+      if (error) throw error;
+      return { message: 'Selected books deleted successfully' };
+    }
+
+    // 2. Batch import books (for automated directory upload & bulk ingestion)
+    if (endpoint === '/books/batch-import' && method === 'POST') {
+      const batchItems = Array.isArray(body?.books) ? body.books : (Array.isArray(body) ? body : []);
+      if (batchItems.length === 0) {
+        throw new Error('No valid book records provided for batch import.');
+      }
+
+      const insertedRecords = [];
+      const ALLOWED_COLS = ['title', 'author', 'category_id', 'branch_id', 'priority', 'description', 'cover_url', 'pdf_url', 'drive_link', 'drive_file_id', 'total_pages'];
+
+      for (const item of batchItems) {
+        const rawCat = item.category_id ? parseInt(item.category_id, 10) : null;
+        const rawBr = item.branch_id ? parseInt(item.branch_id, 10) : null;
+        const itemPayload = {
+          title: item.title?.trim() || 'Untitled Document',
+          author: item.author?.trim() || 'Academic Faculty / Author',
+          category_id: Number.isInteger(rawCat) ? rawCat : null,
+          branch_id: Number.isInteger(rawBr) ? rawBr : null,
+          priority: item.priority === 'sub' ? 'sub' : 'main',
+          description: item.description || null,
+          cover_url: item.cover_url || null,
+          pdf_url: item.pdf_url || null,
+          drive_link: item.drive_link || null
+        };
+
+        if (itemPayload.drive_link) {
+          const { id: driveId } = extractDriveFileId(itemPayload.drive_link);
+          if (driveId) itemPayload.drive_file_id = driveId;
+        }
+
+        const cleanItem = {};
+        ALLOWED_COLS.forEach(col => {
+          if (itemPayload[col] === null) {
+            cleanItem[col] = null;
+          } else if (itemPayload[col] !== undefined && itemPayload[col] !== '' && !Number.isNaN(itemPayload[col])) {
+            cleanItem[col] = itemPayload[col];
+          }
+        });
+
+        const { data: created, error: insertErr } = await supabase
+          .from('books')
+          .insert([cleanItem])
+          .select()
+          .single();
+
+        if (insertErr) {
+          console.warn('Batch book insertion notice:', insertErr.message);
+        } else if (created) {
+          insertedRecords.push(created);
+        }
+      }
+
+      return {
+        message: `Successfully imported ${insertedRecords.length} books into institutional library.`,
+        count: insertedRecords.length,
+        books: insertedRecords
+      };
+    }
+
+    // 3. Resolve Missing Book Covers in Bulk (for existing database catalog)
+    if (endpoint === '/books/resolve-missing-covers' && method === 'POST') {
+      const { data: missingBooks, error } = await supabase
+        .from('books')
+        .select('id, title, author, branch:branch_id(name)')
+        .or('cover_url.is.null,cover_url.eq.""');
+      if (error) throw error;
+
+      let resolvedCount = 0;
+      const updatedList = [];
+
+      for (const book of (missingBooks || [])) {
+        try {
+          const res = await resolveBookCover({
+            title: book.title,
+            author: book.author,
+            branchName: book.branch?.name
+          });
+          if (res?.coverUrl) {
+            await supabase
+              .from('books')
+              .update({ cover_url: res.coverUrl })
+              .eq('id', book.id);
+            resolvedCount++;
+            updatedList.push({ id: book.id, title: book.title, cover_url: res.coverUrl, source: res.source });
+          }
+        } catch (covErr) {
+          console.warn(`Notice resolving cover for book ${book.id}:`, covErr);
+        }
+      }
+
+      return {
+        message: `Successfully resolved cover images for ${resolvedCount} book(s).`,
+        count: resolvedCount,
+        books: updatedList
+      };
+    }
+
+    // 4. Delete single book
+    if (endpoint.startsWith('/books/') && method === 'DELETE') {
+      const bookId = endpoint.split('/').pop();
+      const { error } = await supabase.from('books').delete().eq('id', bookId);
+      if (error) throw error;
+      return { message: 'Book deleted successfully' };
+    }
+
+    // 5. Create or update single book (POST /books OR PUT /books/:id)
+    const isBookCreate = endpoint === '/books' && method === 'POST';
+    const isBookUpdate = endpoint.startsWith('/books/') && method === 'PUT' && !endpoint.includes('/bulk') && !endpoint.includes('/batch') && !endpoint.includes('/resolve');
+
+    if (isBookCreate || isBookUpdate) {
       let payload;
 
       if (options.body instanceof FormData) {
         const formData = options.body;
+        const rawCat = formData.get('category_id');
+        const parsedCat = rawCat ? parseInt(rawCat, 10) : null;
+        const rawBr = formData.get('branch_id');
+        const parsedBr = rawBr ? parseInt(rawBr, 10) : null;
+
         payload = {
           title: formData.get('title') || '',
           author: formData.get('author') || '',
-          category_id: formData.get('category_id') ? parseInt(formData.get('category_id'), 10) : null,
-          branch_id: formData.get('branch_id') ? parseInt(formData.get('branch_id'), 10) : null,
-          priority: formData.get('priority') || 'main',
+          category_id: Number.isInteger(parsedCat) ? parsedCat : null,
+          branch_id: Number.isInteger(parsedBr) ? parsedBr : null,
+          priority: formData.get('priority') === 'sub' ? 'sub' : 'main',
           description: formData.get('description') || null,
           cover_url: formData.get('cover_url') || null,
           drive_link: formData.get('drive_link') || null
@@ -189,42 +363,72 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         payload = { ...body };
+        if (payload.category_id !== undefined) {
+          const cat = parseInt(payload.category_id, 10);
+          payload.category_id = Number.isInteger(cat) ? cat : null;
+        }
+        if (payload.branch_id !== undefined) {
+          const br = parseInt(payload.branch_id, 10);
+          payload.branch_id = Number.isInteger(br) ? br : null;
+        }
+        if (payload.priority !== undefined) {
+          payload.priority = payload.priority === 'sub' ? 'sub' : 'main';
+        }
         if (payload.drive_link) {
           const { id: driveId } = extractDriveFileId(payload.drive_link);
           if (driveId) payload.drive_file_id = driveId;
         }
       }
 
-      // Strip empties for cleaner DB
-      Object.keys(payload).forEach(k => {
-        if (payload[k] === '' || payload[k] === undefined) delete payload[k];
+      // Automatic Book Thumbnail Resolution if cover_url was not manually provided
+      if (!payload.cover_url && payload.title) {
+        try {
+          const rawPdf = options.body instanceof FormData ? options.body.get('pdf') : null;
+          const resolved = await resolveBookCover({
+            title: payload.title,
+            author: payload.author || '',
+            isbn: payload.isbn || '',
+            pdfFile: rawPdf
+          });
+          if (resolved?.coverUrl) {
+            payload.cover_url = resolved.coverUrl;
+          }
+        } catch (covErr) {
+          console.warn('Auto cover resolution notice:', covErr);
+        }
+      }
+
+      // Whitelist ONLY schema-supported columns for the books table
+      const ALLOWED_BOOK_COLUMNS = [
+        'title', 'author', 'category_id', 'branch_id', 'priority', 
+        'pdf_url', 'drive_file_id', 'drive_link', 'description', 
+        'cover_url', 'total_pages'
+      ];
+      const cleanPayload = {};
+      ALLOWED_BOOK_COLUMNS.forEach(col => {
+        if (payload[col] === null) {
+          cleanPayload[col] = null;
+        } else if (payload[col] !== undefined && payload[col] !== '' && !Number.isNaN(payload[col])) {
+          cleanPayload[col] = payload[col];
+        }
       });
 
-      if (endpoint.startsWith('/books/') && method === 'PUT') {
+      if (isBookCreate) {
+        if (!cleanPayload.title || cleanPayload.title.trim() === '') cleanPayload.title = 'Untitled Book';
+        if (!cleanPayload.author || cleanPayload.author.trim() === '') cleanPayload.author = 'Academic Faculty / Author';
+        if (!cleanPayload.priority) cleanPayload.priority = 'main';
+      }
+
+      if (isBookUpdate) {
         const bookId = endpoint.split('/').pop();
-        const { data, error } = await supabase.from('books').update(payload).eq('id', bookId).select().single();
+        const { data, error } = await supabase.from('books').update(cleanPayload).eq('id', bookId).select().single();
         if (error) throw error;
         return { message: 'Book updated successfully', data };
       }
-      const { data, error } = await supabase.from('books').insert([payload]).select().single();
+
+      const { data, error } = await supabase.from('books').insert([cleanPayload]).select().single();
       if (error) throw error;
       return { message: 'Book created successfully', data };
-    }
-
-    // Delete single book
-    if (endpoint.startsWith('/books/') && method === 'DELETE') {
-      const bookId = endpoint.split('/').pop();
-      const { error } = await supabase.from('books').delete().eq('id', bookId);
-      if (error) throw error;
-      return { message: 'Book deleted successfully' };
-    }
-
-    // Bulk delete books
-    if (endpoint === '/books/bulk-delete' && method === 'POST') {
-      const { bookIds } = body;
-      const { error } = await supabase.from('books').delete().in('id', bookIds);
-      if (error) throw error;
-      return { message: 'Selected books deleted successfully' };
     }
 
     // Book readers & activity monitoring (overall and per-student)
@@ -241,13 +445,6 @@ export const AuthProvider = ({ children }) => {
         bookData = bData;
       } catch (e) {
         console.warn('Notice fetching book info:', e);
-      }
-
-      if (!bookData) {
-        try {
-          const localBooks = JSON.parse(localStorage.getItem('sistec_demo_books') || '[]');
-          bookData = localBooks.find(b => b.id === bookId);
-        } catch (e) {}
       }
 
       let readers = [];
@@ -273,24 +470,6 @@ export const AuthProvider = ({ children }) => {
         console.warn('Notice fetching progress for book:', e);
       }
 
-      // Merge local demo progress if available
-      try {
-        const localKey = 'sistec_demo_book_progress';
-        const stored = JSON.parse(localStorage.getItem(localKey) || '[]');
-        const matchingLocal = stored.filter(p => Number(p.book_id) === bookId);
-        for (const loc of matchingLocal) {
-          const existingIdx = readers.findIndex(r => r.user_id === loc.user_id);
-          if (existingIdx >= 0) {
-            readers[existingIdx].last_page_read = Math.max(readers[existingIdx].last_page_read || 1, loc.last_page_read || 1);
-            readers[existingIdx].accessed_count = Math.max(readers[existingIdx].accessed_count || 1, loc.accessed_count || 1);
-            if (loc.is_downloaded) readers[existingIdx].is_downloaded = 1;
-            readers[existingIdx].last_accessed_at = loc.last_accessed_at || readers[existingIdx].last_accessed_at;
-          } else {
-            readers.push(loc);
-          }
-        }
-      } catch (e) {}
-
       let logs = [];
       try {
         const { data: logsData } = await supabase
@@ -300,7 +479,9 @@ export const AuthProvider = ({ children }) => {
           .order('created_at', { ascending: false })
           .limit(50);
         if (logsData) logs = logsData;
-      } catch (e) {}
+      } catch {
+        // ignore logs fetch error
+      }
 
       const totalUniqueReaders = readers.length;
       const totalReadSessions = readers.reduce((acc, r) => acc + (Number(r.accessed_count) || 1), 0);
@@ -336,8 +517,24 @@ export const AuthProvider = ({ children }) => {
       return data || [];
     }
 
-    if (endpoint === '/auth/pending-users') {
-      const { data, error } = await supabase.from('users').select('*').eq('role', 'student').eq('status', 'pending').order('created_at', { ascending: false });
+    if (endpoint.startsWith('/auth/pending-users')) {
+      const urlParams = new URLSearchParams(endpoint.split('?')[1] || '');
+      const paramBranch = urlParams.get('branch_name') || urlParams.get('branch');
+
+      let query = supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'student')
+        .eq('status', 'pending');
+
+      const isHq = !user || user.isHeadquarters || user.branchName === 'Central Library' || !user.branchName;
+      const effectiveBranch = !isHq ? user.branchName : (paramBranch && paramBranch !== 'all' ? paramBranch : null);
+
+      if (effectiveBranch) {
+        query = query.eq('branch_name', effectiveBranch);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     }
@@ -346,7 +543,92 @@ export const AuthProvider = ({ children }) => {
       const userId = endpoint.split('/').pop();
       const { data, error } = await supabase.from('users').update({ status: body.status }).eq('id', userId).select().single();
       if (error) throw error;
+
+      // Activity log & notification in Supabase
+      try {
+        await supabase.from('activity_logs').insert([{
+          user_id: userId,
+          action_type: 'user_approval',
+          details: `Student account registration marked as ${body.status} by ${user?.fullName || 'Administrator'} (${user?.branchName || 'Department'})`
+        }]);
+
+        await supabase.from('notifications').insert([{
+          user_id: userId,
+          title: body.status === 'approved' ? 'Registration Approved' : 'Registration Status Updated',
+          message: body.status === 'approved'
+            ? 'Your institutional library portal account has been approved. You now have full access.'
+            : `Your library registration status has been marked as ${body.status}.`,
+          type: body.status === 'approved' ? 'approval' : 'warning'
+        }]);
+      } catch (logErr) {
+        console.warn('Notice writing audit log/notification:', logErr);
+      }
+
       return { message: `User status updated to ${body.status}`, data };
+    }
+
+    // Bulk Approve or Reject Pending Student Registrations
+    if (endpoint === '/auth/bulk-approve-users' && method === 'POST') {
+      const { userIds, status = 'approved', branch_name } = body;
+      let query = supabase.from('users').update({ status }).eq('role', 'student');
+      
+      if (Array.isArray(userIds) && userIds.length > 0) {
+        query = query.in('id', userIds);
+      } else {
+        query = query.eq('status', 'pending');
+        const isHq = !user || user.isHeadquarters || user.branchName === 'Central Library' || !user.branchName;
+        const effectiveBranch = !isHq ? user.branchName : (branch_name && branch_name !== 'all' ? branch_name : null);
+        if (effectiveBranch) {
+          query = query.eq('branch_name', effectiveBranch);
+        }
+      }
+
+      const { data, error } = await query.select();
+      if (error) throw error;
+
+      const updatedCount = data ? data.length : 0;
+      if (updatedCount > 0) {
+        try {
+          const auditLogs = data.map(u => ({
+            user_id: u.id,
+            action_type: 'bulk_user_approval',
+            details: `Student ${u.full_name || u.username} (${u.roll_number || 'N/A'}) registration marked as ${status} via Bulk Action by ${user?.fullName || 'Administrator'}`
+          }));
+          await supabase.from('activity_logs').insert(auditLogs);
+
+          const notifs = data.map(u => ({
+            user_id: u.id,
+            title: status === 'approved' ? 'Registration Approved' : 'Registration Status Updated',
+            message: status === 'approved'
+              ? 'Your institutional library portal account has been approved. You now have full access.'
+              : `Your library registration status has been marked as ${status}.`,
+            type: status === 'approved' ? 'approval' : 'warning'
+          }));
+          await supabase.from('notifications').insert(notifs);
+        } catch (auditErr) {
+          console.warn('Bulk approval audit/notification note:', auditErr);
+        }
+      }
+
+      return {
+        message: `Successfully ${status === 'approved' ? 'approved' : 'updated'} ${updatedCount} student registration(s).`,
+        count: updatedCount,
+        data
+      };
+    }
+
+    // Registration Policy Management
+    if (endpoint === '/admin/registration-policy') {
+      if (method === 'GET') {
+        const policy = await getSystemRegistrationPolicy();
+        return { policy };
+      }
+
+      if (method === 'POST') {
+        const newPolicy = body.policy || 'manual';
+        await setSystemRegistrationPolicy(newPolicy, user?.username);
+        return { message: `Registration policy updated to ${newPolicy}`, policy: newPolicy };
+      }
     }
 
     if (endpoint.endsWith('/block')) {
@@ -386,7 +668,8 @@ export const AuthProvider = ({ children }) => {
         { data: studentUser },
         { data: rawBookProgress },
         { data: permissionsData },
-        { data: activityLogs }
+        { data: activityLogs },
+        { data: allBooksList }
       ] = await Promise.all([
         supabase.from('users').select('*').eq('id', studentId).maybeSingle(),
         supabase.from('user_book_progress').select(`
@@ -394,30 +677,23 @@ export const AuthProvider = ({ children }) => {
           book:book_id(id, title, author, category:category_id(name), branch:branch_id(name))
         `).eq('user_id', studentId).order('last_accessed_at', { ascending: false }),
         supabase.from('permissions').select('*, branch:branch_id(name), book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }),
-        supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(50)
+        supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(100),
+        supabase.from('books').select('id, title, author, category:category_id(name), branch:branch_id(name)')
       ]);
 
-      let bookProgress = rawBookProgress ? [...rawBookProgress] : [];
+      const bookLookup = new Map((allBooksList || []).map(b => [b.id, b]));
 
-      // Merge local progress for demo or offline activity
-      try {
-        const localKey = 'sistec_demo_book_progress';
-        const stored = JSON.parse(localStorage.getItem(localKey) || '[]');
-        const matchingLocal = stored.filter(p => p.user_id === studentId);
-        for (const loc of matchingLocal) {
-          const existingIdx = bookProgress.findIndex(r => Number(r.book_id) === Number(loc.book_id));
-          if (existingIdx >= 0) {
-            bookProgress[existingIdx].last_page_read = Math.max(bookProgress[existingIdx].last_page_read || 1, loc.last_page_read || 1);
-            bookProgress[existingIdx].accessed_count = Math.max(bookProgress[existingIdx].accessed_count || 1, loc.accessed_count || 1);
-            if (loc.is_downloaded) bookProgress[existingIdx].is_downloaded = 1;
-          } else {
-            bookProgress.push(loc);
-          }
-        }
-      } catch (e) {}
+      const bookProgress = (rawBookProgress || []).map(p => {
+        const bk = p.book || bookLookup.get(Number(p.book_id)) || null;
+        return {
+          ...p,
+          book: bk
+        };
+      });
 
       const totalReads = bookProgress.reduce((sum, b) => sum + (Number(b.accessed_count) || 1), 0);
       const totalDownloads = bookProgress.reduce((sum, b) => sum + (Number(b.downloaded_count) || (b.is_downloaded ? 1 : 0)), 0);
+      const totalMinutes = bookProgress.reduce((sum, b) => sum + (Number(b.reading_time_minutes) || ((Number(b.accessed_count) || 1) * 8)), 0);
 
       return {
         student: studentUser,
@@ -425,7 +701,8 @@ export const AuthProvider = ({ children }) => {
           eBooksRead: bookProgress.length,
           totalReadingSessions: totalReads,
           totalDownloads: totalDownloads,
-          totalAccessRequests: (permissionsData || []).length
+          totalAccessRequests: (permissionsData || []).length,
+          totalReadingMinutes: totalMinutes
         },
         bookProgress: bookProgress,
         permissions: permissionsData || [],
@@ -433,120 +710,174 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // 6. Permissions
-    if (endpoint === '/permissions/pending-requests') {
-      let serverRequests = [];
-      try {
-        const { data, error } = await supabase
-          .from('permissions')
-          .select('*, user:user_id(full_name, roll_number, branch_name), branch:branch_id(name), book:book_id(title)')
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
-        if (!error && data) serverRequests = data;
-      } catch (e) {
-        console.warn('Notice loading server permissions:', e);
+    // 6. Permissions (Multi-Branch Scoped)
+    if (endpoint.startsWith('/permissions/pending-requests') || endpoint.startsWith('/permissions/all-requests')) {
+      const isAll = endpoint.includes('/all-requests');
+      const urlParams = new URLSearchParams(endpoint.split('?')[1] || '');
+      const paramBranch = urlParams.get('branch_name') || urlParams.get('branch');
+
+      let query = supabase
+        .from('permissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!isAll) {
+        query = query.eq('status', 'pending');
       }
 
-      const { data: allBranches } = await supabase.from('branches').select('id, name');
+      const { data: permData, error: permError } = await query;
+      if (permError) throw permError;
+
+      // Extract unique IDs for resilient parallel lookups (independent of schema FK constraints)
+      const userIds = [...new Set((permData || []).map(p => p.user_id).filter(Boolean))];
+      const bookIds = [...new Set((permData || []).map(p => p.book_id).filter(Boolean))];
+
+      const [
+        { data: usersList },
+        { data: allBranches },
+        { data: booksList }
+      ] = await Promise.all([
+        userIds.length > 0
+          ? supabase.from('users').select('id, full_name, roll_number, branch_name, username').in('id', userIds)
+          : { data: [] },
+        supabase.from('branches').select('id, name'),
+        bookIds.length > 0
+          ? supabase.from('books').select('id, title, author, branch_id, cover_url').in('id', bookIds)
+          : { data: [] }
+      ]);
+
+      const userMap = new Map((usersList || []).map(u => [u.id, u]));
       const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
+      const bookMap = new Map((booksList || []).map(b => [b.id, b]));
 
-      const { data: allBooks } = await supabase.from('books').select('id, title, branch_id');
-      const bookMap = new Map((allBooks || []).map(b => [b.id, b.title]));
+      const isHq = !user || user.isHeadquarters || user.branchName === 'Central Library' || !user.branchName;
+      const effectiveBranch = !isHq ? (user.adminBranch || user.branchName) : (paramBranch && paramBranch !== 'all' ? paramBranch : null);
 
-      const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]').filter(p => p.status === 'pending');
+      let list = (permData || []).map(p => {
+        const u = userMap.get(p.user_id);
+        const bk = bookMap.get(p.book_id);
+        const bookBranchName = bk?.branch_id ? branchMap.get(bk.branch_id) : (p.branch_id ? branchMap.get(p.branch_id) : 'Central Library');
+        return {
+          ...p,
+          full_name: u ? u.full_name : 'Student',
+          roll_number: u ? u.roll_number : 'N/A',
+          student_branch: u ? u.branch_name : 'Engineering',
+          book_id: p.book_id,
+          book_title: bk?.title || 'Book Access',
+          book_author: bk?.author || '',
+          book_branch_id: bk?.branch_id,
+          book_branch_name: bookBranchName,
+          requested_branch_name: p.branch_id ? (branchMap.get(p.branch_id) || bookBranchName || 'Branch') : bookBranchName
+        };
+      });
 
-      const enrichedLocal = localPerms.map(p => ({
-        ...p,
-        full_name: p.full_name || 'Student',
-        roll_number: p.roll_number || 'N/A',
-        student_branch: p.student_branch || 'Engineering',
-        book_title: p.book_title || (p.book_id ? bookMap.get(p.book_id) : null) || 'Requested Book',
-        requested_branch_name: p.requested_branch_name || branchMap.get(p.branch_id) || 'Requested Branch'
-      }));
+      // Multi-Branch Independent Filtering:
+      // When branch admin is acting, scope to requests governing books of their branch
+      if (effectiveBranch) {
+        const effLower = effectiveBranch.trim().toLowerCase();
+        list = list.filter(r => {
+          const bBranch = (r.book_branch_name || '').trim().toLowerCase();
+          const rBranch = (r.requested_branch_name || '').trim().toLowerCase();
+          return bBranch === effLower || rBranch === effLower;
+        });
+      }
 
-      const combined = [...serverRequests, ...enrichedLocal];
-      return combined.map(p => ({
-        ...p,
-        full_name: p.user ? p.user.full_name : (p.full_name || 'Student'),
-        roll_number: p.user ? p.user.roll_number : (p.roll_number || 'N/A'),
-        student_branch: p.user ? p.user.branch_name : (p.student_branch || 'Engineering'),
-        book_id: p.book_id,
-        book_title: p.book_title || (p.book_id ? bookMap.get(p.book_id) : null) || 'Book Access',
-        requested_branch_name: p.branch ? p.branch.name : (p.requested_branch_name || branchMap.get(p.branch_id) || 'Branch')
-      }));
+      return list;
     }
 
     if (endpoint === '/permissions/my-requests') {
       if (!user) return [];
-      let serverRequests = [];
-      try {
-        const { data, error } = await supabase.from('permissions').select('*, branch:branch_id(name), book:book_id(title)').eq('user_id', user.id);
-        if (!error && data) serverRequests = data;
-      } catch (e) {
-        console.warn('Notice loading my permissions:', e);
-      }
+      const { data: permData, error: permError } = await supabase
+        .from('permissions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (permError) throw permError;
 
-      const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-      const userLocal = localPerms.filter(p => p.user_id === user.id);
+      const bookIds = [...new Set((permData || []).map(p => p.book_id).filter(Boolean))];
 
-      const { data: allBranches } = await supabase.from('branches').select('id, name');
+      const [
+        { data: allBranches },
+        { data: booksList }
+      ] = await Promise.all([
+        supabase.from('branches').select('id, name'),
+        bookIds.length > 0 ? supabase.from('books').select('id, title, author, cover_url').in('id', bookIds) : { data: [] }
+      ]);
+
       const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
+      const bookMap = new Map((booksList || []).map(b => [b.id, b]));
 
-      const { data: allBooks } = await supabase.from('books').select('id, title');
-      const bookMap = new Map((allBooks || []).map(b => [b.id, b.title]));
+      return (permData || []).map(req => {
+        const bk = bookMap.get(req.book_id);
+        return {
+          ...req,
+          book_id: req.book_id,
+          book_title: bk?.title || 'Book Access',
+          book_author: bk?.author || '',
+          cover_url: bk?.cover_url || null,
+          branch_name: branchMap.get(req.branch_id) || 'Branch'
+        };
+      });
+    }
 
-      const combined = [...serverRequests, ...userLocal];
-      const unique = [];
-      const seen = new Set();
-      for (const req of combined) {
-        const key = req.book_id ? `book-${req.book_id}` : `branch-${req.branch_id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push({
-            ...req,
-            book_id: req.book_id,
-            book_title: req.book_title || (req.book_id ? bookMap.get(req.book_id) : null) || 'Book',
-            branch_name: req.branch ? req.branch.name : (branchMap.get(req.branch_id) || 'Branch')
-          });
-        }
-      }
-      return unique;
+    if (endpoint.startsWith('/permissions/cancel/')) {
+      const permId = endpoint.split('/').pop();
+      const { error } = await supabase.from('permissions').delete().eq('id', permId);
+      if (error) throw error;
+      return { message: 'Request cancelled' };
     }
 
     if (endpoint.startsWith('/permissions/action/') || endpoint.startsWith('/permissions/approve/')) {
       const permId = endpoint.split('/').pop();
-      if (permId.startsWith('demo-perm-')) {
-        const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-        const updated = localPerms.map(p => p.id === permId ? { ...p, status: body.status } : p);
-        localStorage.setItem('sistec_demo_permissions', JSON.stringify(updated));
-        return { message: `Permission ${body.status}`, data: { id: permId, status: body.status } };
-      }
       const { data, error } = await supabase.from('permissions').update({ status: body.status }).eq('id', permId).select().single();
       if (error) throw error;
 
       if (data && data.user_id) {
         try {
           const isApproved = body.status === 'approved';
+          const isRevoked = body.status === 'rejected';
           await supabase.from('notifications').insert([{
             user_id: data.user_id,
-            title: isApproved ? 'Book Access Granted' : 'Book Access Denied',
+            title: isApproved ? 'Book Access Granted' : isRevoked ? 'Book Access Revoked' : 'Book Access Declined',
             message: isApproved
-              ? 'Administrator granted your request to read this book.'
-              : 'Administrator declined your request to read this book.',
+              ? `Department library administrator granted your request to read this book.`
+              : `Department library administrator has declined or revoked access for this book.`,
             type: isApproved ? 'approval' : 'warning'
           }]);
+
+          await supabase.from('activity_logs').insert([{
+            user_id: data.user_id,
+            book_id: data.book_id || null,
+            action_type: `permission_${body.status}`,
+            details: `Cross-branch book permission marked ${body.status} by ${user?.fullName || 'Administrator'} (${user?.branchName || 'Department'})`
+          }]);
         } catch (notifErr) {
-          console.warn('Permission notification note:', notifErr.message);
+          console.warn('Permission notification/audit note:', notifErr.message);
         }
       }
       return { message: `Permission ${body.status}`, data };
     }
 
     if (endpoint === '/permissions/request' && method === 'POST') {
-      const branchId = parseInt(body.branchId || body.branch_id, 10);
-      const bookId = body.book_id || body.bookId ? parseInt(body.book_id || body.bookId, 10) : null;
+      const rawBranchId = body.branchId || body.branch_id;
+      let branchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
+      if (isNaN(branchId)) branchId = null;
+
+      const rawBookId = body.book_id || body.bookId;
+      let bookId = rawBookId ? parseInt(rawBookId, 10) : null;
+      if (isNaN(bookId)) bookId = null;
+
       const bookTitle = body.book_title || body.bookTitle || '';
-      const branchName = body.branch_name || body.branchName || '';
+
+      // If branchId is not provided, look up the target book's branch_id
+      if (!branchId && bookId) {
+        try {
+          const { data: bRow } = await supabase.from('books').select('branch_id').eq('id', bookId).maybeSingle();
+          if (bRow?.branch_id) branchId = bRow.branch_id;
+        } catch {
+          // ignore lookup error
+        }
+      }
 
       let effectiveUserId = user?.id;
       if (user?.id) {
@@ -557,75 +888,45 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      let existing = null;
-      if (effectiveUserId && bookId) {
-        try {
-          const { data: ex } = await supabase
-            .from('permissions')
-            .select('id, status')
-            .eq('user_id', effectiveUserId)
-            .eq('book_id', bookId)
-            .maybeSingle();
-          existing = ex;
-        } catch {}
+      if (!effectiveUserId) {
+        throw new Error('You must be signed in to request book access.');
       }
 
-      const localPerms = JSON.parse(localStorage.getItem('sistec_demo_permissions') || '[]');
-      const localExisting = localPerms.find(p =>
-        (bookId != null && p.book_id === bookId && (p.user_id === user?.id || p.user_id === effectiveUserId))
-      );
+      let existing = null;
+      if (bookId) {
+        const { data: ex } = await supabase
+          .from('permissions')
+          .select('id, status')
+          .eq('user_id', effectiveUserId)
+          .eq('book_id', bookId)
+          .maybeSingle();
+        existing = ex;
+      }
 
-      if (existing || localExisting) {
-        const currentStatus = existing?.status || localExisting?.status;
-        if (currentStatus === 'pending') {
+      if (existing) {
+        if (existing.status === 'pending') {
           throw new Error(`You already have a pending request for "${bookTitle || 'this book'}"`);
         }
-        if (existing) {
-          const { data, error } = await supabase
-            .from('permissions')
-            .update({ status: 'pending' })
-            .eq('id', existing.id)
-            .select()
-            .single();
-          if (!error && data) return data;
-        }
+        const { data, error } = await supabase
+          .from('permissions')
+          .update({ status: 'pending' })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
       }
 
-      let insertErr = null;
-      if (effectiveUserId) {
-        try {
-          const insertPayload = {
-            user_id: effectiveUserId,
-            branch_id: branchId,
-            status: 'pending'
-          };
-          if (bookId) insertPayload.book_id = bookId;
-
-          const { data, error } = await supabase.from('permissions').insert([insertPayload]).select().single();
-          if (!error && data) return data;
-          insertErr = error;
-        } catch (e) {
-          insertErr = e;
-        }
-      }
-
-      console.warn('Saved book permission in local storage fallback:', insertErr?.message);
-      const demoPerm = {
-        id: `demo-perm-${Date.now()}`,
-        user_id: user?.id || 'demo-student',
-        full_name: user?.fullName || 'Student',
-        roll_number: user?.rollNumber || 'N/A',
-        student_branch: user?.branchName || 'Engineering',
-        branch_id: branchId,
-        book_id: bookId,
-        book_title: bookTitle,
-        requested_branch_name: branchName,
-        status: 'pending',
-        created_at: new Date().toISOString()
+      const insertPayload = {
+        user_id: effectiveUserId,
+        branch_id: branchId || null,
+        status: 'pending'
       };
-      localPerms.push(demoPerm);
-      localStorage.setItem('sistec_demo_permissions', JSON.stringify(localPerms));
-      return demoPerm;
+      if (bookId) insertPayload.book_id = bookId;
+
+      const { data, error } = await supabase.from('permissions').insert([insertPayload]).select().single();
+      if (error) throw error;
+      return data;
     }
 
     // 7. Notifications
@@ -713,83 +1014,274 @@ export const AuthProvider = ({ children }) => {
         } catch (progErr) {
           console.warn('Notice updating user_book_progress in Supabase:', progErr);
         }
-
-        // Also persist to localStorage for bypass/demo mode
-        try {
-          const localKey = 'sistec_demo_book_progress';
-          const stored = JSON.parse(localStorage.getItem(localKey) || '[]');
-          const idx = stored.findIndex(p => p.user_id === user.id && Number(p.book_id) === targetBookId);
-          if (idx >= 0) {
-            stored[idx].last_page_read = Math.max(stored[idx].last_page_read || 1, pageRead);
-            stored[idx].accessed_count = (stored[idx].accessed_count || 0) + (actionType === 'view' ? 1 : 0);
-            if (actionType === 'download') {
-              stored[idx].is_downloaded = 1;
-              stored[idx].downloaded_count = (stored[idx].downloaded_count || 0) + 1;
-            }
-            stored[idx].last_accessed_at = nowIso;
-          } else {
-            stored.push({
-              id: Date.now(),
-              user_id: user.id,
-              book_id: targetBookId,
-              last_page_read: pageRead,
-              accessed_count: 1,
-              is_downloaded: actionType === 'download' ? 1 : 0,
-              downloaded_count: actionType === 'download' ? 1 : 0,
-              last_accessed_at: nowIso,
-              user: {
-                id: user.id,
-                full_name: user.fullName || user.full_name || 'Student',
-                username: user.username || 'student',
-                roll_number: user.rollNumber || user.roll_number || 'N/A',
-                branch_name: user.branchName || user.branch_name || 'CSE',
-                year: user.year || '3rd Year',
-                semester: user.semester || '6th Sem',
-                avatar_url: user.avatarUrl || null
-              }
-            });
-          }
-          localStorage.setItem(localKey, JSON.stringify(stored));
-        } catch (lsErr) {
-          console.warn('Failed local progress sync:', lsErr);
-        }
       }
 
       return logData || { message: 'Tracked successfully' };
     }
 
-    if (endpoint === '/analytics/dashboard') {
-      const [{ count: totalStudents }, { count: totalBooks }, { count: totalDownloads }, { count: totalViews }, { count: totalLogins }, { count: totalLogouts }] = await Promise.all([
-        supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-        supabase.from('books').select('*', { count: 'exact', head: true }),
-        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'download'),
-        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'view'),
-        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'login'),
-        supabase.from('activity_logs').select('*', { count: 'exact', head: true }).eq('action_type', 'logout')
+    if (endpoint.startsWith('/analytics/dashboard')) {
+      const urlParams = endpoint.includes('?') ? new URLSearchParams(endpoint.split('?')[1]) : new URLSearchParams();
+      const timeframe = urlParams.get('timeframe') || 'all';
+
+      // Timeframe boundary
+      let startDate = null;
+      const now = new Date();
+      if (timeframe === 'today') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      } else if (timeframe === '7d') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        startDate = d.toISOString();
+      } else if (timeframe === '30d') {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        startDate = d.toISOString();
+      }
+
+      // Fetch all underlying tables in parallel for authoritative aggregation
+      let logsQuery = supabase
+        .from('activity_logs')
+        .select(`
+          id,
+          action_type,
+          book_id,
+          user_id,
+          details,
+          created_at,
+          user:user_id(id, full_name, roll_number, branch_name, role),
+          book:book_id(id, title, author, branch_id, cover_url)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (startDate) {
+        logsQuery = logsQuery.gte('created_at', startDate);
+      }
+
+      const [
+        { data: allBranches, error: brErr },
+        { data: allBooks, error: bkErr },
+        { data: allUsers, error: usrErr },
+        { data: allProgress, error: prgErr },
+        { data: logsData, error: logErr }
+      ] = await Promise.all([
+        supabase.from('branches').select('id, name').order('name', { ascending: true }),
+        supabase.from('books').select('id, title, author, branch_id, category_id, priority, cover_url, description, total_pages, created_at, branch:branch_id(id, name), category:category_id(id, name)').order('title', { ascending: true }),
+        supabase.from('users').select('id, full_name, roll_number, branch_name, role, status, is_blocked, created_at, avatar_url, year, semester, bt_number').order('full_name', { ascending: true }),
+        supabase.from('user_book_progress').select('id, user_id, book_id, accessed_count, downloaded_count, is_downloaded, last_page_read, total_pages, session_count, reading_time_minutes, progress_percentage, status, last_accessed_at, last_active_at'),
+        logsQuery
       ]);
 
-      const { data: logsData } = await supabase.from('activity_logs').select('*, user:user_id(full_name, role, roll_number), book:book_id(title)').order('created_at', { ascending: false }).limit(10);
+      if (brErr) console.warn('Notice loading branches:', brErr.message);
+      if (bkErr) console.warn('Notice loading books:', bkErr.message);
+      if (usrErr) console.warn('Notice loading users:', usrErr.message);
+      if (prgErr) console.warn('Notice loading progress:', prgErr.message);
+      if (logErr) console.warn('Notice loading activity logs:', logErr.message);
+
+      const branchesList = allBranches || [];
+      const booksListRaw = allBooks || [];
+      const usersListRaw = allUsers || [];
+      const progressList = allProgress || [];
+      const logsList = logsData || [];
+
+      // Filter approved students
+      const approvedStudents = usersListRaw.filter(u => u.role === 'student' && u.status === 'approved');
+
+      // Filter activity log action types
+      const viewLogs = logsList.filter(l => l.action_type === 'view');
+      const downloadLogs = logsList.filter(l => l.action_type === 'download');
+      const loginLogs = logsList.filter(l => l.action_type === 'login');
+      const logoutLogs = logsList.filter(l => l.action_type === 'logout');
+
+      // 1. Calculate per-book statistics
+      const booksMap = new Map();
+      booksListRaw.forEach(b => {
+        const bookProg = progressList.filter(p => p.book_id === b.id);
+        const progAcc = bookProg.reduce((acc, p) => acc + (p.accessed_count || 0), 0);
+        const progDwn = bookProg.reduce((acc, p) => acc + (p.downloaded_count || (p.is_downloaded ? 1 : 0)), 0);
+
+        const logAcc = viewLogs.filter(l => l.book_id === b.id).length;
+        const logDwn = downloadLogs.filter(l => l.book_id === b.id).length;
+
+        const totalAcc = Math.max(progAcc, logAcc);
+        const totalDwn = Math.max(progDwn, logDwn);
+        const totalAct = totalAcc + totalDwn;
+
+        booksMap.set(b.id, {
+          ...b,
+          branch_name: b.branch?.name || 'General Engineering',
+          category_name: b.category?.name || 'General Academic',
+          total_accesses: totalAcc,
+          total_downloads: totalDwn,
+          total_activity: totalAct
+        });
+      });
+
+      const enrichedBooksList = Array.from(booksMap.values());
+
+      // 2. Best performing book overall
+      const sortedBooksByActivity = [...enrichedBooksList].sort((a, b) => b.total_activity - a.total_activity);
+      const topBookCandidate = sortedBooksByActivity[0];
+      const bestBook = (topBookCandidate && topBookCandidate.total_activity > 0) ? {
+        id: topBookCandidate.id,
+        title: topBookCandidate.title,
+        author: topBookCandidate.author,
+        branch_id: topBookCandidate.branch_id,
+        branch_name: topBookCandidate.branch_name,
+        category_name: topBookCandidate.category_name,
+        cover_url: topBookCandidate.cover_url,
+        total_accesses: topBookCandidate.total_accesses,
+        total_downloads: topBookCandidate.total_downloads,
+        total_activity: topBookCandidate.total_activity
+      } : null;
+
+      // 3. Calculate per-student reading activity
+      const studentMetricsMap = new Map();
+      approvedStudents.forEach(s => {
+        const studentProg = progressList.filter(p => p.user_id === s.id);
+        const progAcc = studentProg.reduce((acc, p) => acc + (p.accessed_count || 0), 0);
+        const progDwn = studentProg.reduce((acc, p) => acc + (p.downloaded_count || (p.is_downloaded ? 1 : 0)), 0);
+        const uniqueBooks = studentProg.filter(p => (p.accessed_count || 0) > 0 || p.is_downloaded).length;
+
+        const logAcc = viewLogs.filter(l => l.user_id === s.id).length;
+        const logDwn = downloadLogs.filter(l => l.user_id === s.id).length;
+
+        const totalAcc = Math.max(progAcc, logAcc);
+        const totalDwn = Math.max(progDwn, logDwn);
+        const totalAct = totalAcc + totalDwn;
+
+        studentMetricsMap.set(s.id, {
+          ...s,
+          total_accesses: totalAcc,
+          total_downloads: totalDwn,
+          unique_books_accessed: Math.max(uniqueBooks, totalAcc > 0 ? 1 : 0),
+          total_activity: totalAct
+        });
+      });
+
+      const enrichedStudentsList = Array.from(studentMetricsMap.values());
+
+      // Top student reader
+      const sortedStudentsByActivity = [...enrichedStudentsList].sort((a, b) => b.total_activity - a.total_activity);
+      const topStudentCandidate = sortedStudentsByActivity[0];
+      const topUser = (topStudentCandidate && topStudentCandidate.total_activity > 0) ? {
+        id: topStudentCandidate.id,
+        full_name: topStudentCandidate.full_name,
+        roll_number: topStudentCandidate.roll_number || 'N/A',
+        branch_name: topStudentCandidate.branch_name || 'Academic Faculty',
+        year: topStudentCandidate.year || 'Academic Year',
+        semester: topStudentCandidate.semester || 'Semester',
+        avatar_url: topStudentCandidate.avatar_url,
+        total_accesses: topStudentCandidate.total_accesses,
+        total_downloads: topStudentCandidate.total_downloads,
+        unique_books_accessed: topStudentCandidate.unique_books_accessed,
+        total_activity: topStudentCandidate.total_activity
+      } : null;
+
+      // 4. Branch-wise Performance (Accesses vs Downloads)
+      const branchPerformance = branchesList.map(br => {
+        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id);
+        const brStudents = enrichedStudentsList.filter(s => s.branch_name === br.name);
+
+        const totalAcc = brBooks.reduce((sum, b) => sum + b.total_accesses, 0);
+        const totalDwn = brBooks.reduce((sum, b) => sum + b.total_downloads, 0);
+
+        return {
+          branch_id: br.id,
+          branch_name: br.name,
+          total_books: brBooks.length,
+          total_students: brStudents.length,
+          total_accesses: totalAcc,
+          total_downloads: totalDwn,
+          total_activity: totalAcc + totalDwn
+        };
+      });
+
+      // 5. Most Read Book in Each Branch
+      const mostReadPerBranch = branchesList.map(br => {
+        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id);
+        const sortedBrBooks = [...brBooks].sort((a, b) => b.total_activity - a.total_activity);
+        const topBrBook = sortedBrBooks[0];
+
+        if (topBrBook && topBrBook.total_activity > 0) {
+          return {
+            branch_id: br.id,
+            branch_name: br.name,
+            has_activity: true,
+            book_id: topBrBook.id,
+            title: topBrBook.title,
+            author: topBrBook.author,
+            cover_url: topBrBook.cover_url,
+            total_accesses: topBrBook.total_accesses,
+            total_downloads: topBrBook.total_downloads,
+            total_activity: topBrBook.total_activity
+          };
+        }
+
+        return {
+          branch_id: br.id,
+          branch_name: br.name,
+          has_activity: false,
+          message: 'No reading activity recorded for this department.'
+        };
+      });
+
+      // Detailed drill-down datasets
+      const mappedAccessLogs = viewLogs.map(l => ({
+        id: l.id,
+        created_at: l.created_at,
+        action_type: l.action_type,
+        details: l.details,
+        user_id: l.user_id,
+        user_name: l.user?.full_name || 'Student / Reader',
+        roll_number: l.user?.roll_number || 'N/A',
+        branch_name: l.user?.branch_name || 'Academic Faculty',
+        book_id: l.book_id,
+        book_title: l.book?.title || 'Library E-Book Resource',
+        book_author: l.book?.author || 'Academic Author',
+        cover_url: l.book?.cover_url || null
+      }));
+
+      const mappedDownloadLogs = downloadLogs.map(l => ({
+        id: l.id,
+        created_at: l.created_at,
+        action_type: l.action_type,
+        details: l.details,
+        user_id: l.user_id,
+        user_name: l.user?.full_name || 'Student / Reader',
+        roll_number: l.user?.roll_number || 'N/A',
+        branch_name: l.user?.branch_name || 'Academic Faculty',
+        book_id: l.book_id,
+        book_title: l.book?.title || 'Library E-Book Resource',
+        book_author: l.book?.author || 'Academic Author',
+        cover_url: l.book?.cover_url || null
+      }));
 
       return {
         stats: {
-          logins: totalLogins || 0,
-          logouts: totalLogouts || 0,
-          downloads: totalDownloads || 0,
-          views: totalViews || 0,
-          books: totalBooks || 0,
-          students: totalStudents || 0
+          books: booksListRaw.length,
+          students: approvedStudents.length,
+          views: viewLogs.length,
+          downloads: downloadLogs.length,
+          logins: loginLogs.length,
+          logouts: logoutLogs.length
         },
-        mostReadPerBranch: [],
-        bestBook: null,
-        topUser: null,
-        activityLogs: (logsData || []).map(l => ({
+        bestBook,
+        topUser,
+        branchPerformance,
+        mostReadPerBranch,
+        drilldowns: {
+          books: enrichedBooksList,
+          students: enrichedStudentsList,
+          views: mappedAccessLogs,
+          downloads: mappedDownloadLogs
+        },
+        activityLogs: logsList.slice(0, 20).map(l => ({
           ...l,
           full_name: l.user ? l.user.full_name : null,
           role: l.user ? l.user.role : null,
           roll_number: l.user ? l.user.roll_number : null,
           book_title: l.book ? l.book.title : null
-        })),
-        branchPerformance: []
+        }))
       };
     }
 
@@ -821,27 +1313,31 @@ export const AuthProvider = ({ children }) => {
     return [];
   }, [user]);
 
-  const bypassLogin = (role = 'admin') => {
+  const bypassLogin = (role = 'admin', branchName = 'Central Library') => {
+    const isHq = role === 'admin' && (branchName === 'Central Library' || branchName === 'Headquarters');
     const mockUser = role === 'admin' ? {
-      id: '00000000-0000-0000-0000-000000000001',
-      username: 'admin',
-      fullName: 'System Administrator',
+      id: isHq ? '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000003',
+      username: isHq ? 'admin' : `admin_${branchName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+      fullName: isHq ? 'Central Library Administrator (Headquarters)' : `${branchName} Library Administrator`,
       role: 'admin',
+      isHeadquarters: isHq,
       status: 'approved',
-      branchName: 'Central Library',
-      rollNumber: 'ADMIN-01',
+      branchName: branchName || 'Central Library',
+      adminBranch: isHq ? null : branchName,
+      rollNumber: isHq ? 'ADMIN-HQ' : 'ADMIN-BRANCH',
       year: 'Faculty/Staff',
       semester: 'N/A',
       btNumber: 'BT-ADMIN',
       authProvider: 'bypass',
-      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin'
+      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${isHq ? 'admin' : branchName}`
     } : {
       id: '00000000-0000-0000-0000-000000000002',
       username: 'student_cs',
       fullName: 'Demo Student (CS)',
       role: 'student',
+      isHeadquarters: false,
       status: 'approved',
-      branchName: 'Computer Science and Engineering',
+      branchName: branchName || 'Computer Science and Engineering',
       rollNumber: '0187CS211001',
       year: '3rd Year',
       semester: '6th Semester',
@@ -908,13 +1404,16 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
+        const isHq = data.role === 'admin' && (data.branch_name === 'Central Library' || data.branch_name === 'Headquarters' || !data.branch_name);
         const formatted = {
           id: data.id,
           username: data.username,
           fullName: data.full_name,
           role: data.role,
+          isHeadquarters: isHq,
           status: data.status,
-          branchName: data.branch_name,
+          branchName: data.branch_name || (data.role === 'admin' ? 'Central Library' : ''),
+          adminBranch: !isHq && data.role === 'admin' ? data.branch_name : null,
           rollNumber: data.roll_number,
           year: data.year,
           semester: data.semester,
@@ -940,6 +1439,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUser(true);
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
@@ -961,6 +1461,63 @@ export const AuthProvider = ({ children }) => {
     const trimmedId = (identifier || '').trim();
     const trimmedPass = (password || '').trim();
     const idLower = trimmedId.toLowerCase();
+
+    const DEPARTMENT_ADMIN_MAP = {
+      'cse.library@sistec.ac.in': { branch: 'Computer Science and Engineering', title: 'CSE Department Library Admin', code: 'ADMIN-CSE' },
+      'cse.admin@sistec.ac.in': { branch: 'Computer Science and Engineering', title: 'CSE Department Library Admin', code: 'ADMIN-CSE' },
+      'it.library@sistec.ac.in': { branch: 'Information Technology', title: 'IT Department Library Admin', code: 'ADMIN-IT' },
+      'it.admin@sistec.ac.in': { branch: 'Information Technology', title: 'IT Department Library Admin', code: 'ADMIN-IT' },
+      'ec.library@sistec.ac.in': { branch: 'Electronics and Communication', title: 'ECE Department Library Admin', code: 'ADMIN-ECE' },
+      'ec.admin@sistec.ac.in': { branch: 'Electronics and Communication', title: 'ECE Department Library Admin', code: 'ADMIN-ECE' },
+      'me.library@sistec.ac.in': { branch: 'Mechanical Engineering', title: 'ME Department Library Admin', code: 'ADMIN-ME' },
+      'me.admin@sistec.ac.in': { branch: 'Mechanical Engineering', title: 'ME Department Library Admin', code: 'ADMIN-ME' },
+      'ce.library@sistec.ac.in': { branch: 'Civil Engineering', title: 'Civil Department Library Admin', code: 'ADMIN-CE' },
+      'ce.admin@sistec.ac.in': { branch: 'Civil Engineering', title: 'Civil Department Library Admin', code: 'ADMIN-CE' },
+      'ee.library@sistec.ac.in': { branch: 'Electrical Engineering', title: 'EE Department Library Admin', code: 'ADMIN-EE' },
+      'ee.admin@sistec.ac.in': { branch: 'Electrical Engineering', title: 'EE Department Library Admin', code: 'ADMIN-EE' }
+    };
+
+    const isDeptAdmin = DEPARTMENT_ADMIN_MAP[idLower];
+    if (isDeptAdmin) {
+      if (trimmedPass !== 'Kalpana2680#') {
+        throw new Error(`Invalid password for ${isDeptAdmin.title}.`);
+      }
+
+      const branchAdminUser = {
+        id: `0271446c-5515-4406-9c4d-branch-${idLower.split('.')[0]}`,
+        username: idLower,
+        email: idLower,
+        fullName: isDeptAdmin.title,
+        role: 'admin',
+        isHeadquarters: false,
+        status: 'approved',
+        branchName: isDeptAdmin.branch,
+        adminBranch: isDeptAdmin.branch,
+        rollNumber: isDeptAdmin.code,
+        year: 'Faculty/Staff',
+        semester: 'N/A',
+        btNumber: `BT-${isDeptAdmin.code}`,
+        authProvider: 'credentials',
+        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${isDeptAdmin.code}`
+      };
+
+      localStorage.setItem('lib_custom_user', JSON.stringify(branchAdminUser));
+      setUser(branchAdminUser);
+      setNeedsProfile(false);
+      setPendingGoogleUser(null);
+      setLoading(false);
+
+      try {
+        await supabase.from('activity_logs').insert([{
+          action_type: 'login',
+          details: `${isDeptAdmin.title} (${isDeptAdmin.branch}) logged in securely`
+        }]);
+      } catch {
+        // ignore activity log error
+      }
+
+      return branchAdminUser;
+    }
 
     const isAdminCandidate =
       idLower === 'sistec.library@sistec.ac.in' ||
@@ -991,8 +1548,10 @@ export const AuthProvider = ({ children }) => {
         email: 'Sistec.library@sistec.ac.in',
         fullName: 'Central Library Administrator',
         role: 'admin',
+        isHeadquarters: true,
         status: 'approved',
         branchName: 'Central Library',
+        adminBranch: null,
         rollNumber: 'ADMIN-SISTEC',
         year: 'Faculty/Staff',
         semester: 'N/A',
@@ -1010,9 +1569,11 @@ export const AuthProvider = ({ children }) => {
       try {
         await supabase.from('activity_logs').insert([{
           action_type: 'login',
-          details: 'Official Central Library Administrator logged in securely'
+          details: 'Official Central Library Administrator (Headquarters) logged in securely'
         }]);
-      } catch {}
+      } catch {
+        // ignore activity log error
+      }
 
       return adminUser;
     }
@@ -1053,13 +1614,16 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Your registration was rejected by the library administrator.');
     }
 
+    const isHqAdmin = userRecord.role === 'admin' && (userRecord.branch_name === 'Central Library' || userRecord.branch_name === 'Headquarters' || !userRecord.branch_name);
     const formattedUser = {
       id: userRecord.id,
       username: userRecord.username,
       fullName: userRecord.full_name,
       role: userRecord.role,
+      isHeadquarters: isHqAdmin,
       status: userRecord.status,
-      branchName: userRecord.branch_name,
+      branchName: userRecord.branch_name || (userRecord.role === 'admin' ? 'Central Library' : ''),
+      adminBranch: !isHqAdmin && userRecord.role === 'admin' ? userRecord.branch_name : null,
       rollNumber: userRecord.roll_number,
       year: userRecord.year,
       semester: userRecord.semester,
@@ -1074,7 +1638,9 @@ export const AuthProvider = ({ children }) => {
         action_type: 'login',
         details: `User ${userRecord.username} logged in securely`
       }]);
-    } catch {}
+    } catch {
+      // ignore activity log error
+    }
 
     localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
     setUser(formattedUser);
@@ -1107,6 +1673,10 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Username is already taken');
     }
 
+    // Check active registration policy
+    const policy = await getSystemRegistrationPolicy();
+    const initialStatus = policy === 'auto_approve' ? 'approved' : policy === 'auto_reject' ? 'rejected' : 'pending';
+
     const userId = pendingGoogleUser.id;
     const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || null;
 
@@ -1120,7 +1690,7 @@ export const AuthProvider = ({ children }) => {
       semester,
       bt_number: btNumber,
       role: 'student',
-      status: 'approved',
+      status: initialStatus,
       is_blocked: 0,
       auth_provider: 'google',
       google_id: pendingGoogleUser.id,
@@ -1144,12 +1714,20 @@ export const AuthProvider = ({ children }) => {
       avatarUrl: data.avatar_url
     };
 
-    localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
-    setUser(formattedUser);
-    setNeedsProfile(false);
-    setPendingGoogleUser(null);
-
-    return { message: 'Profile completed successfully! Welcome to SISTEC Library.' };
+    if (initialStatus === 'approved') {
+      localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+      setUser(formattedUser);
+      setNeedsProfile(false);
+      setPendingGoogleUser(null);
+      return { message: 'Profile completed and approved! Welcome to SISTEC Library.', status: 'approved' };
+    } else {
+      await supabase.auth.signOut();
+      clearSession();
+      return {
+        message: 'Your account has been registered successfully. Please connect with the administrator for approval. You will be able to access SISTECH-LIB after your account is approved.',
+        status: initialStatus
+      };
+    }
   };
 
   const logout = async () => {
@@ -1204,6 +1782,10 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Registration failed, please try again.');
     }
 
+    // Check active registration policy
+    const policy = await getSystemRegistrationPolicy();
+    const initialStatus = policy === 'auto_approve' ? 'approved' : policy === 'auto_reject' ? 'rejected' : 'pending';
+
     const userId = authData.user.id;
 
     const { data, error } = await supabase.from('users').insert([{
@@ -1216,7 +1798,7 @@ export const AuthProvider = ({ children }) => {
       semester,
       bt_number: btNumber,
       role: 'student',
-      status: 'pending',
+      status: initialStatus,
       is_blocked: 0,
       auth_provider: 'password'
     }]).select().single();
@@ -1225,9 +1807,31 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Failed to create user profile: ' + error.message);
     }
 
+    // Insert activity log for registration audit trail
+    try {
+      await supabase.from('activity_logs').insert([{
+        user_id: userId,
+        action_type: 'registration',
+        details: `Student account registered (${initialStatus}) by ${fullName} (${rollNumber}) - Department: ${branchName}`
+      }]);
+    } catch (logErr) {
+      console.warn('Registration activity log notice:', logErr);
+    }
+
     await supabase.auth.signOut();
 
-    return { message: 'Registration successful! Awaiting admin approval.', data };
+    let confirmationMessage = 'Your account has been registered successfully. Please connect with the administrator for approval. You will be able to access SISTECH-LIB after your account is approved.';
+    if (initialStatus === 'approved') {
+      confirmationMessage = 'Your account has been registered and automatically approved! You can now sign in.';
+    } else if (initialStatus === 'rejected') {
+      confirmationMessage = 'Registration was received but automatically marked rejected per current policy.';
+    }
+
+    return {
+      message: confirmationMessage,
+      status: initialStatus,
+      data
+    };
   };
 
   return (

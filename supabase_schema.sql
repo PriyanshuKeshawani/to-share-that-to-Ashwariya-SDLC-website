@@ -78,6 +78,8 @@ ALTER TABLE books ADD COLUMN IF NOT EXISTS drive_file_id TEXT;
 ALTER TABLE books ADD COLUMN IF NOT EXISTS drive_link TEXT;
 ALTER TABLE books ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE books ADD COLUMN IF NOT EXISTS cover_url TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS isbn TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS cover_source TEXT;
 ALTER TABLE books ALTER COLUMN category_id DROP NOT NULL;
 ALTER TABLE books ALTER COLUMN branch_id DROP NOT NULL;
 
@@ -172,6 +174,20 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 );
 
 -- =========================================================
+-- 8b. System Settings (Registration Policy & Global Config)
+-- =========================================================
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Default registration policy
+INSERT INTO system_settings (key, value)
+VALUES ('registration_policy', '{"policy": "manual"}'::jsonb)
+ON CONFLICT (key) DO NOTHING;
+
+-- =========================================================
 -- 9. RLS - Open for development
 -- =========================================================
 ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
@@ -182,6 +198,7 @@ ALTER TABLE permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_book_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
 DO $$
 DECLARE
@@ -211,24 +228,34 @@ CREATE INDEX IF NOT EXISTS idx_user_book_progress_status ON user_book_progress(s
 CREATE INDEX IF NOT EXISTS idx_user_book_progress_last_active ON user_book_progress(last_active_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_book_progress_session_start ON user_book_progress(session_start_at DESC);
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL;
+
 -- =========================================================
--- 11. Storage bucket (legacy PDFs, optional)
+-- 11. Storage buckets (PDFs & Covers)
 -- =========================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('pdfs', 'pdfs', true, 52428800, ARRAY['application/pdf']::text[])
-ON CONFLICT (id) DO UPDATE SET public = true;
+VALUES ('pdfs', 'pdfs', true, 52428800, ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp']::text[])
+ON CONFLICT (id) DO UPDATE SET 
+  public = true,
+  allowed_mime_types = ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp']::text[];
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('covers', 'covers', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp']::text[])
+ON CONFLICT (id) DO UPDATE SET 
+  public = true,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp']::text[];
 
 DROP POLICY IF EXISTS "Public can view pdfs" ON storage.objects;
-CREATE POLICY "Public can view pdfs" ON storage.objects FOR SELECT USING (bucket_id = 'pdfs');
+CREATE POLICY "Public can view pdfs" ON storage.objects FOR SELECT USING (bucket_id IN ('pdfs', 'covers'));
 
 DROP POLICY IF EXISTS "Anyone can upload pdfs" ON storage.objects;
-CREATE POLICY "Anyone can upload pdfs" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'pdfs');
+CREATE POLICY "Anyone can upload pdfs" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('pdfs', 'covers'));
 
 DROP POLICY IF EXISTS "Anyone can update pdfs" ON storage.objects;
-CREATE POLICY "Anyone can update pdfs" ON storage.objects FOR UPDATE USING (bucket_id = 'pdfs');
+CREATE POLICY "Anyone can update pdfs" ON storage.objects FOR UPDATE USING (bucket_id IN ('pdfs', 'covers'));
 
 DROP POLICY IF EXISTS "Anyone can delete pdfs" ON storage.objects;
-CREATE POLICY "Anyone can delete pdfs" ON storage.objects FOR DELETE USING (bucket_id = 'pdfs');
+CREATE POLICY "Anyone can delete pdfs" ON storage.objects FOR DELETE USING (bucket_id IN ('pdfs', 'covers'));
 
 -- =========================================================
 -- 12. Drop physical-library tables (safe to run multiple times)

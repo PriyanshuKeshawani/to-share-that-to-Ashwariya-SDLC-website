@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const SkeletonBox = ({ width = '100%', height = '20px', borderRadius = '8px', style = {} }) => (
   <div
     className="skeleton-box"

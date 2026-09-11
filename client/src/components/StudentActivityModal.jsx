@@ -1,35 +1,54 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  X, User, BookOpen, Clock, FileText, Printer,
+  X, BookOpen, Clock,
+  Printer,
   Search, Bookmark,
-  History, Laptop, UserCheck, UserX,
+  History, Laptop, UserCheck, UserX, User,
   Download, Activity, Eye, FileDown, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from './StatusBadge';
+import { printStudentTranscript } from '../utils/studentTranscriptGenerator';
+export { printStudentTranscript };
 
-const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
+const relativeTime = (iso) => {
+  if (!iso) return 'N/A';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+
+const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook }) => {
   const { apiCall } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activityData, setActivityData] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'ebooks', 'permissions', 'logs'
   const [bookSearch, setBookSearch] = useState('');
+  const [logFilter, setLogFilter] = useState('all'); // 'all', 'reads', 'downloads', 'auth'
 
-  // Fetch full student activity
-  const loadActivity = useCallback(async () => {
-    if (!student?.id) return;
-    try {
-      setLoading(true);
-      const data = await apiCall(`/students/${student.id}/activity`);
-      setActivityData(data);
-    } catch (err) {
-      console.error('Failed to load student activity:', err);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    let cancelled = false;
+    const loadActivity = async () => {
+      if (!student?.id) return;
+      try {
+        setLoading(true);
+        const data = await apiCall(`/students/${student.id}/activity`);
+        if (!cancelled) setActivityData(data);
+      } catch (err) {
+        if (!cancelled) console.error('Failed to load student activity:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadActivity();
+    return () => { cancelled = true; };
   }, [apiCall, student?.id]);
-
-  useEffect(() => { loadActivity(); }, [loadActivity]);
 
   // Close on Escape key
   useEffect(() => {
@@ -42,26 +61,13 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
     eBooksRead: 0,
     totalReadingSessions: 0,
     totalDownloads: 0,
-    totalAccessRequests: 0
+    totalAccessRequests: 0,
+    totalReadingMinutes: 0
   };
 
-  const bookProgress = activityData?.bookProgress || [];
-  const logs = activityData?.logs || [];
+  const bookProgress = useMemo(() => activityData?.bookProgress || [], [activityData]);
+  const logs = useMemo(() => activityData?.logs || [], [activityData]);
   const permissions = activityData?.permissions || [];
-
-  // Relative time helper
-  const relativeTime = (iso) => {
-    if (!iso) return 'N/A';
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  };
 
   // Filtered book progress
   const filteredBooks = useMemo(() => {
@@ -74,117 +80,17 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
     );
   }, [bookProgress, bookSearch]);
 
-  // Print Student Activity Report (E-book focused)
+  // Filtered activity logs
+  const filteredLogs = useMemo(() => {
+    if (logFilter === 'reads') return logs.filter(l => l.action_type === 'view' || (l.details && l.details.toLowerCase().includes('page')));
+    if (logFilter === 'downloads') return logs.filter(l => l.action_type === 'download');
+    if (logFilter === 'auth') return logs.filter(l => l.action_type === 'login' || l.action_type === 'logout');
+    return logs;
+  }, [logs, logFilter]);
+
+  // Print Student Activity Report (Certified Library Transcript)
   const handlePrintReport = () => {
-    const printWin = window.open('', '_blank', 'width=900,height=800');
-    if (!printWin) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>SISTec Library - Student Activity Transcript - ${student.full_name}</title>
-          <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 32px; color: #1e293b; line-height: 1.5; }
-            .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .logo-title { font-size: 20px; font-weight: 800; color: #1e3a8a; }
-            .subtitle { font-size: 12px; color: #64748b; }
-            .profile-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 13px; }
-            .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-            .stat-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; text-align: center; }
-            .stat-val { font-size: 18px; font-weight: 800; color: #2563eb; }
-            .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
-            th { background: #f1f5f9; padding: 10px 12px; border: 1px solid #cbd5e1; text-align: left; font-weight: 700; }
-            td { padding: 8px 12px; border: 1px solid #cbd5e1; }
-            .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-success { background: #dcfce7; color: #15803d; }
-            .badge-warning { background: #fef3c7; color: #b45309; }
-            .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 11px; color: #94a3b8; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="logo-title">SAGAR INSTITUTE OF SCIENCE &amp; TECHNOLOGY (SISTec)</div>
-              <div class="subtitle">CENTRAL DIGITAL LIBRARY PORTAL &bull; OFFICIAL STUDENT ACTIVITY TRANSCRIPT</div>
-            </div>
-            <div style="text-align: right; font-size: 11px; color: #64748b;">
-              Generated: ${new Date().toLocaleString()}<br />
-              Status: <strong>${student.status?.toUpperCase()}</strong>
-            </div>
-          </div>
-
-          <div class="profile-box">
-            <div><strong>Student Name:</strong> ${student.full_name}</div>
-            <div><strong>Enrollment / Roll:</strong> ${student.roll_number || 'N/A'}</div>
-            <div><strong>BT Code:</strong> ${student.bt_number || 'N/A'}</div>
-            <div><strong>Branch:</strong> ${student.branch_name || 'General'}</div>
-            <div><strong>Year / Semester:</strong> Year ${student.year || '1'} &bull; Sem ${student.semester || '1'}</div>
-            <div><strong>Joined Date:</strong> ${new Date(student.created_at).toLocaleDateString()}</div>
-          </div>
-
-          <div class="stat-cards">
-            <div class="stat-card">
-              <div class="stat-val">${stats.eBooksRead}</div>
-              <div class="stat-label">E-Books Read</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-val">${stats.totalReadingSessions}</div>
-              <div class="stat-label">Reading Sessions</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-val">${stats.totalDownloads}</div>
-              <div class="stat-label">Downloads</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-val">${stats.totalAccessRequests}</div>
-              <div class="stat-label">Access Requests</div>
-            </div>
-          </div>
-
-          <h3 style="font-size: 14px; margin-bottom: 8px; color: #1e3a8a;">E-Book Reading History</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Book Title &amp; Author</th>
-                <th>Branch</th>
-                <th>Last Page Read</th>
-                <th>Total Sessions</th>
-                <th>Downloaded</th>
-                <th>Last Accessed</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${bookProgress.length === 0
-                ? '<tr><td colspan="7" style="text-align: center; color: #94a3b8;">No e-books read by this student yet.</td></tr>'
-                : bookProgress.map((item, i) => `
-                  <tr>
-                    <td>${i + 1}</td>
-                    <td><strong>${item.book?.title || 'N/A'}</strong><br /><span style="color: #64748b;">${item.book?.author || ''}</span></td>
-                    <td>${item.book?.branch?.name || 'General'}</td>
-                    <td>Page ${item.last_page_read || 1}</td>
-                    <td>${item.accessed_count || 1}</td>
-                    <td>${(item.is_downloaded === 1 || item.downloaded_count > 0) ? 'Yes' : 'No'}</td>
-                    <td>${item.last_accessed_at ? new Date(item.last_accessed_at).toLocaleString() : 'N/A'}</td>
-                  </tr>
-                `).join('')
-              }
-            </tbody>
-          </table>
-
-          <div class="footer">
-            This document is a certified computer-generated activity report from the SISTec Central Library Digital Portal.
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWin.document.write(htmlContent);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => { printWin.print(); }, 400);
+    printStudentTranscript({ student, activityData });
   };
 
   return (
@@ -549,12 +455,39 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {/* ════ TAB 1: OVERVIEW ════ */}
               {activeTab === 'overview' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  {/* Recent E-Books */}
+                  {/* Academic Profile & Account File */}
+                  <div className="glass-panel" style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <User size={16} color="var(--secondary)" />
+                      <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Academic Identification &amp; Account File</h4>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', fontSize: '0.82rem' }}>
+                      {[
+                        { label: 'Full Legal Name',       val: student.full_name || 'N/A' },
+                        { label: 'Enrollment / Roll No',  val: student.roll_number || 'N/A' },
+                        { label: 'BT Code',               val: student.bt_number || 'N/A' },
+                        { label: 'Assigned Department',   val: student.branch_name || student.branch || 'General Branch' },
+                        { label: 'Academic Standing',     val: `Year ${student.year || '1'} · Sem ${student.semester || '1'}` },
+                        { label: 'Institutional User ID', val: student.username || 'N/A' },
+                        { label: 'Registration Date',     val: student.created_at ? new Date(student.created_at).toLocaleDateString('en-IN') : 'N/A' },
+                        { label: 'Authentication Mode',   val: (student.auth_provider || 'Password').toUpperCase() },
+                        { label: 'Account Clearance',     val: student.status?.toUpperCase(), color: student.status === 'approved' ? 'var(--success)' : 'var(--warning)' },
+                        { label: 'Library Access Status', val: student.is_blocked === 1 ? 'BLOCKED' : 'ACTIVE / GRANTED', color: student.is_blocked === 1 ? 'var(--danger)' : 'var(--success)' }
+                      ].map(({ label, val, color }) => (
+                        <div key={label} style={{ background: 'var(--input-bg)', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
+                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+                          <strong style={{ color: color || 'var(--text-primary)', fontSize: '0.82rem' }}>{val}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reading Engagement Summary */}
                   <div className="glass-panel" style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <BookOpen size={16} color="var(--primary)" />
-                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Recently Read E-Books</h4>
+                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Recent Digital Reading Activity</h4>
                       </div>
                       <button onClick={() => setActiveTab('ebooks')} className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '0.72rem' }}>
                         View all ({bookProgress.length})
@@ -564,52 +497,71 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                       <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>No e-books read yet.</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {bookProgress.slice(0, 3).map((item) => (
-                          <div key={item.id} style={{
-                            padding: '10px 12px', borderRadius: '8px',
-                            background: 'var(--input-bg)', border: '1px solid var(--border-glass)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'
-                          }}>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.book?.title || 'Unknown Book'}
+                        {bookProgress.slice(0, 4).map((item) => {
+                          const estPages = item.total_pages || 40;
+                          const progressPct = Math.min(100, Math.round(((item.last_page_read || 1) / estPages) * 100));
+                          return (
+                            <div
+                              key={item.id}
+                              style={{
+                                padding: '10px 12px', borderRadius: '8px',
+                                background: 'var(--input-bg)', border: '1px solid var(--border-glass)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                                cursor: onSelectBook ? 'pointer' : 'default',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onClick={() => {
+                                if (onSelectBook && (item.book || item.book_id)) {
+                                  onSelectBook(item.book || { id: item.book_id, title: item.book_title });
+                                  onClose();
+                                }
+                              }}
+                              title={onSelectBook ? "Click to inspect book analytics & reader activity" : undefined}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{item.book?.title || 'Unknown Book'}</span>
+                                  {onSelectBook && <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 600 }}>➔</span>}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  {item.book?.author ? `${item.book.author} · ` : ''}{item.book?.branch?.name || 'General'}
+                                </div>
                               </div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                {item.book?.author} · {item.book?.branch?.name || 'General'}
+                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)' }}>Page {item.last_page_read || 1} ({progressPct}%)</div>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} reads · {relativeTime(item.last_accessed_at)}</div>
                               </div>
                             </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)' }}>Page {item.last_page_read || 1}</div>
-                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} reads · {relativeTime(item.last_accessed_at)}</div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
 
-                  {/* Academic Profile Details */}
-                  <div className="glass-panel" style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                      <User size={16} color="var(--secondary)" />
-                      <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Academic &amp; Account File</h4>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', fontSize: '0.82rem' }}>
-                      {[
-                        { label: 'Full Legal Name',      val: student.full_name },
-                        { label: 'Enrollment / Roll No', val: student.roll_number || 'N/A' },
-                        { label: 'BT Number',            val: student.bt_number || 'N/A' },
-                        { label: 'Assigned Branch',      val: student.branch_name || 'General' },
-                        { label: 'Semester',             val: `Year ${student.year} · Sem ${student.semester}` },
-                        { label: 'Account Status',       val: student.status?.toUpperCase(), color: student.status === 'approved' ? 'var(--success)' : 'var(--warning)' }
-                      ].map(({ label, val, color }) => (
-                        <div key={label}>
-                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.72rem' }}>{label}</span>
-                          <strong style={{ color: color || 'var(--text-primary)' }}>{val}</strong>
+                  {/* Inter-Departmental Requests Overview */}
+                  {permissions.length > 0 && (
+                    <div className="glass-panel" style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <CheckCircle2 size={16} color="#10b981" />
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Resource Clearance History ({permissions.length})</h4>
                         </div>
-                      ))}
+                        <button onClick={() => setActiveTab('permissions')} className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '0.72rem' }}>
+                          View Details
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {permissions.slice(0, 3).map(p => (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 6, background: 'var(--input-bg)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
+                              {p.book?.title || p.book_title || 'Book Access'}
+                            </span>
+                            <StatusBadge status={p.status} />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -634,44 +586,67 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {filteredBooks.map((item, idx) => (
-                        <div key={item.id || idx} style={{
-                          background: 'var(--input-bg)', border: '1px solid var(--border-glass)',
-                          borderRadius: 12, padding: '14px 16px',
-                          display: 'flex', alignItems: 'center', gap: 14
-                        }}>
-                          <div style={{
-                            width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                          }}>
-                            <BookOpen size={20} color="white" />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 2 }}>
-                              {item.book?.title || 'Unknown Book'}
+                      {filteredBooks.map((item, idx) => {
+                        const estPages = item.total_pages || 40;
+                        const progressPct = Math.min(100, Math.round(((item.last_page_read || 1) / estPages) * 100));
+                        return (
+                          <div
+                            key={item.id || idx}
+                            style={{
+                              background: 'var(--input-bg)', border: '1px solid var(--border-glass)',
+                              borderRadius: 12, padding: '14px 16px',
+                              display: 'flex', alignItems: 'center', gap: 14,
+                              cursor: onSelectBook ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => {
+                              if (onSelectBook && (item.book || item.book_id)) {
+                                onSelectBook(item.book || { id: item.book_id, title: item.book_title });
+                                onClose();
+                              }
+                            }}
+                            title={onSelectBook ? "Click to inspect book analytics & readers" : undefined}
+                          >
+                            <div style={{
+                              width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <BookOpen size={20} color="white" />
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {item.book?.author} · {item.book?.branch?.name || 'General'} · {item.book?.category?.name || 'N/A'}
-                            </div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                              <Clock size={10} style={{ display: 'inline', marginRight: 3 }} />
-                              Last read: {relativeTime(item.last_accessed_at)}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: '0.72rem', fontWeight: 700, marginBottom: 4 }}>
-                              Page {item.last_page_read || 1}
-                            </div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} sessions</div>
-                            {(item.is_downloaded === 1 || item.downloaded_count > 0) && (
-                              <div style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 6, padding: '2px 7px', fontSize: '0.62rem', marginTop: 3 }}>
-                                <Download size={9} style={{ display: 'inline', marginRight: 2 }} />Downloaded
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 2 }}>
+                                {item.book?.title || 'Unknown Book'}
                               </div>
-                            )}
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                {item.book?.author} · {item.book?.branch?.name || item.book?.branch_name || 'General'} · {item.book?.category?.name || 'General'}
+                              </div>
+                              {/* Progress bar */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                                <div style={{ flex: 1, maxWidth: 160, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                                  <div style={{ width: `${progressPct}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary), #8b5cf6)', borderRadius: 2 }} />
+                                </div>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>{progressPct}% completed</span>
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                <Clock size={10} style={{ display: 'inline', marginRight: 3 }} />
+                                Last read: {relativeTime(item.last_accessed_at)}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: '0.72rem', fontWeight: 700, marginBottom: 4 }}>
+                                Page {item.last_page_read || 1}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{item.accessed_count || 1} sessions</div>
+                              {(item.is_downloaded === 1 || item.downloaded_count > 0) && (
+                                <div style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 6, padding: '2px 7px', fontSize: '0.62rem', marginTop: 3 }}>
+                                  <Download size={9} style={{ display: 'inline', marginRight: 2 }} />Downloaded
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -683,8 +658,8 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                   {permissions.length === 0 ? (
                     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <CheckCircle2 size={36} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
-                      <h4>No access requests</h4>
-                      <p style={{ fontSize: '0.82rem' }}>Book access requests will appear here.</p>
+                      <h4>No access requests on record</h4>
+                      <p style={{ fontSize: '0.82rem' }}>All inter-departmental book clearance requests will appear here.</p>
                     </div>
                   ) : (
                     <div className="table-responsive-wrapper">
@@ -692,19 +667,19 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
                         <thead>
                           <tr>
                             <th>#</th>
-                            <th>Book</th>
-                            <th>Branch</th>
-                            <th>Date</th>
+                            <th>Resource Title</th>
+                            <th>Target Department</th>
+                            <th>Requested On</th>
                             <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {permissions.map((p, idx) => (
-                            <tr key={p.id}>
+                            <tr key={p.id || idx}>
                               <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
-                              <td style={{ fontWeight: 600 }}>{p.book?.title || 'N/A'}</td>
-                              <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.branch?.name || p.branch_name || 'N/A'}</td>
-                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{new Date(p.created_at).toLocaleDateString('en-IN')}</td>
+                              <td style={{ fontWeight: 600 }}>{p.book?.title || p.book_title || 'General Department Catalog'}</td>
+                              <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.branch?.name || p.requested_branch_name || p.branch_name || 'Department'}</td>
+                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : 'N/A'}</td>
                               <td><StatusBadge status={p.status} /></td>
                             </tr>
                           ))}
@@ -718,15 +693,38 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock }) => {
               {/* ════ TAB 4: ACTIVITY LOGS ════ */}
               {activeTab === 'logs' && (
                 <div>
-                  {logs.length === 0 ? (
+                  {/* Log Filter Pills */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all',       label: `All Events (${logs.length})` },
+                      { id: 'reads',     label: 'Reading Sessions' },
+                      { id: 'downloads', label: 'PDF Downloads' },
+                      { id: 'auth',      label: 'Logins & Auth' }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => setLogFilter(f.id)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 999, fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                          background: logFilter === f.id ? 'var(--primary)' : 'var(--input-bg)',
+                          color: logFilter === f.id ? '#fff' : 'var(--text-secondary)',
+                          border: logFilter === f.id ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filteredLogs.length === 0 ? (
                     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <Activity size={36} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
-                      <h4>No activity events yet</h4>
-                      <p style={{ fontSize: '0.82rem' }}>All page reads, downloads, and logins will appear here.</p>
+                      <h4>No activity events match this filter</h4>
+                      <p style={{ fontSize: '0.82rem' }}>All page milestones, downloads, and logins will appear here.</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      {logs.map((log, idx) => {
+                      {filteredLogs.map((log, idx) => {
                         const isDownload = log.action_type === 'download';
                         const isLogin = log.action_type === 'login' || log.action_type === 'logout';
                         return (

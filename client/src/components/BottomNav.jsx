@@ -1,11 +1,10 @@
-import React from 'react';
-import { Home, BookOpen, Compass, Activity, Settings } from 'lucide-react';
+import { Home, BookOpen, BookMarked, Activity, Settings } from 'lucide-react';
 
-const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
+const BottomNav = ({ activeTab, onSelectTab, badges = {} }) => {
   const navItems = [
-    { id: 'all', label: 'Home', icon: Home },
+    { id: 'all', label: 'Catalog', icon: Home },
     { id: 'home', label: 'My Branch', icon: BookOpen },
-    { id: 'other', label: 'Other', icon: Compass },
+    { id: 'requests', label: 'Requests', icon: BookMarked, badge: badges.requests },
     { id: 'history', label: 'Activity', icon: Activity },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -15,6 +14,7 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
+        const badgeCount = item.badge || badges[item.id] || 0;
 
         return (
           <button
@@ -30,18 +30,19 @@ const BottomNav = ({ activeTab, onSelectTab, onOpenMenu, badges = {} }) => {
           >
             <div style={{ position: 'relative', display: 'inline-flex', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
               <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} style={{ transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} />
-              {item.badge > 0 && (
+              {badgeCount > 0 && (
                 <span style={{
                   position: 'absolute', top: '-5px', right: '-9px',
-                  background: 'linear-gradient(135deg, var(--primary), #1d4ed8)',
-                  color: '#ffffff', fontSize: '0.6rem', fontWeight: 700,
-                  width: '16px', height: '16px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: '#ffffff', fontSize: '0.62rem', fontWeight: 800,
+                  minWidth: '16px', height: '16px', borderRadius: '8px',
+                  padding: '0 4px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.5)',
                   animation: isActive ? 'pulseGlow 2s infinite' : 'none',
                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                 }}>
-                  {item.badge}
+                  {badgeCount > 99 ? '99+' : badgeCount}
                 </span>
               )}
             </div>

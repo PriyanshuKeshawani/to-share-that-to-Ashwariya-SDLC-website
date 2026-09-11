@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X, BookOpen, Users, Download, TrendingUp, Clock,
-  ChevronRight, Search, Award, Activity, User, BarChart3,
-  BookMarked, Smartphone, Eye, FileDown, Loader2
+  Award, Activity, Eye, FileDown, Loader2, Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,27 +27,30 @@ const formatDateTime = (iso) => {
   });
 };
 
-const BookActivityModal = ({ book, onClose }) => {
+const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
   const { apiCall } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('readers');
   const [readerSearch, setReaderSearch] = useState('');
 
-  const loadActivity = useCallback(async () => {
-    if (!book?.id) return;
-    try {
-      setLoading(true);
-      const result = await apiCall(`/books/${book.id}/activity`);
-      setData(result);
-    } catch (err) {
-      console.error('Failed to load book activity:', err);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    let cancelled = false;
+    const loadActivity = async () => {
+      if (!book?.id) return;
+      try {
+        setLoading(true);
+        const result = await apiCall(`/books/${book.id}/activity`);
+        if (!cancelled) setData(result);
+      } catch (err) {
+        if (!cancelled) console.error('Failed to load book activity:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadActivity();
+    return () => { cancelled = true; };
   }, [apiCall, book?.id]);
-
-  useEffect(() => { loadActivity(); }, [loadActivity]);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -481,11 +483,27 @@ const BookActivityModal = ({ book, onClose }) => {
                           const studentInfo = r.user || {};
                           const initials = (studentInfo.full_name || 'S').charAt(0).toUpperCase();
                           return (
-                            <div key={r.id || r.user_id || idx} className="bam-reader-card">
+                            <div
+                              key={r.id || r.user_id || idx}
+                              className="bam-reader-card"
+                              style={{ cursor: onSelectStudent ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                              onClick={() => {
+                                if (onSelectStudent && r.user) {
+                                  onSelectStudent(r.user);
+                                  onClose();
+                                }
+                              }}
+                              title={onSelectStudent ? "Click to inspect student profile and library dossier" : undefined}
+                            >
                               <div className="bam-avatar">{initials}</div>
                               <div className="bam-reader-info">
-                                <div className="bam-reader-name">
-                                  {studentInfo.full_name || 'Student'}
+                                <div className="bam-reader-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{studentInfo.full_name || 'Student'}</span>
+                                  {onSelectStudent && (
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--primary, #3b82f6)', fontWeight: 600 }}>
+                                      View Dossier ➔
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="bam-reader-meta">
                                   Roll: <strong>{studentInfo.roll_number || 'N/A'}</strong>

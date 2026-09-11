@@ -1,5 +1,3 @@
-import React from 'react';
-
 const STATUS_MAP = {
   issued: { label: 'Issued', className: 'badge-primary' },
   returned: { label: 'Returned', className: 'badge-success' },

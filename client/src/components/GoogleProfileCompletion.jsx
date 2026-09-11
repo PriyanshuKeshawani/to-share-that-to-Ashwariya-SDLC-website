@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
-import { UserCheck, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 
 const FALLBACK_BRANCHES = [
   { id: 1, name: 'Computer Science & Engineering' },
@@ -27,24 +27,12 @@ const GoogleProfileCompletion = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [branches, setBranches] = useState(FALLBACK_BRANCHES);
-  const [branchesLoading, setBranchesLoading] = useState(true);
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const semesters = [
     '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
     '5th Semester', '6th Semester', '7th Semester', '8th Semester'
   ];
-
-  useEffect(() => {
-    const name = pendingGoogleUser?.user_metadata?.full_name || pendingGoogleUser?.user_metadata?.name || '';
-    const email = pendingGoogleUser?.email || '';
-    const suggestedUsername = email ? email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_') : '';
-    setFormData(prev => ({
-      ...prev,
-      fullName: name || prev.fullName,
-      username: suggestedUsername || prev.username
-    }));
-  }, [pendingGoogleUser]);
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -57,8 +45,6 @@ const GoogleProfileCompletion = () => {
         }
       } catch (err) {
         console.warn('Using fallback branches list:', err);
-      } finally {
-        setBranchesLoading(false);
       }
     };
     fetchBranches();

@@ -4,7 +4,7 @@ import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
-  Activity, X, ChevronRight, User, Settings
+  Activity, X, Settings, RefreshCw, Printer, FileText
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -12,9 +12,10 @@ import StatusBadge from '../components/StatusBadge';
 import BottomNav from '../components/BottomNav';
 import SettingsView from '../components/SettingsView';
 import { SkeletonCard } from '../components/SkeletonLoader';
+import { printStudentTranscript } from '../components/StudentActivityModal';
 
 const StudentDashboard = ({ onSelectBook }) => {
-  const { user, logout, apiCall, extractDriveFileId } = useAuth();
+  const { user, logout, apiCall } = useAuth();
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -23,8 +24,11 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
+  const [printingTranscript, setPrintingTranscript] = useState(false);
 
   const [activeTab, setActiveTab] = useState('all');
+  const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
+  const [requestSearch, setRequestSearch] = useState('');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -38,6 +42,19 @@ const StudentDashboard = ({ onSelectBook }) => {
       setTimeout(() => setFeedbackMsg({ text: '', type: '' }), 300);
     }, 3500);
   }, []);
+
+  const handlePrintTranscript = async () => {
+    try {
+      setPrintingTranscript(true);
+      showFeedback('Fetching verified activity and compiling certified transcript...', 'success');
+      const actData = await apiCall(`/students/${user?.id}/activity`);
+      printStudentTranscript({ student: user, activityData: actData });
+    } catch (err) {
+      showFeedback(err.message || 'Failed to compile transcript dossier', 'error');
+    } finally {
+      setPrintingTranscript(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -64,8 +81,22 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   useEffect(() => {
     document.title = 'Student Portal - SISTec Digital Library';
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        await fetchData();
+      } catch (err) {
+        if (!cancelled) showFeedback(err.message || 'Failed to retrieve library data', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestAccess = async (book) => {
     if (!book) return;
@@ -83,9 +114,25 @@ const StudentDashboard = ({ onSelectBook }) => {
       });
       showFeedback(data.message || `Requested reading permission for "${book.title}"`);
       const reqsData = await apiCall('/permissions/my-requests');
-      setRequests(reqsData);
+      setRequests(reqsData || []);
     } catch (err) {
       showFeedback(err.message || 'Failed to request book permission', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [actionKey]: false }));
+    }
+  };
+
+  const handleCancelRequest = async (requestId, bookTitle) => {
+    if (!window.confirm(`Are you sure you want to cancel your permission request for "${bookTitle || 'this book'}"?`)) return;
+    const actionKey = `cancel-${requestId}`;
+    try {
+      setActionLoading(prev => ({ ...prev, [actionKey]: true }));
+      await apiCall(`/permissions/cancel/${requestId}`, { method: 'POST' });
+      showFeedback(`Cancelled access request for "${bookTitle || 'selected book'}"`, 'success');
+      const reqsData = await apiCall('/permissions/my-requests');
+      setRequests(reqsData || []);
+    } catch (err) {
+      showFeedback(err.message || 'Failed to cancel permission request', 'error');
     } finally {
       setActionLoading(prev => ({ ...prev, [actionKey]: false }));
     }
@@ -238,10 +285,32 @@ const StudentDashboard = ({ onSelectBook }) => {
     });
   }, [books, activeTab, selectedCategory, selectedBranch, search, user?.branchName, user?.branch_name, branches, categories]);
 
+  const pendingRequestsCount = useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
+  const approvedRequestsCount = useMemo(() => requests.filter(r => r.status === 'approved').length, [requests]);
+  const rejectedRequestsCount = useMemo(() => requests.filter(r => r.status === 'rejected').length, [requests]);
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter(req => {
+      if (requestFilter === 'pending' && req.status !== 'pending') return false;
+      if (requestFilter === 'approved' && req.status !== 'approved') return false;
+      if (requestFilter === 'rejected' && req.status !== 'rejected') return false;
+      if (requestSearch) {
+        const q = requestSearch.toLowerCase();
+        const b = req.book || req.books || books.find(item => String(item.id) === String(req.book_id)) || {};
+        const title = (b.title || req.book_title || '').toLowerCase();
+        const author = (b.author || '').toLowerCase();
+        const branch = (req.branch_name || b.branch_name || '').toLowerCase();
+        if (!title.includes(q) && !author.includes(q) && !branch.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [requests, requestFilter, requestSearch, books]);
+
   const navItems = [
     { key: 'all', label: 'All Catalog', icon: Home },
     { key: 'home', label: 'Home Branch', icon: Library },
     { key: 'other', label: 'Other Branches', icon: Compass },
+    { key: 'requests', label: 'My Requests', icon: BookMarked, badge: pendingRequestsCount },
     { key: 'history', label: 'Reading History', icon: Activity },
     { key: 'settings', label: 'Settings & Theme', icon: Settings }
   ];
@@ -318,20 +387,50 @@ const StudentDashboard = ({ onSelectBook }) => {
               <span>{user?.branchName || 'Engineering'}</span>
               <span>{user?.year || '1st Year'} • {user?.semester || '1st Sem'}</span>
             </div>
+            <button
+              onClick={handlePrintTranscript}
+              disabled={printingTranscript}
+              className="btn btn-secondary"
+              style={{ width: '100%', marginTop: '10px', padding: '7px 10px', fontSize: '0.75rem', gap: '6px', justifyContent: 'center' }}
+              title="Print certified official academic library transcript and clearance dossier"
+            >
+              <Printer size={13} />
+              {printingTranscript ? 'Generating Transcript...' : 'Official Transcript'}
+            </button>
           </div>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {navItems.map(({ key, label, icon: Icon }) => {
+            {navItems.map(({ key, label, icon: Icon, badge }) => {
               const isActive = activeTab === key;
               return (
                 <button
                   key={key}
                   onClick={() => { setActiveTab(key); setSelectedBranch(''); }}
                   className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ justifyContent: 'flex-start', width: '100%', padding: '9px 14px', fontSize: '0.84rem' }}
+                  style={{ justifyContent: 'space-between', width: '100%', padding: '9px 14px', fontSize: '0.84rem' }}
                 >
-                  <Icon size={16} />
-                  <span>{label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Icon size={16} />
+                    <span>{label}</span>
+                  </div>
+                  {badge > 0 && (
+                    <span style={{
+                      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                      color: '#ffffff',
+                      fontSize: '0.64rem',
+                      fontWeight: 800,
+                      minWidth: '18px',
+                      height: '18px',
+                      borderRadius: '9px',
+                      padding: '0 5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                    }}>
+                      {badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -376,10 +475,15 @@ const StudentDashboard = ({ onSelectBook }) => {
             </div>
 
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: '14px', marginTop: '20px', position: 'relative', zIndex: 1
             }}>
-              <div className="glass-panel motion-stat-card animate-stagger-in stagger-1" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
+                className="glass-panel motion-stat-card animate-stagger-in stagger-1"
+                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                title="View all catalog books"
+              >
                 <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.14)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <BookOpen size={20} />
                 </div>
@@ -389,18 +493,43 @@ const StudentDashboard = ({ onSelectBook }) => {
                 </div>
               </div>
 
-              <div className="glass-panel motion-stat-card animate-stagger-in stagger-2" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.14)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <BookMarked size={20} />
+              <div
+                onClick={() => { setActiveTab('requests'); setRequestFilter('approved'); }}
+                className="glass-panel motion-stat-card animate-stagger-in stagger-2"
+                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                title="View approved book clearances"
+              >
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.14)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{requests.filter(r => r.status === 'approved').length}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{approvedRequestsCount}</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Approved Access</div>
                 </div>
               </div>
 
-              <div className="glass-panel motion-stat-card animate-stagger-in stagger-3" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.14)', color: 'var(--sistec-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                onClick={() => { setActiveTab('requests'); setRequestFilter('pending'); }}
+                className="glass-panel motion-stat-card animate-stagger-in stagger-3"
+                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                title="View pending book requests"
+              >
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pendingRequestsCount}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Pending Requests</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setActiveTab('history')}
+                className="glass-panel motion-stat-card animate-stagger-in stagger-4"
+                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                title="View your reading history"
+              >
+                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Activity size={20} />
                 </div>
                 <div>
@@ -420,9 +549,26 @@ const StudentDashboard = ({ onSelectBook }) => {
           <div className="animate-section-enter"><SettingsView /></div>
         ) : activeTab === 'history' ? (
           <div className="animate-section-enter">
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '16px' }}>
-              Reading History & Activity
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
+                  Reading History & Activity
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Complete audit log of all online reading sessions and reference downloads.
+                </p>
+              </div>
+              <button
+                onClick={handlePrintTranscript}
+                disabled={printingTranscript}
+                className="btn btn-primary btn-shine"
+                style={{ fontSize: '0.82rem', padding: '8px 16px', gap: '8px' }}
+                title="Print or export certified student library transcript with reading history and clearances"
+              >
+                <Printer size={15} />
+                {printingTranscript ? 'Preparing Transcript...' : 'Print Official Transcript'}
+              </button>
+            </div>
             {history.length === 0 ? (
               <EmptyState
                 icon={Clock}
@@ -459,6 +605,252 @@ const StudentDashboard = ({ onSelectBook }) => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'requests' ? (
+          <div className="animate-section-enter">
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <BookMarked size={22} color="var(--primary)" />
+                  My Book Access Requests
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  Track cross-department permissions, cancel pending submissions, and instantly open approved books.
+                </p>
+              </div>
+
+              <button
+                onClick={() => { setActiveTab('other'); setSelectedBranch(''); }}
+                className="btn btn-primary btn-shine"
+                style={{ fontSize: '0.82rem', padding: '8px 14px' }}
+              >
+                <Compass size={14} /> Request More Books
+              </button>
+            </div>
+
+            {/* Filter Pills and Search */}
+            <div className="glass-panel" style={{ padding: '14px 16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setRequestFilter('all')}
+                    style={{
+                      padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                      background: requestFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                      color: requestFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                      border: requestFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    All Requests ({requests.length})
+                  </button>
+                  <button
+                    onClick={() => setRequestFilter('pending')}
+                    style={{
+                      padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                      background: requestFilter === 'pending' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: requestFilter === 'pending' ? '#fbbf24' : 'var(--text-secondary)',
+                      border: requestFilter === 'pending' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-glass)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Pending Review ({pendingRequestsCount})
+                  </button>
+                  <button
+                    onClick={() => setRequestFilter('approved')}
+                    style={{
+                      padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                      background: requestFilter === 'approved' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: requestFilter === 'approved' ? '#34d399' : 'var(--text-secondary)',
+                      border: requestFilter === 'approved' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-glass)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Approved Clearance ({approvedRequestsCount})
+                  </button>
+                  <button
+                    onClick={() => setRequestFilter('rejected')}
+                    style={{
+                      padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                      background: requestFilter === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: requestFilter === 'rejected' ? '#f87171' : 'var(--text-secondary)',
+                      border: requestFilter === 'rejected' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-glass)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Declined ({rejectedRequestsCount})
+                  </button>
+                </div>
+
+                <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 200px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="Search requested books..."
+                    value={requestSearch}
+                    onChange={(e) => setRequestSearch(e.target.value)}
+                    style={{ paddingLeft: '34px', paddingRight: '28px', fontSize: '0.8rem', width: '100%', height: '36px' }}
+                  />
+                  {requestSearch && (
+                    <button
+                      onClick={() => setRequestSearch('')}
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {filteredRequests.length === 0 ? (
+              <EmptyState
+                icon={BookMarked}
+                title={requests.length === 0 ? "No book permission requests yet" : "No matching requests found"}
+                description={requests.length === 0
+                  ? "When you need to read textbooks or reference papers from other academic departments, request permission and track clearance here."
+                  : "Try switching to 'All Requests' or clearing your search term."}
+                actionLabel={requests.length === 0 ? "Explore Other Branches" : "Clear Filter"}
+                onAction={() => {
+                  if (requests.length === 0) {
+                    setActiveTab('other');
+                  } else {
+                    setRequestFilter('all');
+                    setRequestSearch('');
+                  }
+                }}
+              />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
+                {filteredRequests.map((req, idx) => {
+                  const b = req.book || req.books || books.find(item => String(item.id) === String(req.book_id)) || {};
+                  const bookTitle = b.title || req.book_title || 'Requested Book';
+                  const bookAuthor = b.author || 'Author not specified';
+                  const branchName = req.branch_name || b.branch_name || 'Cross-Department';
+                  const isPending = req.status === 'pending';
+                  const isApproved = req.status === 'approved';
+                  const reqDate = req.created_at ? new Date(req.created_at) : null;
+                  const formattedDate = reqDate
+                    ? `${reqDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at ${reqDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : 'Recently requested';
+
+                  return (
+                    <div
+                      key={req.id || idx}
+                      className="glass-panel glass-panel-hover animate-stagger-in"
+                      style={{
+                        padding: '18px', display: 'flex', flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        borderLeft: isPending ? '4px solid #f59e0b' : isApproved ? '4px solid #10b981' : '4px solid #ef4444',
+                        animationDelay: `${Math.min(idx * 0.04, 0.4)}s`
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+                          <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                            {branchName}
+                          </span>
+                          {isApproved ? (
+                            <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle size={11} /> Access Granted
+                            </span>
+                          ) : isPending ? (
+                            <span className="badge badge-gold" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} /> Pending Approval
+                            </span>
+                          ) : (
+                            <span className="badge badge-danger" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <ShieldAlert size={11} /> Declined
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
+                          {b.cover_url ? (
+                            <div style={{ width: '64px', height: '88px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--border-glass)' }}>
+                              <img src={b.cover_url} alt={bookTitle} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                            </div>
+                          ) : (
+                            <div style={{ width: '64px', height: '88px', borderRadius: '6px', background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', flexShrink: 0, border: '1px solid var(--border-glass)' }}>
+                              <BookOpen size={24} />
+                            </div>
+                          )}
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0', lineHeight: 1.3 }}>
+                              {bookTitle}
+                            </h4>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
+                              by {bookAuthor}
+                            </p>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} /> Requested: {formattedDate}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{
+                          padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', fontSize: '0.76rem',
+                          background: isApproved ? 'rgba(16, 185, 129, 0.08)' : isPending ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                          border: isApproved ? '1px solid rgba(16, 185, 129, 0.2)' : isPending ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
+                          color: isApproved ? '#34d399' : isPending ? '#fbbf24' : '#f87171',
+                          lineHeight: 1.4
+                        }}>
+                          {isApproved
+                            ? "✓ You have full reading clearance. You can read online anytime or view associated materials."
+                            : isPending
+                            ? "⏳ Your request is under review by library administration. You will be notified as soon as it's processed."
+                            : "✕ Access was declined by administration for this period. You may submit a fresh request if needed."}
+                        </div>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '12px', display: 'flex', gap: '8px' }}>
+                        {isApproved ? (
+                          <>
+                            <button
+                              onClick={() => handleOpenBook(b)}
+                              className="btn btn-primary btn-shine"
+                              style={{ flex: 1, padding: '8px 14px', fontSize: '0.82rem', gap: '6px' }}
+                            >
+                              <BookOpen size={14} /> Read Now
+                            </button>
+                            {(b.drive_link || b.drive_file_id || b.pdf_url) && (
+                              <button
+                                onClick={() => handleDownload(b)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 12px' }}
+                                title="Download / Open in Drive"
+                              >
+                                <Download size={14} />
+                              </button>
+                            )}
+                          </>
+                        ) : isPending ? (
+                          <button
+                            onClick={() => handleCancelRequest(req.id, bookTitle)}
+                            className="btn btn-secondary"
+                            style={{ width: '100%', fontSize: '0.82rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '6px' }}
+                            disabled={actionLoading[`cancel-${req.id}`]}
+                          >
+                            <X size={14} /> {actionLoading[`cancel-${req.id}`] ? 'Cancelling...' : 'Cancel Request'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRequestAccess(b)}
+                            className="btn btn-primary btn-shine"
+                            style={{ width: '100%', fontSize: '0.82rem', gap: '6px' }}
+                            disabled={actionLoading[`book-${b.id}`]}
+                          >
+                            <RefreshCw size={13} /> {actionLoading[`book-${b.id}`] ? 'Submitting...' : 'Request Again'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -572,6 +964,20 @@ const StudentDashboard = ({ onSelectBook }) => {
                   }}
                 >
                   Other Branches
+                </button>
+                <button
+                  onClick={() => { setActiveTab('requests'); }}
+                  style={{
+                    padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: activeTab === 'requests' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                    color: activeTab === 'requests' ? 'var(--primary)' : 'var(--text-secondary)',
+                    border: activeTab === 'requests' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                    display: 'flex', alignItems: 'center', gap: '5px'
+                  }}
+                >
+                  <BookMarked size={12} />
+                  My Requests ({requests.length})
                 </button>
                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredBooks.length}</strong> of {books.length} books
@@ -692,13 +1098,29 @@ const StudentDashboard = ({ onSelectBook }) => {
                               )}
                             </>
                           ) : access.status === 'pending' ? (
-                            <button
-                              className="btn btn-secondary"
-                              style={{ width: '100%', cursor: 'not-allowed', fontSize: '0.8rem', opacity: 0.85, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
-                              disabled
-                            >
-                              <Clock size={13} /> Permission Requested (Pending Admin Approval)
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                              <button
+                                className="btn btn-secondary"
+                                style={{ flex: 1, cursor: 'not-allowed', fontSize: '0.78rem', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                                disabled
+                              >
+                                <Clock size={13} /> Pending Approval
+                              </button>
+                              {(() => {
+                                const matchReq = requests.find(r => book.id != null && r.book_id != null && String(r.book_id) === String(book.id) && r.status === 'pending');
+                                return matchReq ? (
+                                  <button
+                                    onClick={() => handleCancelRequest(matchReq.id, book.title)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                    title="Cancel Request"
+                                    disabled={actionLoading[`cancel-${matchReq.id}`]}
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                ) : null;
+                              })()}
+                            </div>
                           ) : access.status === 'rejected' ? (
                             <button
                               onClick={() => handleRequestAccess(book)}
@@ -736,7 +1158,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onOpenMenu={() => {}}
-        badges={{}}
+        badges={{ requests: pendingRequestsCount }}
       />
     </div>
   );

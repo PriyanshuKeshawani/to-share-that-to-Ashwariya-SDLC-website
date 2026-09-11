@@ -12,13 +12,11 @@ import {
   Copy,
   Check,
   Search,
-  Tag,
   Sparkles,
   ExternalLink,
   X,
   FileDown,
-  Lock,
-  ShieldAlert
+  Lock
 } from 'lucide-react';
 
 const TAG_COLORS = {

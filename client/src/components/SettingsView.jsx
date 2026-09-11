@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Sun, Moon, Palette, Check, Sparkles, User, Shield, BookOpen, Layers, Laptop } from 'lucide-react';
+import { Sun, Moon, Palette, Check, User, Shield, Laptop } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,11 +8,7 @@ const SettingsView = ({ isAdmin = false }) => {
     toggleMode,
     paletteId,
     selectPalette,
-    palettes,
-    customPrimary,
-    setCustomPrimary,
-    customSecondary,
-    setCustomSecondary
+    palettes
   } = useTheme();
 
   const { user } = useAuth();
