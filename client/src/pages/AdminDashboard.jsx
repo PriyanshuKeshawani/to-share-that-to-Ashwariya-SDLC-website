@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
   import { 
     Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
     Search, ShieldAlert, Award, FileText, Download, TrendingUp,
     UserCheck, UserX, AlertTriangle, User,
     Menu, Settings, UploadCloud, Activity, Image, FolderUp, CheckCircle2, Sparkles,
-    ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch
+    ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
+    Sun, Moon
   } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -20,6 +22,8 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 
 const AdminDashboard = () => {
   const { user, logout, apiCall } = useAuth();
+  const { mode, toggleMode } = useTheme();
+  const isDark = mode === 'dark';
   const [activeTab, setActiveTabState] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -1042,7 +1046,25 @@ const AdminDashboard = () => {
                 </span>
               </div>
             </div>
-            <NotificationBell />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={toggleMode}
+                className="btn btn-secondary"
+                style={{
+                  padding: '7px',
+                  borderRadius: '10px',
+                  minWidth: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                aria-label="Toggle theme mode"
+              >
+                {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
+              </button>
+              <NotificationBell />
+            </div>
           </div>
 
           <div className="glass-panel" style={{ padding: '12px', marginBottom: '24px', fontSize: '0.85rem', textAlign: 'center' }}>
@@ -4547,7 +4569,7 @@ const AdminDashboard = () => {
               width: '100%',
               maxWidth: '620px',
               height: '100%',
-              background: 'var(--bg-card)',
+              background: 'var(--modal-bg, var(--bg-card-solid))',
               borderLeft: '1px solid var(--border-glass)',
               boxShadow: 'var(--shadow-elevated)',
               display: 'flex',
@@ -4564,7 +4586,7 @@ const AdminDashboard = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-start',
-              background: 'rgba(255,255,255,0.015)'
+              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))'
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
@@ -4596,7 +4618,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Search Filter */}
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.015)' }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-glass)', background: 'var(--modal-card-bg, rgba(255,255,255,0.015))' }}>
               <div className="search-input-wrapper">
                 <span className="search-icon">
                   <Search size={16} />
@@ -4921,7 +4943,7 @@ const AdminDashboard = () => {
             <div style={{
               padding: '16px 24px',
               borderTop: '1px solid var(--border-glass)',
-              background: 'rgba(255,255,255,0.02)',
+              background: 'var(--modal-card-bg, rgba(255,255,255,0.02))',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',

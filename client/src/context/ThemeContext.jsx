@@ -65,27 +65,39 @@ const applyTheme = (mode, primary, secondary) => {
     root.style.setProperty('--body-gradient-2', `rgba(${sRgb}, 0.05)`);
     root.style.setProperty('--body-gradient-3', 'rgba(37, 99, 235, 0.03)');
     root.style.setProperty('--surface-glow', 'rgba(255, 255, 255, 0.025)');
+    root.style.setProperty('--glass-bg', 'rgba(13, 22, 42, 0.97)');
+    root.style.setProperty('--modal-bg', '#0d1628');
+    root.style.setProperty('--modal-card-bg', 'rgba(18, 28, 52, 0.75)');
+    root.style.setProperty('--modal-card-border', 'rgba(255, 255, 255, 0.09)');
+    root.style.setProperty('--modal-header-bg', 'linear-gradient(180deg, rgba(37, 99, 235, 0.12) 0%, rgba(13, 22, 42, 0.6) 100%)');
+    root.style.setProperty('--modal-backdrop', 'rgba(3, 7, 18, 0.82)');
   } else {
     root.style.setProperty('--bg-main', '#f8fafc');
     root.style.setProperty('--bg-surface', '#ffffff');
     root.style.setProperty('--bg-card', 'rgba(255, 255, 255, 0.95)');
     root.style.setProperty('--bg-card-hover', '#ffffff');
     root.style.setProperty('--bg-card-solid', '#ffffff');
-    root.style.setProperty('--border-glass', 'rgba(15, 23, 42, 0.08)');
-    root.style.setProperty('--border-glass-hover', 'rgba(15, 23, 42, 0.16)');
+    root.style.setProperty('--border-glass', 'rgba(15, 23, 42, 0.11)');
+    root.style.setProperty('--border-glass-hover', 'rgba(15, 23, 42, 0.20)');
     root.style.setProperty('--text-primary', '#0f172a');
     root.style.setProperty('--text-secondary', '#475569');
     root.style.setProperty('--text-muted', '#64748b');
-    root.style.setProperty('--shadow-glass', '0 4px 24px -4px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04)');
-    root.style.setProperty('--shadow-elevated', '0 20px 50px -12px rgba(15, 23, 42, 0.1)');
+    root.style.setProperty('--shadow-glass', '0 4px 24px -4px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.04)');
+    root.style.setProperty('--shadow-elevated', '0 20px 50px -12px rgba(15, 23, 42, 0.12)');
     root.style.setProperty('--sidebar-bg', '#ffffff');
     root.style.setProperty('--input-bg', '#ffffff');
     root.style.setProperty('--input-bg-focus', '#ffffff');
-    root.style.setProperty('--scrollbar-thumb', 'rgba(15, 23, 42, 0.15)');
+    root.style.setProperty('--scrollbar-thumb', 'rgba(15, 23, 42, 0.18)');
     root.style.setProperty('--body-gradient-1', `rgba(${pRgb}, 0.04)`);
     root.style.setProperty('--body-gradient-2', `rgba(${sRgb}, 0.03)`);
     root.style.setProperty('--body-gradient-3', 'rgba(37, 99, 235, 0.02)');
-    root.style.setProperty('--surface-glow', 'rgba(0, 0, 0, 0.01)');
+    root.style.setProperty('--surface-glow', 'rgba(0, 0, 0, 0.015)');
+    root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.98)');
+    root.style.setProperty('--modal-bg', '#ffffff');
+    root.style.setProperty('--modal-card-bg', '#f1f5f9');
+    root.style.setProperty('--modal-card-border', 'rgba(15, 23, 42, 0.09)');
+    root.style.setProperty('--modal-header-bg', 'linear-gradient(180deg, rgba(37, 99, 235, 0.06) 0%, rgba(241, 245, 249, 0.8) 100%)');
+    root.style.setProperty('--modal-backdrop', 'rgba(15, 23, 42, 0.5)');
   }
 
   root.setAttribute('data-theme', mode);

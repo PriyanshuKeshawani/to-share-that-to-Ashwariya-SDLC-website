@@ -135,8 +135,9 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         .bam-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.65);
-          backdrop-filter: blur(6px);
+          background: var(--modal-backdrop, rgba(0,0,0,0.7));
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
           z-index: 2000;
           display: flex;
           align-items: center;
@@ -146,8 +147,8 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         }
         @keyframes bam-fade-in { from { opacity: 0; } to { opacity: 1; } }
         .bam-modal {
-          background: var(--glass-bg, rgba(15,23,42,0.97));
-          border: 1px solid var(--border-glass, rgba(255,255,255,0.1));
+          background: var(--modal-bg, var(--bg-card-solid));
+          border: 1px solid var(--border-glass);
           border-radius: 20px;
           width: 100%;
           max-width: 900px;
@@ -155,7 +156,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+          box-shadow: var(--shadow-elevated, 0 30px 80px rgba(0,0,0,0.5));
           animation: bam-scale-up 0.25s cubic-bezier(0.34,1.56,0.64,1);
         }
         @keyframes bam-scale-up {
@@ -185,22 +186,24 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         .bam-book-title {
           font-size: 1.3rem;
           font-weight: 800;
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary) !important;
+          -webkit-text-fill-color: initial !important;
+          background: none !important;
           margin: 0 0 4px 0;
           line-height: 1.2;
         }
         .bam-book-meta {
           font-size: 0.8rem;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
           display: flex;
           align-items: center;
           gap: 8px;
           flex-wrap: wrap;
         }
         .bam-close-btn {
-          background: var(--input-bg, rgba(255,255,255,0.06));
-          border: 1px solid var(--border-glass, rgba(255,255,255,0.1));
-          color: var(--text-muted, #94a3b8);
+          background: var(--modal-card-bg, var(--input-bg));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
+          color: var(--text-muted);
           border-radius: 10px;
           padding: 8px;
           cursor: pointer;
@@ -219,8 +222,8 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           margin-bottom: 16px;
         }
         .bam-stat-card {
-          background: var(--input-bg, rgba(255,255,255,0.05));
-          border: 1px solid var(--border-glass, rgba(255,255,255,0.08));
+          background: var(--modal-card-bg, var(--input-bg));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
           border-radius: 12px;
           padding: 12px 14px;
           display: flex;
@@ -239,19 +242,19 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         .bam-stat-val {
           font-size: 1.1rem;
           font-weight: 800;
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary);
           line-height: 1;
           margin-bottom: 2px;
         }
         .bam-stat-label {
           font-size: 0.65rem;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
           font-weight: 600;
         }
         .bam-tabs {
           display: flex;
           gap: 0;
-          border-bottom: 1px solid var(--border-glass, rgba(255,255,255,0.08));
+          border-bottom: 1px solid var(--border-glass);
         }
         .bam-tab-btn {
           background: none;
@@ -259,7 +262,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           padding: 12px 20px;
           font-size: 0.82rem;
           font-weight: 600;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -269,11 +272,11 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           transition: all 0.15s;
         }
         .bam-tab-btn.active {
-          color: var(--primary, #3b82f6);
-          border-bottom-color: var(--primary, #3b82f6);
+          color: var(--primary);
+          border-bottom-color: var(--primary);
         }
         .bam-tab-btn:hover:not(.active) {
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary);
         }
         .bam-body {
           flex: 1;
@@ -281,8 +284,8 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           padding: 20px 24px 24px;
         }
         .bam-reader-card {
-          background: var(--input-bg, rgba(255,255,255,0.04));
-          border: 1px solid var(--border-glass, rgba(255,255,255,0.08));
+          background: var(--modal-card-bg, var(--input-bg));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
           border-radius: 12px;
           padding: 14px 16px;
           display: flex;
@@ -297,7 +300,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           width: 40px;
           height: 40px;
           border-radius: 10px;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          background: linear-gradient(135deg, var(--primary), #8b5cf6);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -310,12 +313,12 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         .bam-reader-name {
           font-weight: 700;
           font-size: 0.9rem;
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary);
           margin-bottom: 2px;
         }
         .bam-reader-meta {
           font-size: 0.72rem;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
         }
         .bam-reader-stats {
           display: flex;
@@ -326,7 +329,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         }
         .bam-page-badge {
           background: rgba(59,130,246,0.15);
-          color: #60a5fa;
+          color: var(--primary);
           border: 1px solid rgba(59,130,246,0.25);
           border-radius: 6px;
           padding: 3px 8px;
@@ -335,7 +338,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         }
         .bam-dl-badge {
           background: rgba(16,185,129,0.12);
-          color: #34d399;
+          color: #10b981;
           border: 1px solid rgba(16,185,129,0.2);
           border-radius: 6px;
           padding: 2px 7px;
@@ -347,7 +350,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           align-items: flex-start;
           gap: 12px;
           padding: 10px 0;
-          border-bottom: 1px solid var(--border-glass, rgba(255,255,255,0.05));
+          border-bottom: 1px solid var(--border-glass);
         }
         .bam-log-icon {
           width: 28px;
@@ -362,17 +365,17 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         .bam-log-body { flex: 1; min-width: 0; }
         .bam-log-desc {
           font-size: 0.82rem;
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary);
           font-weight: 600;
           margin-bottom: 2px;
         }
         .bam-log-meta {
           font-size: 0.7rem;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
         }
         .bam-log-time {
           font-size: 0.68rem;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
           flex-shrink: 0;
           white-space: nowrap;
         }
@@ -380,8 +383,8 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: var(--input-bg, rgba(255,255,255,0.05));
-          border: 1px solid var(--border-glass, rgba(255,255,255,0.1));
+          background: var(--modal-card-bg, var(--input-bg));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
           border-radius: 10px;
           padding: 8px 12px;
           margin-bottom: 14px;
@@ -390,17 +393,17 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           background: none;
           border: none;
           outline: none;
-          color: var(--text-primary, #f1f5f9);
+          color: var(--text-primary);
           font-size: 0.83rem;
           flex: 1;
         }
-        .bam-search input::placeholder { color: var(--text-muted, #94a3b8); }
+        .bam-search input::placeholder { color: var(--text-muted); }
         .bam-empty {
           text-align: center;
           padding: 48px 20px;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted);
         }
-        .bam-empty h4 { margin: 12px 0 6px; font-size: 1rem; font-weight: 700; color: var(--text-primary, #f1f5f9); }
+        .bam-empty h4 { margin: 12px 0 6px; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
         .bam-empty p { font-size: 0.8rem; margin: 0; }
         @media (max-width: 640px) {
           .bam-modal { border-radius: 16px; max-height: 95vh; }

@@ -79,7 +79,7 @@ const ShareBookModal = ({ book, onClose, onShowFeedback }) => {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 8, 16, 0.75)',
+        backgroundColor: 'var(--modal-backdrop, rgba(5, 8, 16, 0.75))',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         zIndex: 9999,
@@ -99,8 +99,8 @@ const ShareBookModal = ({ book, onClose, onShowFeedback }) => {
           padding: '24px',
           borderRadius: '16px',
           border: '1px solid var(--border-glass)',
-          background: 'var(--bg-card)',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.5)',
+          background: 'var(--modal-bg, var(--bg-card-solid))',
+          boxShadow: 'var(--shadow-elevated)',
           position: 'relative'
         }}
       >
@@ -144,9 +144,9 @@ const ShareBookModal = ({ book, onClose, onShowFeedback }) => {
           alignItems: 'center',
           gap: '12px',
           padding: '12px',
-          background: 'var(--input-bg)',
+          background: 'var(--modal-card-bg, var(--input-bg))',
           borderRadius: '12px',
-          border: '1px solid var(--border-glass)',
+          border: '1px solid var(--modal-card-border, var(--border-glass))',
           marginBottom: '20px'
         }}>
           {book.cover_url ? (

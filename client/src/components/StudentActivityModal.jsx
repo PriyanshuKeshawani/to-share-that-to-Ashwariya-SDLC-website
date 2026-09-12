@@ -149,7 +149,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
         .sam-modal-backdrop {
           position: fixed;
           inset: 0;
-          background-color: rgba(3, 7, 18, 0.85);
+          background-color: var(--modal-backdrop, rgba(3, 7, 18, 0.82));
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           display: flex;
@@ -162,8 +162,8 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           width: 100%;
           max-width: 1040px;
           max-height: 94vh;
-          background: var(--bg-card-solid);
-          border: 1.5px solid var(--border-glass-hover);
+          background: var(--modal-bg, var(--bg-card-solid));
+          border: 1.5px solid var(--border-glass);
           border-radius: 20px;
           display: flex;
           flex-direction: column;
@@ -174,7 +174,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
         .sam-header {
           padding: 20px 24px;
           border-bottom: 1px solid var(--border-glass);
-          background: linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(13, 22, 42, 0.4) 100%);
+          background: var(--modal-header-bg);
           display: flex;
           flex-direction: column;
           gap: 14px;
@@ -210,7 +210,9 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
         .sam-student-name {
           font-size: 1.15rem;
           font-weight: 800;
-          color: var(--text-primary);
+          color: var(--text-primary) !important;
+          -webkit-text-fill-color: initial !important;
+          background: none !important;
           margin-bottom: 2px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -241,8 +243,8 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           gap: 10px;
         }
         .sam-kpi-card {
-          background: var(--input-bg);
-          border: 1px solid var(--border-glass);
+          background: var(--modal-card-bg, var(--input-bg));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
           border-radius: 12px;
           padding: 12px 14px;
           display: flex;
@@ -279,7 +281,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           scrollbar-width: none;
           border-bottom: 1px solid var(--border-glass);
           padding: 0 24px;
-          background: var(--glass-bg, rgba(15,23,42,0.97));
+          background: var(--modal-card-bg, var(--bg-surface));
           flex-shrink: 0;
         }
         .sam-tabs-bar::-webkit-scrollbar { display: none; }
@@ -542,7 +544,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                         { label: 'Account Clearance',     val: student.status?.toUpperCase(), color: student.status === 'approved' ? 'var(--success)' : 'var(--warning)' },
                         { label: 'Library Access Status', val: student.is_blocked === 1 ? 'BLOCKED' : 'ACTIVE / GRANTED', color: student.is_blocked === 1 ? 'var(--danger)' : 'var(--success)' }
                       ].map(({ label, val, color }) => (
-                        <div key={label} style={{ background: 'var(--input-bg)', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
+                        <div key={label} style={{ background: 'var(--modal-card-bg, var(--input-bg))', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--modal-card-border, var(--border-glass))' }}>
                           <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
                           <strong style={{ color: color || 'var(--text-primary)', fontSize: '0.82rem' }}>{val}</strong>
                         </div>
@@ -576,7 +578,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                               key={item.id}
                               style={{
                                 padding: '10px 12px', borderRadius: '8px',
-                                background: 'var(--input-bg)', border: '1px solid var(--border-glass)',
+                                background: 'var(--modal-card-bg, var(--input-bg))', border: '1px solid var(--modal-card-border, var(--border-glass))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
                                 cursor: onSelectBook ? 'pointer' : 'default',
                                 transition: 'all 0.2s ease'

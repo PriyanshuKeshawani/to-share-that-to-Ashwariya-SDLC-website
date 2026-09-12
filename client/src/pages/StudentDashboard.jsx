@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
 import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
   Activity, X, Settings, RefreshCw, Printer, FileText,
-  Share2, Info
+  Share2, Info, Sun, Moon
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -20,6 +21,8 @@ import BookOverviewModal from '../components/BookOverviewModal';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
+  const { mode, toggleMode } = useTheme();
+  const isDark = mode === 'dark';
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -506,6 +509,22 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={toggleMode}
+            className="btn btn-secondary"
+            style={{
+              padding: '7px',
+              borderRadius: '10px',
+              minWidth: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label="Toggle theme mode"
+          >
+            {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
+          </button>
           <NotificationBell />
         </div>
       </header>
@@ -532,7 +551,25 @@ const StudentDashboard = ({ onSelectBook }) => {
                 </p>
               </div>
             </div>
-            <NotificationBell />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={toggleMode}
+                className="btn btn-secondary"
+                style={{
+                  padding: '7px',
+                  borderRadius: '10px',
+                  minWidth: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                aria-label="Toggle theme mode"
+              >
+                {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
+              </button>
+              <NotificationBell />
+            </div>
           </div>
 
           <div className="glass-panel" style={{ padding: '14px', marginBottom: '20px' }}>

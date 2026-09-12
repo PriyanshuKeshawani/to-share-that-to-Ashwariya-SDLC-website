@@ -33,7 +33,7 @@ const BookOverviewModal = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 8, 16, 0.8)',
+        backgroundColor: 'var(--modal-backdrop, rgba(5, 8, 16, 0.8))',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         zIndex: 9998,
@@ -54,9 +54,9 @@ const BookOverviewModal = ({
           overflowY: 'auto',
           borderRadius: '20px',
           padding: '24px',
-          background: 'var(--bg-card)',
+          background: 'var(--modal-bg, var(--bg-card-solid))',
           border: '1px solid var(--border-glass)',
-          boxShadow: '0 30px 70px -15px rgba(0, 0, 0, 0.65)',
+          boxShadow: 'var(--shadow-elevated)',
           position: 'relative'
         }}
       >
@@ -153,6 +153,8 @@ const BookOverviewModal = ({
               fontSize: '1.25rem',
               fontWeight: 700,
               color: 'var(--text-primary)',
+              WebkitTextFillColor: 'initial',
+              background: 'none',
               lineHeight: '1.35',
               margin: '0 0 6px 0'
             }}>
@@ -186,9 +188,9 @@ const BookOverviewModal = ({
         {/* Synopsis / Description Section */}
         <div style={{
           padding: '14px 16px',
-          background: 'var(--input-bg)',
+          background: 'var(--modal-card-bg, var(--input-bg))',
           borderRadius: '12px',
-          border: '1px solid var(--border-glass)',
+          border: '1px solid var(--modal-card-border, var(--border-glass))',
           marginBottom: '20px'
         }}>
           <h4 style={{
