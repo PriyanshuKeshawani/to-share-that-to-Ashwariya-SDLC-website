@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles } from 'lucide-react';
 import { requestNotificationPermission } from '../firebase';
@@ -43,9 +44,10 @@ const NotificationBell = () => {
           transformOrigin: 'top right'
         });
       } else {
+        const left = Math.min(window.innerWidth - 380, Math.max(12, rect.left));
         setDropdownCoords({
           top,
-          left: Math.max(12, rect.left),
+          left,
           right: 'auto',
           transformOrigin: 'top left'
         });
@@ -215,8 +217,8 @@ const NotificationBell = () => {
         )}
       </button>
 
-      {/* ── Dropdown & Backdrop ── */}
-      {isOpen && (
+      {/* ── Dropdown & Backdrop via Portal ── */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <>
           {/* Subtle dimming backdrop to dismiss on click */}
           <div
@@ -226,7 +228,7 @@ const NotificationBell = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              zIndex: 1199,
+              zIndex: 99998,
               background: 'rgba(0, 0, 0, 0.35)',
               backdropFilter: 'blur(2px)',
               WebkitBackdropFilter: 'blur(2px)',
@@ -245,10 +247,10 @@ const NotificationBell = () => {
               right: dropdownCoords.right,
               width: 'min(360px, calc(100vw - 32px))',
               maxHeight: '480px',
-              zIndex: 9999,
+              zIndex: 99999,
               background: 'var(--bg-surface)',
               border: '1px solid var(--border-glass-hover)',
-              boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-glass)',
+              boxShadow: '0 24px 60px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border-glass)',
               borderRadius: '16px',
               overflow: 'hidden',
               display: 'flex',
@@ -566,7 +568,8 @@ const NotificationBell = () => {
               </div>
             )}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
