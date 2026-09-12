@@ -25,7 +25,6 @@ import {
   ZoomOut,
   Maximize2,
   Minimize2,
-  Layers,
   Sparkles,
   Sun,
   Moon
@@ -1016,16 +1015,6 @@ const BookReader = ({ book, onClose }) => {
                 >
                   {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   <span className="hide-mobile">{isFullscreen ? 'Exit' : 'Full'}</span>
-                </button>
-
-                {/* Fallback to Native Viewer if student desires browser PDF UI */}
-                <button
-                  onClick={() => setUseNativeViewer(prev => !prev)}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 9px', fontSize: '0.76rem' }}
-                  title={useNativeViewer ? 'Switch to 3D Book Mode' : 'Switch to Native Browser Viewer'}
-                >
-                  <Layers size={13} />
                 </button>
               </div>
             </div>
