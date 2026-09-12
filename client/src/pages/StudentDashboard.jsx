@@ -507,7 +507,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     { key: 'other', label: 'Other Branches', icon: Compass },
     { key: 'requests', label: 'My Requests', icon: BookMarked, badge: pendingRequestsCount },
     { key: 'history', label: 'Reading History', icon: Activity },
-    { key: 'settings', label: 'Settings & Theme', icon: Settings }
+    { key: 'settings', label: 'Settings & Logout', icon: Settings }
   ];
 
   return (
@@ -675,13 +675,14 @@ const StudentDashboard = ({ onSelectBook }) => {
           </nav>
         </div>
 
-        <div>
+        <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '10px' }}>
           <button
-            onClick={logout}
-            className="btn btn-secondary"
-            style={{ justifyContent: 'center', width: '100%', borderColor: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.82rem' }}
+            onClick={() => { setActiveTab('settings'); setSelectedBranch(''); }}
+            className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ justifyContent: 'center', width: '100%', fontSize: '0.82rem', gap: '8px' }}
+            title="Open Settings and Logout"
           >
-            <LogOut size={15} /> Log Out
+            <Settings size={15} /> Settings & Logout
           </button>
         </div>
       </aside>

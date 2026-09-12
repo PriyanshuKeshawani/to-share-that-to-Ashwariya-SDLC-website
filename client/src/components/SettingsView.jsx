@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   Sun, Moon, Palette, Check, User, Shield, Laptop,
   Bell, Send, Volume2, Radio, Sparkles, AlertCircle, Info, CheckCircle2, 
-  AlertTriangle, Users, BookOpen, Clock, Loader2, RefreshCw, Megaphone
+  AlertTriangle, Users, BookOpen, Clock, Loader2, RefreshCw, Megaphone,
+  LogOut
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -75,8 +76,23 @@ const SettingsView = ({ isAdmin = false }) => {
     palettes
   } = useTheme();
 
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isDark = mode === 'dark';
+
+  // Account Session & Logout States
+  const [showConfirmLogout, setShowConfirmLogout] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   // ── Admin Notification States ──
   const [branches, setBranches] = useState(OFFICIAL_BRANCHES);
@@ -1092,6 +1108,216 @@ const SettingsView = ({ isAdmin = false }) => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Section 4: Account Session & Sign Out ── */}
+      {user && (
+        <div className="glass-panel settings-section-card" style={{ 
+          padding: '28px', 
+          marginBottom: '24px', 
+          border: '1.5px solid rgba(239, 68, 68, 0.28)',
+          background: 'linear-gradient(180deg, var(--bg-card) 0%, rgba(239, 68, 68, 0.04) 100%)',
+          borderRadius: '16px'
+        }}>
+          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                padding: '10px', borderRadius: '12px', 
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(244, 63, 94, 0.1))', 
+                color: '#ef4444' 
+              }}>
+                <LogOut size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  Session Security & Sign Out
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Manage active portal authorization and sign out of your account
+                </span>
+              </div>
+            </div>
+
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '999px',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              background: 'rgba(16, 185, 129, 0.12)',
+              color: '#10b981',
+              border: '1px solid rgba(16, 185, 129, 0.25)'
+            }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+              Active Session
+            </span>
+          </div>
+
+          <div style={{
+            padding: '16px 18px',
+            borderRadius: '14px',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--border-glass)',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '1.15rem',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                flexShrink: 0
+              }}>
+                {(user.fullName || user.username || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.96rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user.fullName || user.username}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                  {user.rollNumber || user.roll_number || user.branchName || (isAdmin ? 'Central Library Administrator' : 'Enrolled Student')}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <span>Method:</span>
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                background: 'var(--surface-glow)',
+                border: '1px solid var(--border-glass)',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                textTransform: 'capitalize'
+              }}>
+                {user.authProvider || 'Database'}
+              </span>
+            </div>
+          </div>
+
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 20px 0', lineHeight: 1.55 }}>
+            Logging out will safely end your academic session, clear cached credentials, and prevent unauthorized library actions from this device. You can sign back in at any time.
+          </p>
+
+          {showConfirmLogout ? (
+            <div style={{
+              padding: '16px 20px',
+              borderRadius: '12px',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1.5px solid rgba(239, 68, 68, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              animation: 'fadeIn 0.2s ease-out'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Are you sure you want to end your library session and log out?
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '300px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmLogout(false)}
+                  className="btn btn-secondary"
+                  disabled={isLoggingOut}
+                  style={{ flex: 1, padding: '9px 14px', fontSize: '0.82rem', justifyContent: 'center' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="btn"
+                  style={{
+                    flex: 1.2,
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 16px',
+                    borderRadius: '10px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  }}
+                >
+                  {isLoggingOut ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> Signing out...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut size={14} /> Yes, Log Out
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowConfirmLogout(true)}
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(244, 63, 94, 0.08))',
+                color: '#ef4444',
+                border: '1.5px solid rgba(239, 68, 68, 0.35)',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                width: '100%',
+                maxWidth: '280px',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#ef4444';
+                e.currentTarget.style.boxShadow = '0 6px 18px rgba(239, 68, 68, 0.35)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(244, 63, 94, 0.08))';
+                e.currentTarget.style.color = '#ef4444';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.transform = 'none';
+              }}
+            >
+              <LogOut size={16} /> Log Out of SISTec Library
+            </button>
+          )}
         </div>
       )}
 
