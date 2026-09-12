@@ -866,6 +866,39 @@ export const AuthProvider = ({ children }) => {
       return { message: 'User unblocked', data };
     }
 
+    if (endpoint.startsWith('/auth/users/') && (method === 'PUT' || method === 'PATCH')) {
+      const userId = endpoint.split('/').pop();
+      const updates = {};
+      if (body.full_name !== undefined) updates.full_name = String(body.full_name).trim();
+      if (body.fullName !== undefined) updates.full_name = String(body.fullName).trim();
+      if (body.roll_number !== undefined) updates.roll_number = String(body.roll_number).trim();
+      if (body.rollNumber !== undefined) updates.roll_number = String(body.rollNumber).trim();
+      if (body.branch_name !== undefined) updates.branch_name = String(body.branch_name).trim();
+      if (body.branchName !== undefined) updates.branch_name = String(body.branchName).trim();
+      if (body.year !== undefined) updates.year = String(body.year).trim();
+      if (body.semester !== undefined) updates.semester = String(body.semester).trim();
+      if (body.bt_number !== undefined) updates.bt_number = String(body.bt_number).trim();
+      if (body.btNumber !== undefined) updates.bt_number = String(body.btNumber).trim();
+      if (body.email !== undefined) updates.email = String(body.email).trim().toLowerCase();
+      if (body.status !== undefined) updates.status = String(body.status).trim().toLowerCase();
+      if (body.is_blocked !== undefined) updates.is_blocked = Number(body.is_blocked);
+
+      const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select().single();
+      if (error) throw error;
+
+      try {
+        await supabase.from('activity_logs').insert([{
+          user_id: userId,
+          action_type: 'admin_edit',
+          details: `Admin updated student academic profile for ${updates.full_name || 'Student'} (${updates.roll_number || 'N/A'}) - Branch: ${updates.branch_name || 'N/A'}, Year: ${updates.year || 'N/A'}, Sem: ${updates.semester || 'N/A'}`
+        }]);
+      } catch (logErr) {
+        console.warn('Notice writing activity log for student edit:', logErr);
+      }
+
+      return { message: 'Student profile updated successfully', data };
+    }
+
     if (endpoint.startsWith('/auth/users/') && method === 'DELETE') {
       const userId = endpoint.split('/').pop();
       const { error } = await supabase.from('users').delete().eq('id', userId);

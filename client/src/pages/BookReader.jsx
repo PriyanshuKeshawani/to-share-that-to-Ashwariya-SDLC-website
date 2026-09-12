@@ -25,7 +25,9 @@ import {
   Maximize2,
   Minimize2,
   Layers,
-  Sparkles
+  Sparkles,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 // Configure PDF.js worker reliably for both dev and production build
@@ -58,6 +60,129 @@ const BookReader = ({ book, onClose }) => {
   const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
   const [saving, setSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const readerContainerRef = useRef(null);
+
+  // Audio Page Flip Sound State
+  const audioCtxRef = useRef(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem('sistec_reader_sound') !== 'false';
+  });
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('sistec_reader_sound', String(next));
+      return next;
+    });
+  }, []);
+
+  // Procedural Realistic Physical Paper Turn Sound Synthesis
+  const playPageFlipSound = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const bufferSize = Math.floor(ctx.sampleRate * 0.18);
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+      }
+
+      const whiteNoise = ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1600, ctx.currentTime);
+      filter.frequency.exponentialRampToValueAtTime(650, ctx.currentTime + 0.18);
+      filter.Q.setValueAtTime(2.2, ctx.currentTime);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0.28, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+
+      whiteNoise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      whiteNoise.start();
+    } catch {}
+  }, [soundEnabled]);
+
+  // Fullscreen Handler
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (readerContainerRef.current?.requestFullscreen) {
+          await readerContainerRef.current.requestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Fullscreen request notice:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Auto-adapt to 1-Page on mobile viewports (< 768px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setViewMode('single');
+        setScale(0.92);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Touchscreen swipe support for mobile
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartXRef.current === null || !e.changedTouches || e.changedTouches.length === 0) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+      const step = viewMode === 'spread' ? 2 : 1;
+      if (deltaX < 0) {
+        handlePageChange(currentPage + step, 'next');
+      } else {
+        handlePageChange(currentPage - step, 'prev');
+      }
+    }
+  };
 
   // PDF.js State
   const [pdfDoc, setPdfDoc] = useState(null);
@@ -338,6 +463,7 @@ const BookReader = ({ book, onClose }) => {
 
     const dir = direction || (pageNum > currentPage ? 'next' : 'prev');
     setIsFlipping(dir);
+    playPageFlipSound();
 
     setTimeout(() => {
       setCurrentPage(pageNum);
@@ -347,7 +473,7 @@ const BookReader = ({ book, onClose }) => {
     setTimeout(() => {
       setIsFlipping(null);
     }, 450);
-  }, [currentPage, totalPages, saveProgress]);
+  }, [currentPage, totalPages, saveProgress, playPageFlipSound]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -361,12 +487,12 @@ const BookReader = ({ book, onClose }) => {
         e.preventDefault();
         handlePageChange(currentPage - step, 'prev');
       } else if (e.key === 'f' || e.key === 'F') {
-        setIsFullscreen(prev => !prev);
+        toggleFullscreen();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPage, viewMode, handlePageChange]);
+  }, [currentPage, viewMode, handlePageChange, toggleFullscreen]);
 
   // Check if active page is bookmarked
   const isCurrentPageBookmarked = useMemo(() => {
@@ -527,7 +653,10 @@ const BookReader = ({ book, onClose }) => {
   }, [notes, selectedTagFilter, noteSearch]);
 
   return (
-    <div className={`book-reader-container animate-fade-in ${isFullscreen ? 'reader-fullscreen' : ''}`}>
+    <div
+      ref={readerContainerRef}
+      className={`book-reader-container animate-fade-in ${isFullscreen ? 'reader-fullscreen' : ''}`}
+    >
       {/* Access Denied Guard for Non-Home Branch Books */}
       {!hasAccess ? (
         <div style={{
@@ -815,6 +944,28 @@ const BookReader = ({ book, onClose }) => {
                 <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
               </button>
 
+              {/* Sound Effect Toggle */}
+              <button
+                onClick={toggleSound}
+                className="btn btn-secondary"
+                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                title={soundEnabled ? 'Page Flip Sound: ON (Click to Mute)' : 'Page Flip Sound: MUTED (Click to Enable)'}
+              >
+                {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
+                <span className="hide-mobile">{soundEnabled ? 'Audio' : 'Mute'}</span>
+              </button>
+
+              {/* Fullscreen Reading Mode Toggle */}
+              <button
+                onClick={toggleFullscreen}
+                className="btn btn-secondary"
+                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                title={isFullscreen ? 'Exit Full Screen' : 'Full Screen Reading Mode'}
+              >
+                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                <span className="hide-mobile">{isFullscreen ? 'Exit' : 'Full'}</span>
+              </button>
+
               {/* Fallback to Native Viewer if student desires browser PDF UI */}
               <button
                 onClick={() => setUseNativeViewer(prev => !prev)}
@@ -830,7 +981,11 @@ const BookReader = ({ book, onClose }) => {
           {/* ══════════════════════════════════════════════════════════
               MAIN READING STAGE: REALISTIC 3D BOOK ENGINE
               ══════════════════════════════════════════════════════════ */}
-          <div className="book-stage-viewport">
+          <div
+            className="book-stage-viewport"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {useNativeViewer || (!pdfSource && driveEmbed) ? (
               /* Native / External Drive Embed View */
               <div className="glass-panel" style={{

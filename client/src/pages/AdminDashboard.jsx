@@ -54,6 +54,18 @@ const AdminDashboard = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name } or null
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [selectedStudentForActivity, setSelectedStudentForActivity] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [studentEditFormData, setStudentEditFormData] = useState({
+    full_name: '',
+    roll_number: '',
+    bt_number: '',
+    branch_name: '',
+    year: '',
+    semester: '',
+    email: '',
+    status: 'approved'
+  });
+  const [studentEditSaving, setStudentEditSaving] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
@@ -429,6 +441,40 @@ const AdminDashboard = () => {
       setStudents(prev => prev.map(u => u.id === userId ? { ...u, is_blocked: isBlocked ? 1 : 0 } : u));
     } catch (err) {
       showFeedback(err.message || 'Action failed', 'error');
+    }
+  };
+
+  // Student Edit Handlers
+  const openEditStudentModal = (student) => {
+    setEditingStudent(student);
+    setStudentEditFormData({
+      full_name: student.full_name || '',
+      roll_number: student.roll_number || '',
+      bt_number: student.bt_number || '',
+      branch_name: student.branch_name || '',
+      year: student.year ? String(student.year) : '',
+      semester: student.semester ? String(student.semester) : '',
+      email: student.email || '',
+      status: student.status || 'approved'
+    });
+  };
+
+  const handleSaveStudentEdit = async (e) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setStudentEditSaving(true);
+    try {
+      await apiCall(`/auth/users/${editingStudent.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(studentEditFormData)
+      });
+      setStudents(prev => prev.map(s => s.id === editingStudent.id ? { ...s, ...studentEditFormData } : s));
+      showFeedback(`Student details for ${studentEditFormData.full_name} updated successfully.`);
+      setEditingStudent(null);
+    } catch (err) {
+      showFeedback(err.message || 'Failed to update student details.', 'error');
+    } finally {
+      setStudentEditSaving(false);
     }
   };
 
@@ -2812,6 +2858,22 @@ const AdminDashboard = () => {
                                      >
                                        <Activity size={14} /> Activity
                                      </button>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         openEditStudentModal(s);
+                                       }}
+                                       className="btn btn-secondary"
+                                       style={{
+                                         padding: '7px 12px',
+                                         borderColor: 'rgba(99, 102, 241, 0.35)',
+                                         color: 'var(--primary)',
+                                         fontSize: '0.8rem', gap: '6px'
+                                       }}
+                                       title={`Edit ${s.full_name}'s details (Academic Year, Branch, Roll No, etc.)`}
+                                     >
+                                       <Edit size={14} /> Edit
+                                     </button>
 
                                      {s.is_blocked === 1 ? (
                                        <button
@@ -4185,6 +4247,198 @@ const AdminDashboard = () => {
                 {deleteBookLoading ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Student Information Modal */}
+      {editingStudent && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(5, 7, 12, 0.85)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: '20px'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%', maxWidth: '560px',
+            padding: '32px',
+            border: '1px solid rgba(99,102,241,0.25)',
+            boxShadow: '0 0 40px rgba(99,102,241,0.12), var(--shadow-glass)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  padding: '10px', borderRadius: '12px',
+                  background: 'rgba(99,102,241,0.15)', color: 'var(--primary)'
+                }}>
+                  <Edit size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Edit Student Record</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    @{editingStudent.username} &bull; Registered {new Date(editingStudent.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="btn btn-secondary"
+                style={{ padding: '6px', borderRadius: '50%', minWidth: 'auto' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStudentEdit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="glass-input"
+                    value={studentEditFormData.full_name}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, full_name: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Email</label>
+                  <input
+                    type="email"
+                    required
+                    className="glass-input"
+                    value={studentEditFormData.email}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, email: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>University Roll No.</label>
+                  <input
+                    type="text"
+                    required
+                    className="glass-input"
+                    value={studentEditFormData.roll_number}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, roll_number: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>BT Number / Enrollment</label>
+                  <input
+                    type="text"
+                    className="glass-input"
+                    value={studentEditFormData.bt_number}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, bt_number: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Branch / Department</label>
+                <select
+                  className="glass-input glass-select"
+                  value={studentEditFormData.branch_name}
+                  onChange={e => setStudentEditFormData({ ...studentEditFormData, branch_name: e.target.value })}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Select Department</option>
+                  {branches.map(b => (
+                    <option key={b.id || b.name} value={b.name}>{b.name}</option>
+                  ))}
+                  {uniqueStudentBranches.filter(b => !branches.some(br => br.name === b)).map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Academic Year</label>
+                  <select
+                    className="glass-input glass-select"
+                    value={studentEditFormData.year}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, year: e.target.value })}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Select Year</option>
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                    <option value="1">1st Year (Num 1)</option>
+                    <option value="2">2nd Year (Num 2)</option>
+                    <option value="3">3rd Year (Num 3)</option>
+                    <option value="4">4th Year (Num 4)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Semester</label>
+                  <select
+                    className="glass-input glass-select"
+                    value={studentEditFormData.semester}
+                    onChange={e => setStudentEditFormData({ ...studentEditFormData, semester: e.target.value })}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Select Semester</option>
+                    <option value="1st Sem">1st Semester</option>
+                    <option value="2nd Sem">2nd Semester</option>
+                    <option value="3rd Sem">3rd Semester</option>
+                    <option value="4th Sem">4th Semester</option>
+                    <option value="5th Sem">5th Semester</option>
+                    <option value="6th Sem">6th Semester</option>
+                    <option value="7th Sem">7th Semester</option>
+                    <option value="8th Sem">8th Semester</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                      <option key={num} value={String(num)}>Semester {num}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Account Approval Status</label>
+                <select
+                  className="glass-input glass-select"
+                  value={studentEditFormData.status}
+                  onChange={e => setStudentEditFormData({ ...studentEditFormData, status: e.target.value })}
+                  style={{ width: '100%' }}
+                >
+                  <option value="approved">Approved</option>
+                  <option value="pending">Pending</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="btn btn-secondary"
+                  disabled={studentEditSaving}
+                  style={{ padding: '9px 20px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-shine"
+                  disabled={studentEditSaving}
+                  style={{ padding: '9px 24px', fontWeight: 600 }}
+                >
+                  {studentEditSaving ? 'Saving Changes...' : 'Save Student Details'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

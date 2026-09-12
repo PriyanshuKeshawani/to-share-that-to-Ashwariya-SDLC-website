@@ -1608,5 +1608,82 @@ p { color: var(--text-secondary); line-height: 1.65; }
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   READER FULLSCREEN & MOBILE OPTIMIZATIONS
+   ══════════════════════════════════════════════════════════════════════ */
+
+.book-reader-container.reader-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding: 12px 18px !important;
+  background: #060a14 !important;
+  z-index: 99999 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+.reader-fullscreen .book-stage-viewport {
+  height: calc(100vh - 80px) !important;
+  min-height: calc(100vh - 80px) !important;
+  padding: 8px 12px 16px !important;
+}
+
+.reader-fullscreen .book-open-spread {
+  max-height: calc(100vh - 100px) !important;
+}
+
+/* Mobile Responsiveness for 3D Book Experience */
+@media (max-width: 768px) {
+  .book-reader-container {
+    padding: 6px 4px;
+    gap: 8px;
+    min-height: calc(100vh - 55px);
+  }
+
+  .reader-minimal-bar {
+    padding: 8px 10px;
+    gap: 6px;
+    border-radius: 10px;
+    justify-content: space-between;
+  }
+
+  .book-stage-viewport {
+    padding: 6px 4px 14px;
+    min-height: 68vh;
+    touch-action: pan-y pinch-zoom;
+  }
+
+  .book-hardcover-casing {
+    padding: 6px 8px 8px;
+    border-radius: 8px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  }
+
+  .book-open-spread {
+    min-width: 94vw !important;
+    max-width: 98vw !important;
+    min-height: 64vh !important;
+    border-radius: 6px;
+  }
+
+  .book-edge-stacked {
+    display: none !important;
+  }
+
+  .page-turn-trigger {
+    width: 24% !important;
+  }
+
+  .page-turn-arrow-badge {
+    width: 32px;
+    height: 32px;
+  }
+}
+
 
 
