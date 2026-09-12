@@ -2070,7 +2070,26 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Invalid password for Institutional Administrator.');
     }
 
-    const authEmail = trimmedId.includes('@') ? idLower : `${idLower}@sistec.local`;
+    let authEmail = trimmedId.includes('@') ? idLower : `${idLower}@sistec.local`;
+
+    // Intelligently resolve authEmail: check if trimmedId matches a user by username or roll_number
+    try {
+      const { data: matchedUser } = await supabase
+        .from('users')
+        .select('username')
+        .or(`username.ilike.${trimmedId},roll_number.ilike.${trimmedId}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedUser && matchedUser.username) {
+        const matchedUsername = matchedUser.username;
+        authEmail = matchedUsername.includes('@')
+          ? matchedUsername.toLowerCase()
+          : `${matchedUsername.toLowerCase()}@sistec.local`;
+      }
+    } catch {
+      // Fall back to the default authEmail constructed from trimmedId
+    }
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: authEmail,
@@ -2256,24 +2275,45 @@ export const AuthProvider = ({ children }) => {
       btNumber
     } = userData;
 
+    const trimmedUsername = (username || '').trim();
+    if (!trimmedUsername) {
+      throw new Error('Username is required');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (trimmedUsername.includes('@') && !emailRegex.test(trimmedUsername)) {
+      throw new Error('Invalid email format. Please provide a valid email address or standard username.');
+    }
+
     const { data: existing } = await supabase
       .from('users')
       .select('id')
-      .eq('username', username)
+      .eq('username', trimmedUsername)
       .maybeSingle();
 
     if (existing) {
       throw new Error('Username is already taken');
     }
 
-    const fakeEmail = `${username.toLowerCase()}@sistec.local`;
+    const authEmail = trimmedUsername.includes('@')
+      ? trimmedUsername.toLowerCase()
+      : `${trimmedUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@sistec.local`;
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: fakeEmail,
+      email: authEmail,
       password: password,
     });
 
     if (authError) {
+      if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
+        throw new Error('An account with this email already exists. Please log in instead.');
+      }
       throw new Error(authError.message);
+    }
+
+    // Identity check: if no identities exist, the email/username is already registered
+    if (authData?.user?.identities && authData.user.identities.length === 0) {
+      throw new Error('An account with this email or username is already registered. Please proceed to sign in.');
     }
 
     if (!authData.user) {
@@ -2288,7 +2328,7 @@ export const AuthProvider = ({ children }) => {
 
     const { data, error } = await supabase.from('users').insert([{
       id: userId,
-      username,
+      username: trimmedUsername,
       full_name: fullName,
       roll_number: rollNumber,
       branch_name: branchName,
