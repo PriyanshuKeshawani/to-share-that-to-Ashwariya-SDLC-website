@@ -27,8 +27,10 @@ import {
   Minimize2,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Share2
 } from 'lucide-react';
+import ShareBookModal from '../components/ShareBookModal';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker reliably for Vite dev server and production bundle
@@ -59,6 +61,7 @@ const BookReader = ({ book, onClose }) => {
   const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
   const [saving, setSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const readerContainerRef = useRef(null);
 
   // Mobile viewport reactive detection
@@ -747,6 +750,15 @@ const BookReader = ({ book, onClose }) => {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
+                  onClick={() => setShowShareModal(true)}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 8px', fontSize: '0.78rem' }}
+                  title="Share Book Link"
+                >
+                  <Share2 size={14} />
+                </button>
+
+                <button
                   onClick={toggleMode}
                   className="btn btn-secondary"
                   style={{ padding: '6px 8px', fontSize: '0.78rem' }}
@@ -985,6 +997,17 @@ const BookReader = ({ book, onClose }) => {
                       {notes.length + bookmarks.length}
                     </span>
                   )}
+                </button>
+
+                {/* Share Book Link */}
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  title="Share Book Link"
+                >
+                  <Share2 size={14} />
+                  <span className="hide-mobile">Share</span>
                 </button>
 
                 {/* Quick PDF Download */}
@@ -1809,6 +1832,14 @@ const BookReader = ({ book, onClose }) => {
             </>
           )}
         </>
+      )}
+
+      {/* Share Book Link Modal */}
+      {showShareModal && (
+        <ShareBookModal
+          book={book}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
     </div>
   );

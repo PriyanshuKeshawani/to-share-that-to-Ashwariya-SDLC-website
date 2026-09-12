@@ -4,7 +4,8 @@ import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
-  Activity, X, Settings, RefreshCw, Printer, FileText
+  Activity, X, Settings, RefreshCw, Printer, FileText,
+  Share2, Info
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -13,6 +14,8 @@ import BottomNav from '../components/BottomNav';
 import SettingsView from '../components/SettingsView';
 import { SkeletonCard } from '../components/SkeletonLoader';
 import { printStudentTranscript } from '../components/StudentActivityModal';
+import ShareBookModal from '../components/ShareBookModal';
+import BookOverviewModal from '../components/BookOverviewModal';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -25,6 +28,10 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [actionLoading, setActionLoading] = useState({});
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
   const [printingTranscript, setPrintingTranscript] = useState(false);
+
+  // Sharing and Overview Modals State
+  const [sharingBook, setSharingBook] = useState(null);
+  const [overviewBook, setOverviewBook] = useState(null);
 
   const [activeTab, setActiveTab] = useState('all');
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
@@ -97,6 +104,23 @@ const StudentDashboard = ({ onSelectBook }) => {
     load();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open Book Overview Modal when URL contains shared book parameter (?book=<id>)
+  useEffect(() => {
+    if (books.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const bookParam = params.get('book');
+      if (bookParam) {
+        const targetBook = books.find(b => String(b.id) === String(bookParam));
+        if (targetBook) {
+          setOverviewBook(targetBook);
+        }
+      }
+    } catch (err) {
+      console.warn('Notice resolving shared book URL parameter:', err);
+    }
+  }, [books]);
 
   const handleRequestAccess = async (book) => {
     if (!book) return;
@@ -849,6 +873,14 @@ const StudentDashboard = ({ onSelectBook }) => {
                                 <Download size={14} />
                               </button>
                             )}
+                            <button
+                              onClick={() => setSharingBook(b)}
+                              className="btn btn-secondary"
+                              style={{ padding: '8px 12px' }}
+                              title="Share Book Link"
+                            >
+                              <Share2 size={14} />
+                            </button>
                           </>
                         ) : isPending ? (
                           <button
@@ -1208,35 +1240,51 @@ const StudentDashboard = ({ onSelectBook }) => {
                           <span>{book.category_name || 'General Engineering'}</span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           {access.hasAccess ? (
                             <>
                               <button
                                 onClick={() => handleOpenBook(book)}
                                 className="btn btn-primary btn-shine"
-                                style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem' }}
+                                style={{ flex: 1, padding: '8px 10px', fontSize: '0.82rem', gap: '5px' }}
                               >
-                                <BookOpen size={14} /> Read Book
+                                <BookOpen size={14} /> Read
                               </button>
                               {(hasDrive || hasPdf) && (
                                 <button
                                   onClick={() => handleDownload(book)}
                                   className="btn btn-secondary"
-                                  style={{ padding: '8px 12px' }}
+                                  style={{ padding: '8px 10px' }}
                                   title="Download / Open in Drive"
                                 >
                                   <Download size={14} />
                                 </button>
                               )}
+                              <button
+                                onClick={() => setSharingBook(book)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 10px' }}
+                                title="Share Book Link"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setOverviewBook(book)}
+                                className="btn btn-ghost"
+                                style={{ padding: '8px 8px' }}
+                                title="View Details & Overview"
+                              >
+                                <Info size={14} />
+                              </button>
                             </>
                           ) : access.status === 'pending' ? (
                             <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
                               <button
                                 className="btn btn-secondary"
-                                style={{ flex: 1, cursor: 'not-allowed', fontSize: '0.78rem', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                                style={{ flex: 1, cursor: 'not-allowed', fontSize: '0.76rem', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
                                 disabled
                               >
-                                <Clock size={13} /> Pending Approval
+                                <Clock size={13} /> Pending
                               </button>
                               {(() => {
                                 const matchReq = requests.find(r => book.id != null && r.book_id != null && String(r.book_id) === String(book.id) && r.status === 'pending');
@@ -1244,7 +1292,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                                   <button
                                     onClick={() => handleCancelRequest(matchReq.id, book.title)}
                                     className="btn btn-secondary"
-                                    style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                    style={{ padding: '8px 10px', fontSize: '0.78rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                                     title="Cancel Request"
                                     disabled={actionLoading[`cancel-${matchReq.id}`]}
                                   >
@@ -1252,25 +1300,69 @@ const StudentDashboard = ({ onSelectBook }) => {
                                   </button>
                                 ) : null;
                               })()}
+                              <button
+                                onClick={() => setSharingBook(book)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 10px' }}
+                                title="Share Book Link"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setOverviewBook(book)}
+                                className="btn btn-ghost"
+                                style={{ padding: '8px 8px' }}
+                                title="View Details & Overview"
+                              >
+                                <Info size={14} />
+                              </button>
                             </div>
                           ) : access.status === 'rejected' ? (
-                            <button
-                              onClick={() => handleRequestAccess(book)}
-                              className="btn btn-danger"
-                              style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                              disabled={actionLoading[`book-${book.id}`]}
-                            >
-                              <ShieldAlert size={13} /> {actionLoading[`book-${book.id}`] ? 'Submitting...' : 'Permission Denied - Request Again'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                              <button
+                                onClick={() => handleRequestAccess(book)}
+                                className="btn btn-danger"
+                                style={{ flex: 1, fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                disabled={actionLoading[`book-${book.id}`]}
+                              >
+                                <ShieldAlert size={13} /> {actionLoading[`book-${book.id}`] ? 'Submitting...' : 'Request Again'}
+                              </button>
+                              <button
+                                onClick={() => setSharingBook(book)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 10px' }}
+                                title="Share Book Link"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                            </div>
                           ) : (
-                            <button
-                              onClick={() => handleRequestAccess(book)}
-                              className="btn btn-primary btn-shine"
-                              style={{ width: '100%', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                              disabled={actionLoading[`book-${book.id}`]}
-                            >
-                              <Lock size={13} /> {actionLoading[`book-${book.id}`] ? 'Requesting...' : 'Request Permission to Read'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                              <button
+                                onClick={() => handleRequestAccess(book)}
+                                className="btn btn-primary btn-shine"
+                                style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                disabled={actionLoading[`book-${book.id}`]}
+                              >
+                                <Lock size={13} /> {actionLoading[`book-${book.id}`] ? 'Requesting...' : 'Request Access'}
+                              </button>
+                              <button
+                                onClick={() => setSharingBook(book)}
+                                className="btn btn-secondary"
+                                style={{ padding: '8px 10px' }}
+                                title="Share Book Link"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setOverviewBook(book)}
+                                className="btn btn-ghost"
+                                style={{ padding: '8px 8px' }}
+                                title="View Details & Overview"
+                              >
+                                <Info size={14} />
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1292,6 +1384,48 @@ const StudentDashboard = ({ onSelectBook }) => {
         onOpenMenu={() => {}}
         badges={{ requests: pendingRequestsCount }}
       />
+
+      {/* Share Book Link Modal */}
+      {sharingBook && (
+        <ShareBookModal
+          book={sharingBook}
+          onClose={() => setSharingBook(null)}
+          onShowFeedback={showFeedback}
+        />
+      )}
+
+      {/* Dynamic Book Overview & Permission Dossier Modal */}
+      {overviewBook && (
+        <BookOverviewModal
+          book={overviewBook}
+          user={user}
+          accessInfo={getBookAccess(overviewBook)}
+          onRequestAccess={async (b) => {
+            await handleRequestAccess(b);
+            // Refresh requests so the modal immediately transitions to pending status
+            try {
+              const reqs = await apiCall('/permissions/my-requests');
+              setRequests(reqs || []);
+            } catch {}
+          }}
+          onRead={(b) => {
+            setOverviewBook(null);
+            handleOpenBook(b);
+          }}
+          onShare={(b) => setSharingBook(b)}
+          onClose={() => {
+            setOverviewBook(null);
+            if (typeof window !== 'undefined' && window.location.search.includes('book=')) {
+              try {
+                const url = new URL(window.location);
+                url.searchParams.delete('book');
+                window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+              } catch {}
+            }
+          }}
+          requestLoading={Boolean(actionLoading[`book-${overviewBook.id}`])}
+        />
+      )}
     </div>
   );
 };
