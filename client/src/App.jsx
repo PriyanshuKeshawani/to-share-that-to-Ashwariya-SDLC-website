@@ -10,6 +10,63 @@ import AdminDashboard from './pages/AdminDashboard';
 import GoogleProfileCompletion from './components/GoogleProfileCompletion';
 import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 
+class GlobalErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('Portal caught runtime error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '24px 16px',
+          background: 'var(--bg-main, #0b0f19)',
+          color: 'var(--text-primary, #ffffff)'
+        }}>
+          <div className="glass-panel" style={{ padding: '36px 28px', maxWidth: '460px', borderRadius: '16px', textAlign: 'center' }}>
+            <AlertTriangle size={48} color="#f59e0b" style={{ margin: '0 auto 16px' }} />
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '10px', fontWeight: 700 }}>
+              SISTEC Library Portal
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary, #94a3b8)', marginBottom: '22px', lineHeight: '1.6' }}>
+              A temporary runtime issue occurred. Click below to reload your library workspace.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  window.location.href = window.location.pathname;
+                }}
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '11px', fontSize: '0.88rem', fontWeight: 600 }}
+              >
+                Reload Portal
+              </button>
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '11px', fontSize: '0.88rem' }}
+              >
+                Retry View
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 class ReaderErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -354,7 +411,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppContent />
+        <GlobalErrorBoundary>
+          <AppContent />
+        </GlobalErrorBoundary>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -1848,31 +1848,36 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!user || user.status !== 'pending') return;
 
-    const userChannel = supabase
-      .channel(`realtime-user-approval-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user.id}`
-        },
-        (payload) => {
-          if (payload.new && payload.new.status && payload.new.status !== 'pending') {
-            console.log('Realtime user approval received:', payload.new.status);
-            loadUser(true);
+    let userChannel = null;
+    try {
+      userChannel = supabase
+        .channel(`realtime-user-approval-${user.id}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'users',
+            filter: `id=eq.${user.id}`
+          },
+          (payload) => {
+            if (payload.new && payload.new.status && payload.new.status !== 'pending') {
+              console.log('Realtime user approval received:', payload.new.status);
+              loadUser(true);
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime user channel subscribe note:', e.message);
+    }
 
     const pollTimer = setInterval(() => {
       loadUser(true);
     }, 3000);
 
     return () => {
-      supabase.removeChannel(userChannel);
+      if (userChannel) supabase.removeChannel(userChannel);
       clearInterval(pollTimer);
     };
   }, [user?.id, user?.status, loadUser]);

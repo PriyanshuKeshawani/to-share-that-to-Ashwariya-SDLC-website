@@ -153,34 +153,39 @@ const StudentDashboard = ({ onSelectBook }) => {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel(`student-live-portal-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
-        silentRefresh();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, () => {
-        silentRefresh();
-      })
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'permissions', filter: `user_id=eq.${user.id}` },
-        (payload) => {
+    let channel = null;
+    try {
+      channel = supabase
+        .channel(`student-live-portal-${user.id}-${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
           silentRefresh();
-          if (payload.new?.status === 'approved') {
-            showFeedback('Your cross-department book access request was approved by the librarian!', 'success');
-          } else if (payload.new?.status === 'rejected') {
-            showFeedback('An access request was declined by the administrator.', 'error');
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, () => {
+          silentRefresh();
+        })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'permissions', filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            silentRefresh();
+            if (payload.new?.status === 'approved') {
+              showFeedback('Your cross-department book access request was approved by the librarian!', 'success');
+            } else if (payload.new?.status === 'rejected') {
+              showFeedback('An access request was declined by the administrator.', 'error');
+            }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_book_progress', filter: `user_id=eq.${user.id}` },
-        () => {
-          silentRefresh();
-        }
-      )
-      .subscribe();
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'user_book_progress', filter: `user_id=eq.${user.id}` },
+          () => {
+            silentRefresh();
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime student channel subscribe note:', e.message);
+    }
 
     const handleFocus = () => silentRefresh();
     window.addEventListener('focus', handleFocus);
@@ -188,7 +193,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     const interval = setInterval(silentRefresh, 10000);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };

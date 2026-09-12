@@ -298,25 +298,30 @@ const AdminDashboard = () => {
       }, 500);
     };
 
-    const channel = supabase
-      .channel('admin-realtime-all-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, triggerDebouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_book_progress' }, triggerDebouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        triggerDebouncedRefresh();
-        if (payload.eventType === 'INSERT' && payload.new?.role === 'student' && payload.new?.status === 'pending') {
-          showFeedback(`New registration pending approval: ${payload.new.full_name || payload.new.username}`, 'info');
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'permissions' }, (payload) => {
-        triggerDebouncedRefresh();
-        if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
-          showFeedback('New cross-department book access request received.', 'info');
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, triggerDebouncedRefresh)
-      .subscribe();
+    let channel = null;
+    try {
+      channel = supabase
+        .channel(`admin-realtime-all-sync-${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, triggerDebouncedRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_book_progress' }, triggerDebouncedRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+          triggerDebouncedRefresh();
+          if (payload.eventType === 'INSERT' && payload.new?.role === 'student' && payload.new?.status === 'pending') {
+            showFeedback(`New registration pending approval: ${payload.new.full_name || payload.new.username}`, 'info');
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'permissions' }, (payload) => {
+          triggerDebouncedRefresh();
+          if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
+            showFeedback('New cross-department book access request received.', 'info');
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, triggerDebouncedRefresh)
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime admin channel subscribe note:', e.message);
+    }
 
     const handleFocus = () => silentRefreshAdminData();
     window.addEventListener('focus', handleFocus);
@@ -325,7 +330,7 @@ const AdminDashboard = () => {
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };

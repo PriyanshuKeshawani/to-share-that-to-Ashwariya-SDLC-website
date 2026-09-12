@@ -106,44 +106,49 @@ const NotificationBell = () => {
     fetchNotifications();
 
     // 1. Instant Realtime WebSocket subscription for this user's notifications
-    const channel = supabase
-      .channel(`realtime-bell-notifs-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          if (payload.new) {
-            setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
-            setUnreadCount(prev => prev + 1);
-            try {
-              const audio = new Audio('/sounds/notification.mp3');
-              audio.volume = 0.5;
-              audio.play().catch(() => {});
-            } catch {}
+    let channel = null;
+    try {
+      channel = supabase
+        .channel(`realtime-bell-notifs-${user.id}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            if (payload.new) {
+              setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
+              setUnreadCount(prev => prev + 1);
+              try {
+                const audio = new Audio('/sounds/notification.mp3');
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+              } catch {}
+            }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          if (payload.new) {
-            setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
-            fetchNotifications();
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            if (payload.new) {
+              setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+              fetchNotifications();
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime notifications subscribe note:', e.message);
+    }
 
     // 2. Window focus listener: immediately sync when user tabs back
     const handleFocus = () => fetchNotifications();
@@ -153,7 +158,7 @@ const NotificationBell = () => {
     const interval = setInterval(fetchNotifications, 10000);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
