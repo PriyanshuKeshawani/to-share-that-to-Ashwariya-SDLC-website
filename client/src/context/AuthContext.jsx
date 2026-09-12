@@ -11,7 +11,7 @@ export const canonicalBranch = (name) => {
   let s = String(name).toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
 
   // AI / Data Science check must come before general CSE check!
-  if (s.includes('aids') || (s.includes('artificial') && (s.includes('intelligence') || s.includes('intel')))) {
+  if (s.includes('aids') || (s.includes('artif') && (s.includes('intel') || s.includes('data')))) {
     return 'aids';
   }
   if (s.includes('cyber')) return 'cyber';
@@ -47,8 +47,11 @@ export const isSameBranch = (branchA, branchB) => {
   if (!branchA || !branchB) return false;
   const a = String(branchA).trim();
   const b = String(branchB).trim();
+  if (!a || !b) return false;
   if (a.toLowerCase() === b.toLowerCase()) return true;
-  return canonicalBranch(a) === canonicalBranch(b);
+  const canA = canonicalBranch(a);
+  const canB = canonicalBranch(b);
+  return Boolean(canA && canB && canA === canB);
 };
 
 const AuthContext = createContext(null);
@@ -1550,8 +1553,8 @@ export const AuthProvider = ({ children }) => {
 
       // 4. Branch-wise Performance (Accesses vs Downloads)
       const branchPerformance = branchesList.map(br => {
-        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id);
-        const brStudents = enrichedStudentsList.filter(s => s.branch_name === br.name);
+        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name));
+        const brStudents = enrichedStudentsList.filter(s => isSameBranch(s.branch_name, br.name));
 
         const totalAcc = brBooks.reduce((sum, b) => sum + b.total_accesses, 0);
         const totalDwn = brBooks.reduce((sum, b) => sum + b.total_downloads, 0);
@@ -1569,7 +1572,7 @@ export const AuthProvider = ({ children }) => {
 
       // 5. Most Read Book in Each Branch
       const mostReadPerBranch = branchesList.map(br => {
-        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id);
+        const brBooks = enrichedBooksList.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name));
         const sortedBrBooks = [...brBooks].sort((a, b) => b.total_activity - a.total_activity);
         const topBrBook = sortedBrBooks[0];
 
@@ -1598,35 +1601,59 @@ export const AuthProvider = ({ children }) => {
       });
 
       // Detailed drill-down datasets
-      const mappedAccessLogs = viewLogs.map(l => ({
-        id: l.id,
-        created_at: l.created_at,
-        action_type: l.action_type,
-        details: l.details,
-        user_id: l.user_id,
-        user_name: l.user?.full_name || 'Student / Reader',
-        roll_number: l.user?.roll_number || 'N/A',
-        branch_name: l.user?.branch_name || 'Academic Faculty',
-        book_id: l.book_id,
-        book_title: l.book?.title || 'Library E-Book Resource',
-        book_author: l.book?.author || 'Academic Author',
-        cover_url: l.book?.cover_url || null
-      }));
+      const mappedAccessLogs = viewLogs.map(l => {
+        const rawBk = l.book || booksListRaw.find(b => b.id === l.book_id);
+        const rawUsr = l.user || usersListRaw.find(u => u.id === l.user_id);
+        const bookBranchId = rawBk?.branch_id || null;
+        const bookBranchObj = branchesList.find(br => br.id === bookBranchId);
+        const bookBranchName = bookBranchObj ? bookBranchObj.name : (rawBk?.branch?.name || null);
+        const userBranchName = rawUsr?.branch_name || null;
 
-      const mappedDownloadLogs = downloadLogs.map(l => ({
-        id: l.id,
-        created_at: l.created_at,
-        action_type: l.action_type,
-        details: l.details,
-        user_id: l.user_id,
-        user_name: l.user?.full_name || 'Student / Reader',
-        roll_number: l.user?.roll_number || 'N/A',
-        branch_name: l.user?.branch_name || 'Academic Faculty',
-        book_id: l.book_id,
-        book_title: l.book?.title || 'Library E-Book Resource',
-        book_author: l.book?.author || 'Academic Author',
-        cover_url: l.book?.cover_url || null
-      }));
+        return {
+          id: l.id,
+          created_at: l.created_at,
+          action_type: l.action_type,
+          details: l.details,
+          user_id: l.user_id,
+          user_name: rawUsr?.full_name || 'Student / Reader',
+          roll_number: rawUsr?.roll_number || 'N/A',
+          branch_name: bookBranchName || userBranchName || 'Academic Faculty',
+          user_branch_name: userBranchName,
+          book_branch_id: bookBranchId,
+          book_branch_name: bookBranchName,
+          book_id: l.book_id,
+          book_title: rawBk?.title || 'Library E-Book Resource',
+          book_author: rawBk?.author || 'Academic Author',
+          cover_url: rawBk?.cover_url || null
+        };
+      });
+
+      const mappedDownloadLogs = downloadLogs.map(l => {
+        const rawBk = l.book || booksListRaw.find(b => b.id === l.book_id);
+        const rawUsr = l.user || usersListRaw.find(u => u.id === l.user_id);
+        const bookBranchId = rawBk?.branch_id || null;
+        const bookBranchObj = branchesList.find(br => br.id === bookBranchId);
+        const bookBranchName = bookBranchObj ? bookBranchObj.name : (rawBk?.branch?.name || null);
+        const userBranchName = rawUsr?.branch_name || null;
+
+        return {
+          id: l.id,
+          created_at: l.created_at,
+          action_type: l.action_type,
+          details: l.details,
+          user_id: l.user_id,
+          user_name: rawUsr?.full_name || 'Student / Reader',
+          roll_number: rawUsr?.roll_number || 'N/A',
+          branch_name: bookBranchName || userBranchName || 'Academic Faculty',
+          user_branch_name: userBranchName,
+          book_branch_id: bookBranchId,
+          book_branch_name: bookBranchName,
+          book_id: l.book_id,
+          book_title: rawBk?.title || 'Library E-Book Resource',
+          book_author: rawBk?.author || 'Academic Author',
+          cover_url: rawBk?.cover_url || null
+        };
+      });
 
       return {
         stats: {

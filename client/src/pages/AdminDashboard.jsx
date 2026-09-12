@@ -1416,8 +1416,8 @@ const AdminDashboard = () => {
 
                     {/* Sub-Tab 1: Overview */}
                     {departmentActiveTab === 'overview' && (() => {
-                      const branchTopBook = dashboardData.mostReadPerBranch.find(m => m.branch_id === selectedBranchForDrilldown.branch_id);
-                      const branchStudents = dashboardData.drilldowns.students.filter(s => s.branch_name === selectedBranchForDrilldown.branch_name);
+                      const branchTopBook = dashboardData.mostReadPerBranch.find(m => m.branch_id === selectedBranchForDrilldown.branch_id || isSameBranch(m.branch_name, selectedBranchForDrilldown.branch_name));
+                      const branchStudents = dashboardData.drilldowns.students.filter(s => isSameBranch(s.branch_name, selectedBranchForDrilldown.branch_name));
                       const branchTopStudent = [...branchStudents].sort((a, b) => b.total_activity - a.total_activity)[0];
 
                       return (
@@ -1546,9 +1546,9 @@ const AdminDashboard = () => {
                     {/* Sub-Tab 2: Department Students */}
                     {departmentActiveTab === 'students' && (() => {
                       const branchStudents = dashboardData.drilldowns.students
-                        .filter(s => s.branch_name === selectedBranchForDrilldown.branch_name)
+                        .filter(s => isSameBranch(s.branch_name, selectedBranchForDrilldown.branch_name))
                         .filter(s => {
-                          const q = departmentSearch.toLowerCase();
+                          const q = departmentSearch.toLowerCase().trim();
                           return !q || s.full_name?.toLowerCase().includes(q) || s.roll_number?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q);
                         });
 
@@ -1638,9 +1638,9 @@ const AdminDashboard = () => {
                     {/* Sub-Tab 3: Department Books */}
                     {departmentActiveTab === 'books' && (() => {
                       const branchBooks = dashboardData.drilldowns.books
-                        .filter(b => b.branch_id === selectedBranchForDrilldown.branch_id || b.branch_name === selectedBranchForDrilldown.branch_name)
+                        .filter(b => b.branch_id === selectedBranchForDrilldown.branch_id || isSameBranch(b.branch_name, selectedBranchForDrilldown.branch_name))
                         .filter(b => {
-                          const q = departmentSearch.toLowerCase();
+                          const q = departmentSearch.toLowerCase().trim();
                           return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q);
                         });
 
@@ -1733,20 +1733,63 @@ const AdminDashboard = () => {
 
                     {/* Sub-Tab 4: Department Activity */}
                     {departmentActiveTab === 'activity' && (() => {
-                      const branchLogs = [
-                        ...dashboardData.drilldowns.views.filter(v => v.branch_name === selectedBranchForDrilldown.branch_name),
-                        ...dashboardData.drilldowns.downloads.filter(d => d.branch_name === selectedBranchForDrilldown.branch_name)
+                      const isBranchLog = (l) => {
+                        if (!l) return false;
+                        if (l.book_branch_id && l.book_branch_id === selectedBranchForDrilldown.branch_id) return true;
+                        if (l.book_branch_name && isSameBranch(l.book_branch_name, selectedBranchForDrilldown.branch_name)) return true;
+                        if (l.user_branch_name && isSameBranch(l.user_branch_name, selectedBranchForDrilldown.branch_name)) return true;
+                        if (l.branch_name && isSameBranch(l.branch_name, selectedBranchForDrilldown.branch_name)) return true;
+                        return false;
+                      };
+
+                      const allBranchLogs = [
+                        ...dashboardData.drilldowns.views.filter(isBranchLog),
+                        ...dashboardData.drilldowns.downloads.filter(isBranchLog)
                       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                      const branchLogs = allBranchLogs.filter(l => {
+                        const q = departmentSearch.toLowerCase().trim();
+                        return !q ||
+                          l.user_name?.toLowerCase().includes(q) ||
+                          l.roll_number?.toLowerCase().includes(q) ||
+                          l.book_title?.toLowerCase().includes(q) ||
+                          l.action_type?.toLowerCase().includes(q);
+                      });
 
                       return (
                         <div className="glass-panel" style={{ padding: '24px' }}>
-                          <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '20px' }}>
-                            Activity Logs for {selectedBranchForDrilldown.branch_name} ({branchLogs.length})
-                          </h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                              Activity Logs for {selectedBranchForDrilldown.branch_name} ({branchLogs.length})
+                            </h4>
+                            <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <span className="search-icon">
+                                <Search size={15} />
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="Search by student, book, roll..."
+                                value={departmentSearch}
+                                onChange={(e) => setDepartmentSearch(e.target.value)}
+                                className="glass-input has-search-icon"
+                                style={{ height: '38px', fontSize: '0.82rem' }}
+                              />
+                              {departmentSearch && (
+                                <button
+                                  type="button"
+                                  className="search-clear-btn"
+                                  onClick={() => setDepartmentSearch('')}
+                                  title="Clear search"
+                                >
+                                  <X size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
 
                           {branchLogs.length === 0 ? (
                             <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
-                              No activity recorded in Supabase for this branch.
+                              {departmentSearch ? 'No activity logs matching your search.' : 'No activity recorded in Supabase for this branch.'}
                             </p>
                           ) : (
                             <div className="table-responsive-wrapper">
