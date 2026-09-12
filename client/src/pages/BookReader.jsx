@@ -1128,7 +1128,7 @@ const BookReader = ({ book, onClose }) => {
 
                   {/* LEFT PAGE (or Sole Page in Single Mode) */}
                   <div
-                    className="book-page-leaf"
+                    className={`book-page-leaf ${isFlipping ? `flipping-${isFlipping}` : ''}`}
                     style={{
                       flex: 1,
                       borderRight: viewMode === 'spread' ? '1px solid rgba(0,0,0,0.06)' : 'none',
@@ -1195,13 +1195,12 @@ const BookReader = ({ book, onClose }) => {
 
                   {/* 3D Page Flip Animation Sheet */}
                   {isFlipping && (
-                    <div className={`page-turning-sheet ${isFlipping === 'next' ? 'page-turning-sheet-next' : 'page-turning-sheet-prev'}`}>
-                      <div style={{
-                        width: '100%',
-                        height: '100%',
-                        background: 'linear-gradient(to right, #f8fafc 0%, #e2e8f0 100%)',
-                        boxShadow: 'inset 0 0 30px rgba(0,0,0,0.15)'
-                      }} />
+                    <div
+                      className={`page-turning-sheet ${
+                        viewMode === 'single' ? 'page-turning-sheet-single' : 'page-turning-sheet-spread'
+                      } ${isFlipping === 'next' ? 'page-turning-sheet-next' : 'page-turning-sheet-prev'}`}
+                    >
+                      <div className="page-turning-sheet-inner" />
                     </div>
                   )}
                 </div>
