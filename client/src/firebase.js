@@ -61,14 +61,14 @@ export const requestNotificationPermission = async (user) => {
       return { success: false, reason: 'denied', error: 'Notification permission was not granted.' };
     }
 
-    // Register our custom service worker
+    // Register and wait for active service worker
     let registration = null;
     if ('serviceWorker' in navigator) {
       try {
-        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
           scope: '/'
         });
-        await navigator.serviceWorker.ready;
+        registration = await navigator.serviceWorker.ready;
       } catch (swErr) {
         console.warn('Service worker registration note:', swErr);
       }
@@ -79,11 +79,31 @@ export const requestNotificationPermission = async (user) => {
       return { success: false, reason: 'unsupported', error: 'FCM messaging could not be initialized on this device.' };
     }
 
-    // Retrieve FCM Device Push Token
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration || undefined
-    });
+    // Retrieve FCM Device Push Token with active registration
+    let token = null;
+    try {
+      token = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration || undefined
+      });
+    } catch (firstErr) {
+      console.warn('First getToken attempt with registration, trying default fallback...', firstErr);
+      try {
+        token = await getToken(messaging, {
+          vapidKey: VAPID_KEY
+        });
+      } catch (fallbackErr) {
+        // Provide user-friendly explanation for Chrome push service error
+        if (fallbackErr.name === 'AbortError' || fallbackErr.message?.includes('push service error')) {
+          return {
+            success: false,
+            reason: 'push_service_error',
+            error: 'Push service error: Google Chrome push service cannot connect. Please ensure you are NOT in Incognito mode, or unregister old service workers in DevTools (F12 > Application > Service Workers > Unregister).'
+          };
+        }
+        throw fallbackErr;
+      }
+    }
 
     if (!token) {
       return { success: false, error: 'Failed to retrieve FCM push token from Firebase.' };
