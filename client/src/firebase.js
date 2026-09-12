@@ -2,17 +2,20 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { supabase } from './supabaseClient';
 
-// Firebase configuration using Vite environment variables
+const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCJRCTpgdNwbrKO6VW2yEC-auqIGRsP5s0';
+const rawVapid = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BCJg4OePBub_inm9aF8U_0WzT1oo1c2EEgFHtYBOG6ZJ-pwekdQxJRKM3Dv5Fl2l6hzkbHTDsosWhyPgYm6j9rI';
+
+// Firebase configuration using sanitized environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCJRCTpgdNwbrKO6VW2yEC-auqIGRsP5s0',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'sistec-library-portal.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sistec-library-portal',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'sistec-library-portal.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1076845729176',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1076845729176:web:8b35bc3b968dbd16cb07ed'
+  apiKey: String(rawApiKey).trim().split(/[\r\n]/)[0].trim(),
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'sistec-library-portal.firebaseapp.com').trim(),
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sistec-library-portal').trim(),
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'sistec-library-portal.firebasestorage.app').trim(),
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1076845729176').trim(),
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID || '1:1076845729176:web:8b35bc3b968dbd16cb07ed').trim()
 };
 
-export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BCJg4OePBub_inm9aF8U_0WzT1oo1c2EEgFHtYBOG6ZJ-pwekdQxJRKM3Dv5Fl2l6hzkbHTDsosWhyPgYm6j9rI';
+export const VAPID_KEY = String(rawVapid).trim().split(/[\r\n]/)[0].trim();
 
 // Initialize or reuse existing Firebase instance
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -93,12 +96,13 @@ export const requestNotificationPermission = async (user) => {
           vapidKey: VAPID_KEY
         });
       } catch (fallbackErr) {
-        // Provide user-friendly explanation for Chrome push service error
+        // Provide user-friendly explanation and fallback for Chrome push service error
         if (fallbackErr.name === 'AbortError' || fallbackErr.message?.includes('push service error')) {
+          console.info('Chrome push service not supported in this window mode (Incognito/Private). In-app live alerts remain active.');
           return {
-            success: false,
-            reason: 'push_service_error',
-            error: 'Push service error: Google Chrome push service cannot connect. Please ensure you are NOT in Incognito mode, or unregister old service workers in DevTools (F12 > Application > Service Workers > Unregister).'
+            success: true,
+            mode: 'in_app',
+            message: 'In-app notifications active! (Note: Background desktop push requires a normal, non-incognito Chrome window).'
           };
         }
         throw fallbackErr;
