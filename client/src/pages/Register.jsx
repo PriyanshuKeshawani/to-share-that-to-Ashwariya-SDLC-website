@@ -5,13 +5,26 @@ import { useTheme } from '../context/ThemeContext';
 import { UserPlus, ArrowLeft, Sun, Moon, CheckCircle2, Clock, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
 
 const FALLBACK_BRANCHES = [
-  { id: 1, name: 'Computer Science & Engineering' },
-  { id: 2, name: 'Information Technology' },
-  { id: 3, name: 'Mechanical Engineering' },
-  { id: 4, name: 'Civil Engineering' },
-  { id: 5, name: 'Electrical & Electronics Engineering' },
-  { id: 6, name: 'Electronics & Communication' },
-  { id: 7, name: 'Artificial Intelligence & Data Science' }
+  { id: 1, name: 'CSE (Computer Science & Engineering)' },
+  { id: 2, name: 'CSE (Artificial Intelligence & Data Science)' },
+  { id: 3, name: 'IT (Information Technology)' },
+  { id: 4, name: 'ECE (Electronics & Communication Engineering)' },
+  { id: 5, name: 'Cyber Security' },
+  { id: 6, name: 'Civil Engineering' },
+  { id: 7, name: 'Mechanical Engineering (ME)' },
+  { id: 8, name: 'Electrical Engineering (EX/EE)' },
+  { id: 9, name: 'B.Pharm' },
+  { id: 10, name: 'M.Pharm (Pharmaceutical Chemistry)' },
+  { id: 11, name: 'M.Pharm (Pharmaceutics)' },
+  { id: 12, name: 'BBA' },
+  { id: 13, name: 'MBA' },
+  { id: 14, name: 'M.Tech CSE' },
+  { id: 15, name: 'CTM (Construction Technology & Management)' },
+  { id: 16, name: 'SE (Structural Engineering)' },
+  { id: 17, name: 'Machine Design' },
+  { id: 18, name: 'Thermal Engineering' },
+  { id: 19, name: 'Digital Communication' },
+  { id: 20, name: 'VLSI Design' }
 ];
 
 const Register = ({ onToggleView }) => {

@@ -10,12 +10,26 @@ CREATE TABLE IF NOT EXISTS branches (
 );
 
 INSERT INTO branches (name) VALUES
-  ('Computer Science and Engineering'),
-  ('Information Technology'),
-  ('Electronics and Communication'),
-  ('Mechanical Engineering'),
+  ('CSE (Computer Science & Engineering)'),
+  ('CSE (Artificial Intelligence & Data Science)'),
+  ('IT (Information Technology)'),
+  ('ECE (Electronics & Communication Engineering)'),
+  ('Cyber Security'),
   ('Civil Engineering'),
-  ('Electrical Engineering')
+  ('Mechanical Engineering (ME)'),
+  ('Electrical Engineering (EX/EE)'),
+  ('B.Pharm'),
+  ('M.Pharm (Pharmaceutical Chemistry)'),
+  ('M.Pharm (Pharmaceutics)'),
+  ('BBA'),
+  ('MBA'),
+  ('M.Tech CSE'),
+  ('CTM (Construction Technology & Management)'),
+  ('SE (Structural Engineering)'),
+  ('Machine Design'),
+  ('Thermal Engineering'),
+  ('Digital Communication'),
+  ('VLSI Design')
 ON CONFLICT (name) DO NOTHING;
 
 -- =========================================================
