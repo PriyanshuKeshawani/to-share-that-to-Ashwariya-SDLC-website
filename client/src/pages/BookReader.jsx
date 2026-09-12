@@ -47,7 +47,84 @@ const TAG_COLORS = {
   'Exam Imp': { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' },
   Formula: { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399', border: 'rgba(16, 185, 129, 0.3)' },
   Summary: { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' },
-  General: { bg: 'rgba(148, 163, 184, 0.15)', text: '#cbd5e1', border: 'rgba(148, 163, 184, 0.3)' }
+};
+
+/**
+ * Smart Dark Reading Mode Canvas Transformer
+ * Dynamically transforms rendered PDF pages into a comfortable dark reading mode:
+ * - Converts harsh white paper to comfortable dark charcoal (#11141c)
+ * - Converts dark ink/text to an eye-friendly off-white (#e2e8f0) with high contrast
+ * - Preserves smooth font anti-aliasing without jaggedness or white halos
+ * - Preserves colored visual content (diagrams, charts, illustrations, logos, highlights)
+ * - Gently enhances contrast for very dark colored elements so they remain legible
+ * - Leaves layout, zoom, and canvas dimensions completely untouched
+ */
+const applySmartDarkModeToCanvas = (ctx, width, height) => {
+  if (!ctx || width <= 0 || height <= 0) return;
+  try {
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const d = imgData.data;
+    const len = d.length;
+
+    // Target dark charcoal background (#11141c) and soft off-white text (#e2e8f0)
+    const BG_R = 17;
+    const BG_G = 20;
+    const BG_B = 28;
+    const TEXT_R = 226;
+    const TEXT_G = 232;
+    const TEXT_B = 240;
+
+    for (let i = 0; i < len; i += 4) {
+      // Skip transparent pixels
+      if (d[i + 3] < 10) continue;
+
+      const r = d[i];
+      const g = d[i + 1];
+      const b = d[i + 2];
+
+      const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      const sat = max - min;
+
+      // Perceived luminance (standard Rec. 601 coefficients)
+      const lum = (r * 299 + g * 587 + b * 114) * 0.001;
+      const factor = lum * 0.00392157; // lum / 255
+
+      // Smooth interpolation between dark background and comfortable light text
+      const darkR = BG_R * factor + TEXT_R * (1 - factor);
+      const darkG = BG_G * factor + TEXT_G * (1 - factor);
+      const darkB = BG_B * factor + TEXT_B * (1 - factor);
+
+      if (sat <= 18) {
+        // Pure neutral text, paper, or font anti-aliasing gradient
+        d[i] = darkR;
+        d[i + 1] = darkG;
+        d[i + 2] = darkB;
+      } else {
+        // Colored visual content (diagrams, graphs, charts, photos, illustrations)
+        const colorWeight = sat >= 40 ? 1 : (sat - 18) * 0.04545; // (sat - 18) / 22
+        let colR = r;
+        let colG = g;
+        let colB = b;
+
+        // Enhance legibility of very dark colored elements against dark charcoal
+        if (lum < 60) {
+          const boost = 1 + (60 - lum) * 0.01;
+          colR = colR * boost;
+          colG = colG * boost;
+          colB = colB * boost;
+        }
+
+        d[i] = darkR * (1 - colorWeight) + colR * colorWeight;
+        d[i + 1] = darkG * (1 - colorWeight) + colG * colorWeight;
+        d[i + 2] = darkB * (1 - colorWeight) + colB * colorWeight;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  } catch (err) {
+    console.warn('Notice applying smart dark reading mode:', err);
+  }
 };
 
 const BookReader = ({ book, onClose }) => {
@@ -412,14 +489,19 @@ const BookReader = ({ book, onClose }) => {
       activeRenderTasks.current[canvasKey] = renderTask;
       await renderTask.promise;
       delete activeRenderTasks.current[canvasKey];
+
+      // Smart Dark Reading Mode: dynamically transform rendered PDF canvas
+      if (mode === 'dark') {
+        applySmartDarkModeToCanvas(ctx, canvasElement.width, canvasElement.height);
+      }
     } catch (err) {
       if (err?.name !== 'RenderingCancelledException') {
         console.warn(`Render notice on page ${pageNum}:`, err);
       }
     }
-  }, [pdfDoc, scale]);
+  }, [pdfDoc, scale, mode]);
 
-  // Re-render canvases when currentPage, scale, viewMode, or mobile breakpoint changes
+  // Re-render canvases when currentPage, scale, viewMode, mobile breakpoint, or dark/light theme mode changes
   useEffect(() => {
     if (!pdfDoc) return;
 
@@ -430,7 +512,7 @@ const BookReader = ({ book, onClose }) => {
     if (viewMode === 'spread' && !isMobile && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
       renderPage(currentPage + 1, 'right', canvasRightRef.current);
     }
-  }, [pdfDoc, currentPage, scale, viewMode, isMobile, renderPage]);
+  }, [pdfDoc, currentPage, scale, viewMode, isMobile, mode, renderPage]);
 
   // Page Flip Navigation
   const handlePageChange = useCallback((targetPage, direction = null) => {
