@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth, BASE_URL, isSameBranch } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import * as pdfjsLib from 'pdfjs-dist';
 import {
   ArrowLeft,
@@ -26,8 +27,8 @@ import {
   Minimize2,
   Layers,
   Sparkles,
-  Volume2,
-  VolumeX
+  Sun,
+  Moon
 } from 'lucide-react';
 
 // Configure PDF.js worker reliably for both dev and production build
@@ -52,6 +53,7 @@ const TAG_COLORS = {
 
 const BookReader = ({ book, onClose }) => {
   const { apiCall, user, extractDriveFileId } = useAuth();
+  const { mode, toggleMode } = useTheme();
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(book?.total_pages && book.total_pages > 0 ? book.total_pages : 100);
   const [scale, setScale] = useState(1.15);
@@ -64,136 +66,6 @@ const BookReader = ({ book, onClose }) => {
 
   // Mobile viewport reactive detection
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-
-  // Web Audio API buffer cache for zero-latency, multi-variation page flips
-  const audioCtxRef = useRef(null);
-  const audioBuffersRef = useRef([]);
-  const audioPoolRef = useRef([]);
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    return localStorage.getItem('sistec_reader_sound') !== 'false';
-  });
-
-  const toggleSound = useCallback(() => {
-    setSoundEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('sistec_reader_sound', String(next));
-      return next;
-    });
-  }, []);
-
-  // Preload and decode 4 distinct physical book page turn sounds into RAM
-  useEffect(() => {
-    let isMounted = true;
-    const soundUrls = [
-      '/sounds/page-flip-1.wav',
-      '/sounds/page-flip-2.wav',
-      '/sounds/page-flip-3.wav',
-      '/sounds/page-flip-4.wav',
-      '/sounds/page-flip-soft.mp3',
-      '/sounds/page-flip.mp3'
-    ];
-
-    // Fallback HTML5 audio elements
-    const pool = soundUrls.map(src => {
-      const audio = new Audio(src);
-      audio.preload = 'auto';
-      audio.volume = 0.75;
-      return audio;
-    });
-    audioPoolRef.current = pool;
-
-    // Load and decode into Web Audio API for true ZERO latency (< 5ms)
-    const initWebAudio = async () => {
-      try {
-        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtxClass) return;
-        const ctx = new AudioCtxClass();
-        audioCtxRef.current = ctx;
-
-        const decodedBuffers = [];
-        for (const url of soundUrls.slice(0, 4)) {
-          try {
-            const resp = await fetch(url);
-            if (!resp.ok) continue;
-            const arrayBuf = await resp.arrayBuffer();
-            const decoded = await ctx.decodeAudioData(arrayBuf);
-            if (isMounted && decoded) {
-              decodedBuffers.push(decoded);
-            }
-          } catch (e) {
-            console.debug('Audio decode note for', url, e);
-          }
-        }
-        if (isMounted && decodedBuffers.length > 0) {
-          audioBuffersRef.current = decodedBuffers;
-        }
-      } catch (err) {
-        console.debug('Web Audio init note:', err);
-      }
-    };
-
-    initWebAudio();
-
-    return () => {
-      isMounted = false;
-      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-        try { audioCtxRef.current.close(); } catch {}
-      }
-      if (audioPoolRef.current) {
-        audioPoolRef.current.forEach(a => {
-          try { a.pause(); } catch {}
-        });
-        audioPoolRef.current = [];
-      }
-    };
-  }, []);
-
-  // Play crisp, organic physical book page flip sound with zero latency
-  const playPageFlipSound = useCallback(() => {
-    if (!soundEnabled) return;
-    try {
-      // 1. First priority: Web Audio API (Instantaneous, zero latency)
-      const ctx = audioCtxRef.current || (window.AudioContext ? new (window.AudioContext || window.webkitAudioContext)() : null);
-      if (ctx) {
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-        audioCtxRef.current = ctx;
-        const buffers = audioBuffersRef.current;
-        if (buffers && buffers.length > 0) {
-          // Select randomly among the natural acoustic variations
-          const buffer = buffers[Math.floor(Math.random() * buffers.length)];
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-
-          // Natural tactile micro-pitch variation (0.95x to 1.05x)
-          source.playbackRate.value = 0.95 + Math.random() * 0.10;
-
-          const gainNode = ctx.createGain();
-          gainNode.gain.value = 0.75;
-
-          source.connect(gainNode);
-          gainNode.connect(ctx.destination);
-          source.start(0); // 0ms instantaneous zero-latency playback!
-          return;
-        }
-      }
-
-      // 2. Fallback: Preloaded Audio Element Pool
-      if (audioPoolRef.current && audioPoolRef.current.length > 0) {
-        const available = audioPoolRef.current.find(a => a.paused || a.ended) || audioPoolRef.current[Math.floor(Math.random() * audioPoolRef.current.length)];
-        if (available) {
-          available.currentTime = 0;
-          available.volume = 0.75;
-          available.playbackRate = 0.96 + Math.random() * 0.08;
-          const playPromise = available.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(() => {});
-          }
-        }
-      }
-    } catch {}
-  }, [soundEnabled]);
 
   // Fullscreen Handler
   const toggleFullscreen = useCallback(async () => {
@@ -561,7 +433,6 @@ const BookReader = ({ book, onClose }) => {
 
     const dir = direction || (pageNum > currentPage ? 'next' : 'prev');
     setIsFlipping(dir);
-    playPageFlipSound();
 
     setTimeout(() => {
       setCurrentPage(pageNum);
@@ -873,12 +744,12 @@ const BookReader = ({ book, onClose }) => {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
-                  onClick={toggleSound}
+                  onClick={toggleMode}
                   className="btn btn-secondary"
                   style={{ padding: '6px 8px', fontSize: '0.78rem' }}
-                  title={soundEnabled ? 'Audio: ON (Click to Mute)' : 'Audio: MUTED (Click to Enable)'}
+                  title={mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
-                  {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
+                  {mode === 'dark' ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="var(--primary)" />}
                 </button>
 
                 <button
@@ -959,11 +830,11 @@ const BookReader = ({ book, onClose }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'var(--input-bg)',
                   padding: '4px 8px',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
+                  border: '1px solid var(--border-glass)',
+                  boxShadow: 'var(--shadow-glass)'
                 }}>
                   <button
                     onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
@@ -1068,7 +939,7 @@ const BookReader = ({ book, onClose }) => {
                 </button>
 
                 {/* Zoom Controls */}
-                <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
+                <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--input-bg)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '2px' }}>
                   <button
                     onClick={() => setScale(s => Math.max(0.75, Number((s - 0.15).toFixed(2))))}
                     className="btn btn-ghost"
@@ -1077,7 +948,7 @@ const BookReader = ({ book, onClose }) => {
                   >
                     <ZoomOut size={13} />
                   </button>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center', color: 'var(--text-primary)' }}>
                     {Math.round(scale * 100)}%
                   </span>
                   <button
@@ -1125,15 +996,15 @@ const BookReader = ({ book, onClose }) => {
                   <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
                 </button>
 
-                {/* Sound Effect Toggle */}
+                {/* Day / Night Theme Toggle */}
                 <button
-                  onClick={toggleSound}
+                  onClick={toggleMode}
                   className="btn btn-secondary"
                   style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
-                  title={soundEnabled ? 'Page Flip Sound: ON (Click to Mute)' : 'Page Flip Sound: MUTED (Click to Enable)'}
+                  title={mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
-                  {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
-                  <span className="hide-mobile">{soundEnabled ? 'Audio' : 'Mute'}</span>
+                  {mode === 'dark' ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="var(--primary)" />}
+                  <span className="hide-mobile">{mode === 'dark' ? 'Light' : 'Dark'}</span>
                 </button>
 
                 {/* Fullscreen Reading Mode Toggle */}
@@ -1502,14 +1373,14 @@ const BookReader = ({ book, onClose }) => {
                 {/* Drawer Header with Tabs */}
                 <div style={{
                   padding: '16px 20px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderBottom: '1px solid var(--border-glass)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: 'rgba(255, 255, 255, 0.02)'
+                  background: 'transparent'
                 }}>
                   {/* Tab Selector: Notes vs Bookmarks */}
-                  <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.05)', padding: '3px', borderRadius: '10px' }}>
+                  <div style={{ display: 'flex', gap: '6px', background: 'var(--input-bg)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
                     <button
                       type="button"
                       onClick={() => setDrawerTab('notes')}
@@ -1585,7 +1456,7 @@ const BookReader = ({ book, onClose }) => {
                     {/* Add Note Form */}
                     <form onSubmit={handleAddNote} style={{
                       padding: '14px 20px',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderBottom: '1px solid var(--border-glass)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '10px'
@@ -1604,8 +1475,8 @@ const BookReader = ({ book, onClose }) => {
                                 padding: '3px 8px',
                                 fontSize: '0.7rem',
                                 borderRadius: '6px',
-                                border: `1px solid ${active ? style.text : 'rgba(255,255,255,0.08)'}`,
-                                background: active ? style.bg : 'transparent',
+                                border: `1px solid ${active ? style.text : 'var(--border-glass)'}`,
+                                background: active ? style.bg : 'var(--input-bg)',
                                 color: active ? style.text : 'var(--text-muted)',
                                 cursor: 'pointer',
                                 fontWeight: active ? 600 : 400
@@ -1655,7 +1526,7 @@ const BookReader = ({ book, onClose }) => {
                     {/* Filter & Search Bar */}
                     <div style={{
                       padding: '10px 20px',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                      borderBottom: '1px solid var(--border-glass)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '8px'
@@ -1686,8 +1557,8 @@ const BookReader = ({ book, onClose }) => {
                               padding: '2px 7px',
                               fontSize: '0.68rem',
                               borderRadius: '4px',
-                              border: 'none',
-                              background: selectedTagFilter === t ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                              border: '1px solid var(--border-glass)',
+                              background: selectedTagFilter === t ? 'var(--primary)' : 'var(--input-bg)',
                               color: selectedTagFilter === t ? '#fff' : 'var(--text-muted)',
                               cursor: 'pointer',
                               whiteSpace: 'nowrap'
@@ -1730,8 +1601,8 @@ const BookReader = ({ book, onClose }) => {
                               style={{
                                 padding: '10px 14px',
                                 borderRadius: '10px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid rgba(255, 255, 255, 0.06)',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-glass)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '6px'
@@ -1832,7 +1703,7 @@ const BookReader = ({ book, onClose }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     <div style={{
                       padding: '14px 20px',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderBottom: '1px solid var(--border-glass)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between'
@@ -1878,8 +1749,8 @@ const BookReader = ({ book, onClose }) => {
                             style={{
                               padding: '12px 14px',
                               borderRadius: '10px',
-                              background: Number(bm.page) === currentPage ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                              border: Number(bm.page) === currentPage ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
+                              background: Number(bm.page) === currentPage ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                              border: Number(bm.page) === currentPage ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border-glass)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
