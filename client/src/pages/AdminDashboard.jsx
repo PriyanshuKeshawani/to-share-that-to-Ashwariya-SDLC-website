@@ -20,7 +20,33 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 
 const AdminDashboard = () => {
   const { user, logout, apiCall } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTabState] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'branches', 'settings'];
+    return validTabs.includes(tabParam) ? tabParam : 'overview';
+  });
+
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'branches', 'settings'];
+      if (validTabs.includes(tabParam)) {
+        setActiveTabState(tabParam);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [selectedAdminBranch, setSelectedAdminBranch] = useState(() => {
     return user?.adminBranch || 'all';
   });

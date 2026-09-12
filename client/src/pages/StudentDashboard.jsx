@@ -33,7 +33,33 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [sharingBook, setSharingBook] = useState(null);
   const [overviewBook, setOverviewBook] = useState(null);
 
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTabState] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const validTabs = ['all', 'home', 'other', 'my-books', 'requests', 'history', 'settings'];
+    return validTabs.includes(tabParam) ? tabParam : 'all';
+  });
+
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['all', 'home', 'other', 'my-books', 'requests', 'history', 'settings'];
+      if (validTabs.includes(tabParam)) {
+        setActiveTabState(tabParam);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
   const [requestSearch, setRequestSearch] = useState('');
   const [search, setSearch] = useState('');

@@ -63,8 +63,11 @@ const Register = ({ onToggleView }) => {
         const { data, error } = await supabase.from('branches').select('*').order('name', { ascending: true });
         if (error) throw error;
         if (data && data.length > 0) {
-          setBranches(data);
-          setFormData(prev => ({ ...prev, branchName: data[0].name }));
+          const officialNames = new Set(FALLBACK_BRANCHES.map(b => b.name.toLowerCase()));
+          const filtered = data.filter(b => officialNames.has(b.name.toLowerCase()));
+          const finalBranches = filtered.length >= 15 ? filtered : data;
+          setBranches(finalBranches);
+          setFormData(prev => ({ ...prev, branchName: prev.branchName || finalBranches[0].name }));
         }
       } catch (err) {
         console.warn('Using fallback branches:', err);

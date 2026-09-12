@@ -1,6 +1,7 @@
-import { useState, Component } from 'react';
+import { useState, useEffect, useCallback, Component } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { supabase } from './supabaseClient';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
@@ -67,8 +68,99 @@ class ReaderErrorBoundary extends Component {
 
 const AppContent = () => {
   const { user, loading, needsProfile, logout } = useAuth();
-  const [isRegistering, setIsRegistering] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
+
+  const [isRegistering, setIsRegisteringState] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname.replace(/^\/+/, '');
+    return params.get('view') === 'register' || path === 'register';
+  });
+
+  const setIsRegistering = useCallback((val) => {
+    setIsRegisteringState(val);
+    const params = new URLSearchParams(window.location.search);
+    if (val) {
+      params.set('view', 'register');
+    } else {
+      params.delete('view');
+    }
+    const newSearch = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    window.history.pushState(null, '', newSearch);
+  }, []);
+
+  // Restore book on refresh if ?read=:id exists in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname.replace(/^\/+/, '');
+    const readBookId = params.get('read') || params.get('book') || (path.startsWith('read/') ? path.split('/')[1] : null);
+
+    if (readBookId && !selectedBook && user && user.role === 'student' && user.status === 'approved') {
+      supabase
+        .from('books')
+        .select('*, category:category_id(name), branch:branch_id(name)')
+        .eq('id', readBookId)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (data && !error) {
+            setSelectedBook(data);
+          }
+        });
+    }
+  }, [user]);
+
+  const handleOpenBook = useCallback((book) => {
+    setSelectedBook(book);
+    const params = new URLSearchParams(window.location.search);
+    if (book && book.id) {
+      params.set('read', book.id);
+    }
+    const newUrl = `?${params.toString()}`;
+    window.history.pushState(null, '', newUrl);
+  }, []);
+
+  const handleCloseBook = useCallback(() => {
+    setSelectedBook(null);
+    const params = new URLSearchParams(window.location.search);
+    params.delete('read');
+    params.delete('book');
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    window.history.pushState(null, '', newUrl);
+  }, []);
+
+  // Listen to popstate for browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const path = window.location.pathname.replace(/^\/+/, '');
+      const isReg = params.get('view') === 'register' || path === 'register';
+      setIsRegisteringState(isReg);
+
+      const readBookId = params.get('read') || params.get('book') || (path.startsWith('read/') ? path.split('/')[1] : null);
+      if (!readBookId && selectedBook) {
+        setSelectedBook(null);
+      } else if (readBookId && (!selectedBook || String(selectedBook.id) !== String(readBookId))) {
+        supabase
+          .from('books')
+          .select('*, category:category_id(name), branch:branch_id(name)')
+          .eq('id', readBookId)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setSelectedBook(data);
+          });
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedBook]);
+
+  // If user needs profile, reflect in URL
+  useEffect(() => {
+    if (needsProfile) {
+      const params = new URLSearchParams(window.location.search);
+      params.set('view', 'complete-profile');
+      window.history.replaceState(null, '', `?${params.toString()}`);
+    }
+  }, [needsProfile]);
 
   if (loading && !user) {
     return (
@@ -241,10 +333,10 @@ const AppContent = () => {
   if (selectedBook) {
     return (
       <div className="reader-page-wrapper">
-        <ReaderErrorBoundary onClose={() => setSelectedBook(null)}>
+        <ReaderErrorBoundary onClose={handleCloseBook}>
           <BookReader
             book={selectedBook}
-            onClose={() => setSelectedBook(null)}
+            onClose={handleCloseBook}
           />
         </ReaderErrorBoundary>
       </div>
@@ -253,7 +345,7 @@ const AppContent = () => {
 
   return (
     <StudentDashboard
-      onSelectBook={(book) => setSelectedBook(book)}
+      onSelectBook={handleOpenBook}
     />
   );
 };
