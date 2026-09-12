@@ -128,6 +128,7 @@ const applySmartDarkModeToCanvas = (ctx, width, height) => {
 };
 
 const MOBILE_ZOOM_STEPS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0, 2.5];
+const DESKTOP_ZOOM_STEPS = [0.75, 0.85, 1.0, 1.15, 1.30, 1.50, 1.75, 2.0, 2.25, 2.50];
 
 const BookReader = ({ book, onClose }) => {
   const { apiCall, user, extractDriveFileId } = useAuth();
@@ -197,6 +198,19 @@ const BookReader = ({ book, onClose }) => {
   const touchStartYRef = useRef(null);
   const pinchStartDistRef = useRef(null);
   const initialPinchZoomRef = useRef(1.0);
+
+  // Desktop Zoom control steps helper functions (up to 250%)
+  const handleDesktopZoomIn = useCallback(() => {
+    const current = Number(scale.toFixed(2));
+    const next = DESKTOP_ZOOM_STEPS.find(s => s > current + 0.01) || 2.5;
+    setScale(next);
+  }, [scale]);
+
+  const handleDesktopZoomOut = useCallback(() => {
+    const current = Number(scale.toFixed(2));
+    const prev = [...DESKTOP_ZOOM_STEPS].reverse().find(s => s < current - 0.01) || 0.75;
+    setScale(prev);
+  }, [scale]);
 
   // Zoom control steps helper functions (10% clean steps: 100% -> 110% -> 120% -> ...)
   const handleMobileZoomIn = useCallback(() => {
@@ -1171,27 +1185,54 @@ const BookReader = ({ book, onClose }) => {
                   <span>{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
                 </button>
 
-                {/* Zoom Controls */}
+                {/* Desktop Zoom Controls (up to 250%) */}
                 <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--input-bg)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '2px' }}>
                   <button
-                    onClick={() => setScale(s => Math.max(0.75, Number((s - 0.15).toFixed(2))))}
+                    onClick={handleDesktopZoomOut}
                     className="btn btn-ghost"
                     style={{ padding: '4px 6px', fontSize: '0.75rem' }}
                     title="Zoom Out"
                   >
                     <ZoomOut size={13} />
                   </button>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center', color: 'var(--text-primary)' }}>
+                  <span
+                    onClick={() => setScale(1.15)}
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      minWidth: '38px',
+                      textAlign: 'center',
+                      color: scale !== 1.15 ? 'var(--primary)' : 'var(--text-primary)',
+                      cursor: 'pointer'
+                    }}
+                    title="Click to reset to Default (115%)"
+                  >
                     {Math.round(scale * 100)}%
                   </span>
                   <button
-                    onClick={() => setScale(s => Math.min(1.8, Number((s + 0.15).toFixed(2))))}
+                    onClick={handleDesktopZoomIn}
                     className="btn btn-ghost"
                     style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                    title="Zoom In"
+                    title="Zoom In (up to 250%)"
                   >
                     <ZoomIn size={13} />
                   </button>
+                  {scale !== 1.15 && (
+                    <button
+                      onClick={() => setScale(1.15)}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '2px 5px',
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        color: 'var(--primary)',
+                        borderRadius: '4px'
+                      }}
+                      title="Reset to 115% Default"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
 
                 {/* Study Notes & Bookmarks Drawer Toggle */}
@@ -1434,7 +1475,7 @@ const BookReader = ({ book, onClose }) => {
                   >
                     <div
                       ref={holderLeftRef}
-                      className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}
+                      className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''} ${!isMobile && scale > 1.2 ? 'desktop-zoomed' : ''}`}
                       style={isMobile && mobileZoom > 1.05 ? {
                         transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
                         willChange: 'transform'
@@ -1469,7 +1510,7 @@ const BookReader = ({ book, onClose }) => {
                     >
                       <div
                         ref={holderRightRef}
-                        className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}
+                        className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''} ${!isMobile && scale > 1.2 ? 'desktop-zoomed' : ''}`}
                         style={isMobile && mobileZoom > 1.05 ? {
                           transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
                           willChange: 'transform'
