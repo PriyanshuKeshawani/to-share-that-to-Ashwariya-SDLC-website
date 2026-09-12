@@ -29,14 +29,12 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Configure PDF.js worker reliably for both dev and production build
+// Configure PDF.js worker reliably for Vite dev server and production bundle
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
   try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url
-    ).toString();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
   } catch {
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
   }
@@ -139,7 +137,7 @@ const BookReader = ({ book, onClose }) => {
 
   // PDF.js State
   const [pdfDoc, setPdfDoc] = useState(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(() => Boolean(book?.pdf_url));
   const [pdfLoadError, setPdfLoadError] = useState(null);
 
   // Canvases refs
@@ -332,7 +330,13 @@ const BookReader = ({ book, onClose }) => {
           url: pdfSource,
           withCredentials: false
         });
-        const doc = await loadingTask.promise;
+
+        // 15-second safety race to avoid hanging on slow network or worker stalls
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('PDF loading timed out')), 15000)
+        );
+
+        const doc = await Promise.race([loadingTask.promise, timeoutPromise]);
         if (!isMounted) return;
 
         setPdfDoc(doc);
@@ -441,7 +445,7 @@ const BookReader = ({ book, onClose }) => {
     setTimeout(() => {
       setIsFlipping(null);
     }, 450);
-  }, [currentPage, totalPages, saveProgress, playPageFlipSound]);
+  }, [currentPage, totalPages, saveProgress]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -1071,7 +1075,12 @@ const BookReader = ({ book, onClose }) => {
                   </a>
                 </div>
                 <iframe
-                  src={driveEmbed || `${pdfSource}#page=${currentPage}`}
+                  src={
+                    driveEmbed ||
+                    (pdfSource && isMobile
+                      ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfSource)}&embedded=true`
+                      : `${pdfSource}#page=${currentPage}`)
+                  }
                   width="100%"
                   height="100%"
                   style={{ border: 'none', flex: 1, background: '#1e293b' }}

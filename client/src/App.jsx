@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Component } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Login from './pages/Login';
@@ -7,7 +7,63 @@ import StudentDashboard from './pages/StudentDashboard';
 import BookReader from './pages/BookReader';
 import AdminDashboard from './pages/AdminDashboard';
 import GoogleProfileCompletion from './components/GoogleProfileCompletion';
-import { Clock } from 'lucide-react';
+import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
+
+class ReaderErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('Reader caught error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '75vh',
+          padding: '24px',
+          textAlign: 'center',
+          color: 'var(--text-primary)'
+        }}>
+          <div className="glass-panel" style={{ padding: '36px 28px', maxWidth: '460px', borderRadius: '16px' }}>
+            <AlertTriangle size={44} color="#f59e0b" style={{ margin: '0 auto 14px' }} />
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '8px', fontWeight: 600 }}>
+              Unable to Open Book
+            </h3>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '22px', lineHeight: '1.5' }}>
+              We encountered an issue rendering this book's pages. You can return to your dashboard or retry opening it.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={this.props.onClose}
+                className="btn btn-primary"
+                style={{ fontSize: '0.84rem', gap: '6px' }}
+              >
+                <ArrowLeft size={14} /> Back to Catalog
+              </button>
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.84rem' }}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const AppContent = () => {
   const { user, loading, needsProfile, logout } = useAuth();
@@ -185,10 +241,12 @@ const AppContent = () => {
   if (selectedBook) {
     return (
       <div className="reader-page-wrapper">
-        <BookReader
-          book={selectedBook}
-          onClose={() => setSelectedBook(null)}
-        />
+        <ReaderErrorBoundary onClose={() => setSelectedBook(null)}>
+          <BookReader
+            book={selectedBook}
+            onClose={() => setSelectedBook(null)}
+          />
+        </ReaderErrorBoundary>
       </div>
     );
   }
