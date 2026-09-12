@@ -260,29 +260,76 @@ const AdminDashboard = () => {
     await refreshAnalyticsOnly(newTf);
   };
 
-  // Realtime Supabase subscription with 500ms debounced authoritative re-fetch (zero double-counting)
+  const silentRefreshAdminData = useCallback(async () => {
+    try {
+      const branchQueryParam = selectedAdminBranch && selectedAdminBranch !== 'all' ? `?branch=${encodeURIComponent(selectedAdminBranch)}` : '';
+      const analyticsBranchParam = selectedAdminBranch && selectedAdminBranch !== 'all' ? `&branch=${encodeURIComponent(selectedAdminBranch)}` : '';
+      const [dash, pUsers, pReqs, allReqs, bList, brList, catList, allStudents] = await Promise.all([
+        apiCall(`/analytics/dashboard?timeframe=${analyticsTimeframe}${analyticsBranchParam}`),
+        apiCall(`/auth/pending-users${branchQueryParam}`),
+        apiCall(`/permissions/pending-requests${branchQueryParam}`),
+        apiCall(`/permissions/all-requests${branchQueryParam}`),
+        apiCall('/books'),
+        apiCall('/books/branches'),
+        apiCall('/books/categories'),
+        apiCall('/auth/users')
+      ]);
+
+      if (dash) setDashboardData(dash);
+      if (pUsers) setPendingUsers(pUsers);
+      if (pReqs) setPendingRequests(pReqs);
+      if (allReqs) setAllRequests(allReqs);
+      if (bList) setBooks(bList);
+      if (brList) setBranches(brList);
+      if (catList) setCategories(catList);
+      if (allStudents) setStudents(allStudents.filter(u => u.role === 'student'));
+    } catch (err) {
+      console.warn('Silent admin realtime refresh note:', err);
+    }
+  }, [apiCall, selectedAdminBranch, analyticsTimeframe]);
+
+  // Realtime Supabase subscription for instant live updates across all admin modules
   useEffect(() => {
     let debounceTimer = null;
     const triggerDebouncedRefresh = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        refreshAnalyticsOnly();
+        silentRefreshAdminData();
       }, 500);
     };
 
     const channel = supabase
-      .channel('admin-analytics-realtime-sync')
+      .channel('admin-realtime-all-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, triggerDebouncedRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_book_progress' }, triggerDebouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, triggerDebouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        triggerDebouncedRefresh();
+        if (payload.eventType === 'INSERT' && payload.new?.role === 'student' && payload.new?.status === 'pending') {
+          showFeedback(`New registration pending approval: ${payload.new.full_name || payload.new.username}`, 'info');
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'permissions' }, (payload) => {
+        triggerDebouncedRefresh();
+        if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
+          showFeedback('New cross-department book access request received.', 'info');
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, triggerDebouncedRefresh)
       .subscribe();
+
+    const handleFocus = () => silentRefreshAdminData();
+    window.addEventListener('focus', handleFocus);
+
+    const interval = setInterval(silentRefreshAdminData, 10000);
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
     };
-  }, [refreshAnalyticsOnly]);
+  }, [silentRefreshAdminData, showFeedback]);
 
   // Delete student account
   const handleDeleteStudent = async () => {

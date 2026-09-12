@@ -308,3 +308,17 @@ DROP TABLE IF EXISTS library_settings CASCADE;
 -- 13. Relax permission FK (for demo/bypass users)
 -- =========================================================
 ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
+
+-- =========================================================
+-- 14. Enable Realtime Replication for Full Instant Live Updates
+-- =========================================================
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE books, permissions, users, notifications, activity_logs, user_book_progress, branches, categories;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN others THEN NULL;
+  END;
+END $$;
+

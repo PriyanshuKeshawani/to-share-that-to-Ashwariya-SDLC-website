@@ -1800,6 +1800,39 @@ export const AuthProvider = ({ children }) => {
     };
   }, [loadUser]);
 
+  // Realtime user status watcher (for pending students to enter portal automatically upon admin approval without refresh)
+  useEffect(() => {
+    if (!user || user.status !== 'pending') return;
+
+    const userChannel = supabase
+      .channel(`realtime-user-approval-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.new && payload.new.status && payload.new.status !== 'pending') {
+            console.log('Realtime user approval received:', payload.new.status);
+            loadUser(true);
+          }
+        }
+      )
+      .subscribe();
+
+    const pollTimer = setInterval(() => {
+      loadUser(true);
+    }, 3000);
+
+    return () => {
+      supabase.removeChannel(userChannel);
+      clearInterval(pollTimer);
+    };
+  }, [user?.id, user?.status, loadUser]);
+
   const login = async (identifier, password) => {
     const trimmedId = (identifier || '').trim();
     const trimmedPass = (password || '').trim();

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles } from 'lucide-react';
 import { requestNotificationPermission } from '../firebase';
+import { supabase } from '../supabaseClient';
 
 const NotificationBell = () => {
   const { user, apiCall } = useAuth();
@@ -97,18 +98,63 @@ const NotificationBell = () => {
   }, [user, apiCall]);
 
   useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      if (!isMounted) return;
-      await fetchNotifications();
-    };
-    load();
-    const interval = setInterval(load, 30000);
+    if (!user) return;
+
+    fetchNotifications();
+
+    // 1. Instant Realtime WebSocket subscription for this user's notifications
+    const channel = supabase
+      .channel(`realtime-bell-notifs-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
+            setUnreadCount(prev => prev + 1);
+            try {
+              const audio = new Audio('/sounds/notification.mp3');
+              audio.volume = 0.5;
+              audio.play().catch(() => {});
+            } catch {}
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+            fetchNotifications();
+          }
+        }
+      )
+      .subscribe();
+
+    // 2. Window focus listener: immediately sync when user tabs back
+    const handleFocus = () => fetchNotifications();
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Fast backup sync interval (every 10s)
+    const interval = setInterval(fetchNotifications, 10000);
+
     return () => {
-      isMounted = false;
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
-  }, [fetchNotifications]);
+  }, [user, fetchNotifications]);
 
   const markAllRead = async () => {
     try {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 import {
   BookOpen, LogOut, CheckCircle, ShieldAlert, Download,
   Search, Lock, Unlock,
@@ -112,6 +113,23 @@ const StudentDashboard = ({ onSelectBook }) => {
     }
   };
 
+  const silentRefresh = useCallback(async () => {
+    try {
+      const [booksData, reqsData, histData, branchesData] = await Promise.all([
+        apiCall('/books'),
+        apiCall('/permissions/my-requests'),
+        apiCall('/analytics/my-history'),
+        apiCall('/books/branches')
+      ]);
+      if (booksData) setBooks(booksData);
+      if (reqsData) setRequests(reqsData);
+      if (histData) setHistory(histData);
+      if (branchesData) setBranches(branchesData);
+    } catch (e) {
+      console.warn('Silent student realtime refresh note:', e);
+    }
+  }, [apiCall]);
+
   useEffect(() => {
     document.title = 'Student Portal - SISTec Digital Library';
   }, []);
@@ -130,6 +148,51 @@ const StudentDashboard = ({ onSelectBook }) => {
     load();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Full Realtime WebSocket subscription: books, permissions, and progress update automatically
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`student-live-portal-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
+        silentRefresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, () => {
+        silentRefresh();
+      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'permissions', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          silentRefresh();
+          if (payload.new?.status === 'approved') {
+            showFeedback('Your cross-department book access request was approved by the librarian!', 'success');
+          } else if (payload.new?.status === 'rejected') {
+            showFeedback('An access request was declined by the administrator.', 'error');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_book_progress', filter: `user_id=eq.${user.id}` },
+        () => {
+          silentRefresh();
+        }
+      )
+      .subscribe();
+
+    const handleFocus = () => silentRefresh();
+    window.addEventListener('focus', handleFocus);
+
+    const interval = setInterval(silentRefresh, 10000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [user, silentRefresh, showFeedback]);
 
   // Auto-open Book Overview Modal when URL contains shared book parameter (?book=<id> or #...book=<id>)
   useEffect(() => {
