@@ -785,33 +785,109 @@ const StudentDashboard = ({ onSelectBook }) => {
               />
             ) : (
               <div className="glass-panel" style={{ padding: '16px', overflow: 'hidden' }}>
-                <div className="table-responsive-wrapper">
-                  <table className="custom-table">
-                    <thead>
-                      <tr>
-                        <th>Date & Time</th>
-                        <th>Book Title</th>
-                        <th>Activity</th>
-                        <th>Status / Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map(h => (
-                        <tr key={h.id}>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                            {new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td style={{ fontWeight: 600 }}>{h.book_title || 'Reference Reading'}</td>
-                          <td>
-                            <StatusBadge status={h.action_type === 'download' ? 'approved' : 'available'} customLabel={h.action_type?.toUpperCase()} />
-                          </td>
-                          <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-                            {h.details || 'Completed reading session'}
-                          </td>
+                {/* Desktop View (>= 768px) */}
+                <div className="desktop-table-view">
+                  <div className="table-responsive-wrapper">
+                    <table className="custom-table" style={{ minWidth: '650px' }}>
+                      <thead>
+                        <tr>
+                          <th>Date & Time</th>
+                          <th>Book Title</th>
+                          <th>Activity</th>
+                          <th>Status / Details</th>
+                          <th style={{ textAlign: 'right' }}>Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {history.map(h => {
+                          const matchingBook = books.find(b => b.id === h.book_id || b.title === h.book_title);
+                          return (
+                            <tr key={h.id}>
+                              <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                {new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td style={{ fontWeight: 600 }}>{h.book_title || 'Reference Reading'}</td>
+                              <td>
+                                <StatusBadge status={h.action_type === 'download' ? 'approved' : 'available'} customLabel={h.action_type?.toUpperCase()} />
+                              </td>
+                              <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                                {h.details || 'Completed reading session'}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                {matchingBook && (
+                                  <button
+                                    onClick={() => onSelectBook(matchingBook)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                                  >
+                                    <BookOpen size={13} /> Open
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Mobile Cards View (< 768px) */}
+                <div className="mobile-cards-view">
+                  {history.map(h => {
+                    const matchingBook = books.find(b => b.id === h.book_id || b.title === h.book_title);
+                    return (
+                      <div key={h.id} className="mobile-data-card">
+                        <div className="mobile-card-header">
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', flex: 1 }}>
+                            <div style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '10px',
+                              background: h.action_type === 'download' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                              color: h.action_type === 'download' ? '#f59e0b' : 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              {h.action_type === 'download' ? <Download size={20} /> : <BookOpen size={20} />}
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <h4 style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                                {h.book_title || 'Reference Reading'}
+                              </h4>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                <Clock size={12} />
+                                <span>
+                                  {new Date(h.created_at).toLocaleDateString()} at {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <StatusBadge status={h.action_type === 'download' ? 'approved' : 'available'} customLabel={h.action_type?.toUpperCase()} />
+                        </div>
+
+                        {h.details && (
+                          <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--bg-glass-input, rgba(255,255,255,0.03))', border: '1px solid var(--border-glass)', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                            {h.details}
+                          </div>
+                        )}
+
+                        {matchingBook && (
+                          <div className="mobile-card-actions" style={{ marginTop: '8px' }}>
+                            <button
+                              onClick={() => onSelectBook(matchingBook)}
+                              className="btn btn-primary"
+                              style={{ flex: 1, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600 }}
+                            >
+                              <BookOpen size={16} /> Open Book
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

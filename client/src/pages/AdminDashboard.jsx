@@ -8,7 +8,7 @@ import { supabase } from '../supabaseClient';
     UserCheck, UserX, AlertTriangle, User,
     Menu, Settings, UploadCloud, Activity, Image, FolderUp, CheckCircle2, Sparkles,
     ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
-    Sun, Moon
+    Sun, Moon, PanelLeftClose, PanelLeftOpen
   } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
@@ -24,6 +24,32 @@ const AdminDashboard = () => {
   const { user, logout, apiCall } = useAuth();
   const { mode, toggleMode } = useTheme();
   const isDark = mode === 'dark';
+
+  // Google AI Studio style Collapsible Sidebar State (PC / Desktop users)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('admin-sidebar-collapsed') === 'true';
+  });
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('admin-sidebar-collapsed', String(next));
+      return next;
+    });
+  }, []);
+
+  // Ctrl+B shortcut to toggle sidebar like Google AI Studio / IDEs
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   const [activeTab, setActiveTabState] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -1017,7 +1043,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Sidebar */}
       <aside className="sidebar">
         <div>
@@ -1064,6 +1090,14 @@ const AdminDashboard = () => {
                 {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
               </button>
               <NotificationBell />
+              <button
+                onClick={toggleSidebar}
+                className="sidebar-collapse-btn"
+                title="Collapse sidebar (Ctrl+B)"
+                aria-label="Collapse navigation panel"
+              >
+                <PanelLeftClose size={16} />
+              </button>
             </div>
           </div>
 
@@ -1147,6 +1181,58 @@ const AdminDashboard = () => {
 
       {/* Main Area */}
       <main className="main-content">
+        {/* Google AI Studio Style Top Bar when Sidebar is Collapsed (PC) */}
+        {isSidebarCollapsed && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '24px',
+            padding: '10px 16px',
+            borderRadius: '12px',
+            background: 'var(--modal-card-bg, var(--bg-card))',
+            border: '1px solid var(--border-glass)',
+            boxShadow: 'var(--shadow-sm)'
+          }} className="desktop-table-view">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={toggleSidebar}
+                className="sidebar-expand-btn"
+                title="Expand navigation sidebar (Ctrl+B)"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen size={18} />
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src="/logo.png" alt="SISTec" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.04em' }}>SISTEC ADMIN</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>• {
+                  activeTab === 'overview' ? 'Overview & Analytics' :
+                  activeTab === 'users' ? 'User Approvals' :
+                  activeTab === 'permissions' ? 'Book Requests' :
+                  activeTab === 'books' ? 'Book Inventory' :
+                  activeTab === 'students' ? 'All Students' :
+                  activeTab === 'branches' ? 'Branches' :
+                  activeTab === 'settings' ? 'Settings' : 'System Logs'
+                }</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={toggleMode}
+                className="btn btn-secondary"
+                style={{ padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem', gap: '6px' }}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? <Sun size={15} color="#fbbf24" /> : <Moon size={15} color="var(--primary)" />}
+                {isDark ? 'Light' : 'Dark'}
+              </button>
+              <NotificationBell />
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Notification */}
         {feedback.text && (
           <div className={`toast-notification ${toastExiting ? 'toast-exit' : ''}`} style={{
@@ -1505,8 +1591,8 @@ const AdminDashboard = () => {
                               No students found matching this criteria.
                             </p>
                           ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                            <div className="table-responsive-wrapper">
+                              <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                                 <thead>
                                   <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
                                     <th style={{ padding: '12px' }}>Student Name</th>
@@ -1597,8 +1683,8 @@ const AdminDashboard = () => {
                               No books allocated to this department.
                             </p>
                           ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                            <div className="table-responsive-wrapper">
+                              <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                                 <thead>
                                   <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
                                     <th style={{ padding: '12px' }}>Cover</th>
@@ -1666,8 +1752,8 @@ const AdminDashboard = () => {
                               No activity recorded in Supabase for this branch.
                             </p>
                           ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                            <div className="table-responsive-wrapper">
+                              <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                                 <thead>
                                   <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
                                     <th style={{ padding: '12px' }}>Time</th>
@@ -2049,63 +2135,117 @@ const AdminDashboard = () => {
                       {dashboardData.mostReadPerBranch.length === 0 ? (
                         <p style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>No branches or books found in database.</p>
                       ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
-                                <th style={{ padding: '12px' }}>Branch</th>
-                                <th style={{ padding: '12px' }}>Book Title</th>
-                                <th style={{ padding: '12px' }}>Author</th>
-                                <th style={{ padding: '12px', textAlign: 'center' }}>Total Accesses</th>
-                                <th style={{ padding: '12px', textAlign: 'center' }}>Downloads</th>
-                                <th style={{ padding: '12px', textAlign: 'right' }}>Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {dashboardData.mostReadPerBranch.map((record, index) => (
-                                <tr key={record.branch_id || index} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                  <td style={{ padding: '14px', fontWeight: 600 }}>{record.branch_name}</td>
-                                  {record.has_activity ? (
-                                    <>
-                                      <td style={{ padding: '14px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                          <div style={{ width: '32px', height: '42px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {record.cover_url ? (
-                                              <img src={record.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                            ) : (
-                                              <BookOpen size={16} color="var(--text-muted)" />
-                                            )}
-                                          </div>
-                                          <span style={{ fontWeight: 500 }}>"{record.title}"</span>
+                        <>
+                          {/* Desktop Table */}
+                          <div className="desktop-table-view">
+                            <div className="table-responsive-wrapper">
+                              <table className="custom-table" style={{ minWidth: '800px' }}>
+                                <thead>
+                                  <tr>
+                                    <th>Branch</th>
+                                    <th>Book Title</th>
+                                    <th>Author</th>
+                                    <th style={{ textAlign: 'center' }}>Total Accesses</th>
+                                    <th style={{ textAlign: 'center' }}>Downloads</th>
+                                    <th className="sticky-action-col" style={{ textAlign: 'right', minWidth: '100px' }}>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dashboardData.mostReadPerBranch.map((record, index) => (
+                                    <tr key={record.branch_id || index}>
+                                      <td style={{ fontWeight: 600 }}>{record.branch_name}</td>
+                                      {record.has_activity ? (
+                                        <>
+                                          <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                              <div style={{ width: '32px', height: '42px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {record.cover_url ? (
+                                                  <img src={record.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                  <BookOpen size={16} color="var(--text-muted)" />
+                                                )}
+                                              </div>
+                                              <span style={{ fontWeight: 500 }}>"{record.title}"</span>
+                                            </div>
+                                          </td>
+                                          <td style={{ color: 'var(--text-secondary)' }}>{record.author}</td>
+                                          <td style={{ textAlign: 'center' }}>
+                                            <span className="badge badge-success">{record.total_accesses} times</span>
+                                          </td>
+                                          <td style={{ textAlign: 'center' }}>
+                                            <span className="badge badge-warning">{record.total_downloads} dwns</span>
+                                          </td>
+                                          <td className="sticky-action-col" style={{ textAlign: 'right' }}>
+                                            <button
+                                              onClick={() => setSelectedBookForActivity(books.find(b => b.id === (record.id || record.book_id)) || { ...record, id: record.id || record.book_id })}
+                                              className="btn btn-secondary"
+                                              style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                                            >
+                                              Inspect
+                                            </button>
+                                          </td>
+                                        </>
+                                      ) : (
+                                        <td colSpan={5} style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                                          {record.message || 'No reading activity recorded for this department.'}
+                                        </td>
+                                      )}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Mobile Cards */}
+                          <div className="mobile-cards-view">
+                            {dashboardData.mostReadPerBranch.map((record, index) => (
+                              <div key={record.branch_id || index} className="mobile-data-card">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span className="mobile-card-title">{record.branch_name}</span>
+                                  <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>Leaderboard</span>
+                                </div>
+
+                                {record.has_activity ? (
+                                  <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      {record.cover_url ? (
+                                        <img src={record.cover_url} alt="" style={{ width: '42px', height: '58px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-glass)', flexShrink: 0 }} />
+                                      ) : (
+                                        <div style={{ width: '42px', height: '58px', borderRadius: '6px', background: 'var(--surface-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                          <BookOpen size={20} color="var(--text-muted)" />
                                         </div>
-                                      </td>
-                                      <td style={{ padding: '14px', color: 'var(--text-secondary)' }}>{record.author}</td>
-                                      <td style={{ padding: '14px', textAlign: 'center' }}>
-                                        <span className="badge badge-success">{record.total_accesses} times</span>
-                                      </td>
-                                      <td style={{ padding: '14px', textAlign: 'center' }}>
-                                        <span className="badge badge-warning">{record.total_downloads} dwns</span>
-                                      </td>
-                                      <td style={{ padding: '14px', textAlign: 'right' }}>
-                                        <button
-                                          onClick={() => setSelectedBookForActivity(books.find(b => b.id === (record.id || record.book_id)) || { ...record, id: record.id || record.book_id })}
-                                          className="btn btn-secondary"
-                                          style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                                        >
-                                          Inspect
-                                        </button>
-                                      </td>
-                                    </>
-                                  ) : (
-                                    <td colSpan={5} style={{ padding: '14px', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                                      {record.message || 'No reading activity recorded for this department.'}
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                                      )}
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)', lineHeight: 1.3 }}>"{record.title}"</div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>by {record.author}</div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mobile-card-chips">
+                                      <span className="badge badge-success" style={{ fontSize: '0.72rem' }}>{record.total_accesses} Reads</span>
+                                      <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>{record.total_downloads} Downloads</span>
+                                    </div>
+
+                                    <div className="mobile-card-actions">
+                                      <button
+                                        onClick={() => setSelectedBookForActivity(books.find(b => b.id === (record.id || record.book_id)) || { ...record, id: record.id || record.book_id })}
+                                        className="btn btn-secondary"
+                                        style={{ width: '100%', minHeight: '42px', justifyContent: 'center', gap: '6px' }}
+                                      >
+                                        <Activity size={15} /> Inspect Reading Activity
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                    {record.message || 'No reading activity recorded for this department.'}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   </>
@@ -2636,106 +2776,168 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Books Inventory Table */}
-                <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.1)' }}>
-                          <th style={{ padding: '16px', width: '40px', textAlign: 'center' }}>
+                {filteredBooks.length === 0 ? (
+                  <div className="glass-panel" style={{ padding: '32px 16px', textAlign: 'center' }}>
+                    <EmptyState
+                      icon={BookOpen}
+                      title="No Books Found"
+                      subtitle={searchQuery ? `No catalog books match "${searchQuery}"` : "The library catalog is currently empty."}
+                      actionLabel={!searchQuery ? "Catalog New Book" : undefined}
+                      onAction={!searchQuery ? () => openBookModal(null) : undefined}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop Table View */}
+                    <div className="glass-panel desktop-table-view" style={{ overflow: 'hidden' }}>
+                      <div className="table-responsive-wrapper">
+                        <table className="custom-table" style={{ minWidth: '950px' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ width: '40px', textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isAllFilteredBooksSelected}
+                                  onChange={handleSelectAllBooks}
+                                  style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                />
+                              </th>
+                              <th style={{ width: '70px', textAlign: 'center' }}>Cover</th>
+                              <th>Title</th>
+                              <th>Author</th>
+                              <th>Branch</th>
+                              <th>Category</th>
+                              <th>Priority</th>
+                              <th className="sticky-action-col" style={{ textAlign: 'center', minWidth: '150px' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredBooks.map(b => (
+                              <tr key={b.id}>
+                                <td style={{ textAlign: 'center' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedBookIds.includes(b.id)}
+                                    onChange={e => handleSelectBook(b.id, e.target.checked)}
+                                    style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  {b.cover_url ? (
+                                    <img src={b.cover_url} alt={b.title} style={{ width: '40px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-glass)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                  ) : (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
+                                  )}
+                                </td>
+                                <td style={{ fontWeight: 600 }}>{b.title}</td>
+                                <td>{b.author}</td>
+                                <td>
+                                  <span className="badge badge-secondary" style={{ textTransform: 'none', fontSize: '0.65rem' }}>{b.branch_name}</span>
+                                </td>
+                                <td style={{ color: 'var(--text-secondary)' }}>{b.category_name}</td>
+                                <td>
+                                  {b.priority === 'main' ? (
+                                    <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Main</span>
+                                  ) : (
+                                    <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Sub</span>
+                                  )}
+                                </td>
+                                <td className="sticky-action-col" style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                    <button
+                                      onClick={() => setSelectedBookForActivity(b)}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '6px 10px', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--primary)' }}
+                                      title="View Reading Activity"
+                                    >
+                                      <Activity size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => openBookModal(b)}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '6px 10px' }}
+                                      title="Edit Book"
+                                    >
+                                      <Edit size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteBookConfirm({ id: b.id, title: b.title })}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '6px 10px', borderColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}
+                                      title="Delete Book"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Mobile Card View (< 768px) */}
+                    <div className="mobile-cards-view">
+                      {filteredBooks.map(b => (
+                        <div key={b.id} className="mobile-data-card">
+                          <div className="mobile-card-header">
                             <input
                               type="checkbox"
-                              checked={isAllFilteredBooksSelected}
-                              onChange={handleSelectAllBooks}
-                              style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                              checked={selectedBookIds.includes(b.id)}
+                              onChange={e => handleSelectBook(b.id, e.target.checked)}
+                              style={{ cursor: 'pointer', transform: 'scale(1.2)', marginTop: '4px' }}
                             />
-                          </th>
-                          <th style={{ padding: '16px', width: '70px' }}>Cover</th>
-                          <th style={{ padding: '16px' }}>Title</th>
-                          <th style={{ padding: '16px' }}>Author</th>
-                          <th style={{ padding: '16px' }}>Branch</th>
-                          <th style={{ padding: '16px' }}>Category</th>
-                          <th style={{ padding: '16px' }}>Priority</th>
-                          <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredBooks.length === 0 ? (
-                          <tr>
-                            <td colSpan={8} style={{ padding: '32px 16px', textAlign: 'center' }}>
-                              <EmptyState
-                                icon={BookOpen}
-                                title="No Books Found"
-                                subtitle={searchQuery ? `No catalog books match "${searchQuery}"` : "The library catalog is currently empty."}
-                                actionLabel={!searchQuery ? "Catalog New Book" : undefined}
-                                onAction={!searchQuery ? () => openBookModal(null) : undefined}
-                              />
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredBooks.map(b => (
-                          <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedBookIds.includes(b.id)}
-                                onChange={e => handleSelectBook(b.id, e.target.checked)}
-                                style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
-                              />
-                            </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              {b.cover_url ? (
-                                <img src={b.cover_url} alt={b.title} style={{ width: '40px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-glass)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                              ) : (
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '16px', fontWeight: 600 }}>{b.title}</td>
-                            <td style={{ padding: '16px' }}>{b.author}</td>
-                            <td style={{ padding: '16px' }}>
-                              <span className="badge badge-secondary" style={{ textTransform: 'none', fontSize: '0.65rem' }}>{b.branch_name}</span>
-                            </td>
-                            <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{b.category_name}</td>
-                            <td style={{ padding: '16px' }}>
-                              {b.priority === 'main' ? (
-                                <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Main</span>
-                              ) : (
-                                <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Sub</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                <button
-                                  onClick={() => setSelectedBookForActivity(b)}
-                                  className="btn btn-secondary"
-                                  style={{ padding: '6px 10px', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--primary)' }}
-                                  title="View Reading Activity"
-                                >
-                                  <Activity size={14} />
-                                </button>
-                                <button
-                                  onClick={() => openBookModal(b)}
-                                  className="btn btn-secondary"
-                                  style={{ padding: '6px 10px' }}
-                                  title="Edit Book"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                                <button
-                                  onClick={() => setDeleteBookConfirm({ id: b.id, title: b.title })}
-                                  className="btn btn-secondary"
-                                  style={{ padding: '6px 10px', borderColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}
-                                  title="Delete Book"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                            {b.cover_url ? (
+                              <img src={b.cover_url} alt={b.title} style={{ width: '50px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-glass)', flexShrink: 0 }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                            ) : (
+                              <div style={{ width: '50px', height: '70px', borderRadius: '6px', background: 'var(--surface-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-glass)' }}>
+                                <BookOpen size={22} color="var(--text-muted)" />
                               </div>
-                            </td>
-                          </tr>
-                        )))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="mobile-card-title">{b.title}</div>
+                              <div className="mobile-card-subtitle">by {b.author || 'Unknown Author'}</div>
+                            </div>
+                          </div>
+
+                          <div className="mobile-card-chips">
+                            <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>Branch: {b.branch_name}</span>
+                            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>Cat: {b.category_name}</span>
+                            {b.priority === 'main' ? (
+                              <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Priority: Main</span>
+                            ) : (
+                              <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>Priority: Sub</span>
+                            )}
+                          </div>
+
+                          <div className="mobile-card-actions">
+                            <button
+                              onClick={() => setSelectedBookForActivity(b)}
+                              className="btn btn-secondary"
+                              style={{ borderColor: 'rgba(59,130,246,0.3)', color: 'var(--primary)' }}
+                            >
+                              <Activity size={15} /> Analytics
+                            </button>
+                            <button
+                              onClick={() => openBookModal(b)}
+                              className="btn btn-secondary"
+                            >
+                              <Edit size={15} /> Edit
+                            </button>
+                            <button
+                              onClick={() => setDeleteBookConfirm({ id: b.id, title: b.title })}
+                              className="btn btn-secondary"
+                              style={{ borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                            >
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -2849,194 +3051,303 @@ const AdminDashboard = () => {
                       <p style={{ marginTop: '8px' }}>Try adjusting your search or filter criteria.</p>
                     </div>
                   ) : (
-                    <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border-glass)', background: 'rgba(0,0,0,0.08)' }}>
-                              <th style={{ padding: '14px 16px', width: '40px', textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isAllFilteredSelected}
-                                  onChange={handleSelectAll}
-                                  style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
-                                />
-                              </th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>#</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Student</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Roll / BT</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Year / Sem</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined</th>
-                              <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredStudents.map((s, idx) => (
-                              <tr
-                                key={s.id}
-                                onClick={(e) => {
-                                  if (!e.target.closest('button') && !e.target.closest('input')) {
-                                    setSelectedStudentForActivity(s);
-                                  }
-                                }}
-                                style={{
-                                  borderBottom: '1px solid var(--border-glass)',
-                                  transition: 'background 0.15s ease',
-                                  cursor: 'pointer'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                              >
-                                <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                    <>
+                      {/* Desktop Table View */}
+                      <div className="glass-panel desktop-table-view" style={{ overflow: 'hidden' }}>
+                        <div className="table-responsive-wrapper">
+                          <table className="custom-table" style={{ minWidth: '1100px' }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: '40px', textAlign: 'center' }}>
                                   <input
                                     type="checkbox"
-                                    checked={selectedUserIds.includes(s.id)}
-                                    onChange={e => handleSelectUser(s.id, e.target.checked)}
+                                    checked={isAllFilteredSelected}
+                                    onChange={handleSelectAll}
                                     style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
                                   />
-                                </td>
-                                <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{idx + 1}</td>
-                                <td style={{ padding: '14px 16px' }} title="Click to view complete activity history">
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{
-                                      width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-                                      background: `linear-gradient(135deg, var(--primary), var(--secondary))`,
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      fontSize: '0.85rem', fontWeight: 700, color: '#fff',
-                                      boxShadow: '0 2px 8px var(--primary-glow)'
-                                    }}>
-                                      {s.full_name?.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span>{s.full_name}</span>
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', opacity: 0.8 }}>↗</span>
-                                      </div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{s.username}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td style={{ padding: '14px 16px' }}>
-                                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{s.roll_number}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>BT: {s.bt_number}</div>
-                                </td>
-                                <td style={{ padding: '14px 16px' }}>
-                                  <span className="badge badge-secondary" style={{ fontSize: '0.65rem', textTransform: 'none' }}>
-                                    {s.branch_name}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>
-                                  Year {s.year} &bull; Sem {s.semester}
-                                </td>
-                                 <td style={{ padding: '14px 16px' }}>
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                                     {s.status === 'approved' && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Approved</span>}
-                                     {s.status === 'pending' && <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Pending</span>}
-                                     {s.status === 'rejected' && <span className="badge badge-danger" style={{ fontSize: '0.65rem' }}>Rejected</span>}
-                                     {s.is_blocked === 1 && (
-                                       <span className="badge badge-danger" style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>Blocked</span>
-                                     )}
-                                   </div>
-                                 </td>
-                                 <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                                   {new Date(s.created_at).toLocaleDateString()}
-                                 </td>
-                                 <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setSelectedStudentForActivity(s);
-                                       }}
-                                       className="btn btn-secondary"
-                                       style={{
-                                         padding: '7px 12px',
-                                         borderColor: 'rgba(37, 99, 235, 0.35)',
-                                         color: 'var(--primary)',
-                                         fontSize: '0.8rem', gap: '6px'
-                                       }}
-                                       title={`View complete activity & study history for ${s.full_name}`}
-                                     >
-                                       <Activity size={14} /> Activity
-                                     </button>
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         openEditStudentModal(s);
-                                       }}
-                                       className="btn btn-secondary"
-                                       style={{
-                                         padding: '7px 12px',
-                                         borderColor: 'rgba(99, 102, 241, 0.35)',
-                                         color: 'var(--primary)',
-                                         fontSize: '0.8rem', gap: '6px'
-                                       }}
-                                       title={`Edit ${s.full_name}'s details (Academic Year, Branch, Roll No, etc.)`}
-                                     >
-                                       <Edit size={14} /> Edit
-                                     </button>
-
-                                     {s.is_blocked === 1 ? (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           handleToggleBlock(s.id, false);
-                                         }}
-                                         className="btn btn-secondary"
-                                         style={{
-                                           padding: '7px 12px',
-                                           borderColor: 'rgba(16, 185, 129, 0.3)',
-                                           color: 'var(--success)',
-                                           fontSize: '0.8rem', gap: '6px'
-                                         }}
-                                         title={`Unblock ${s.full_name}`}
-                                       >
-                                         <UserCheck size={14} /> Unblock
-                                       </button>
-                                     ) : (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           handleToggleBlock(s.id, true);
-                                         }}
-                                         className="btn btn-secondary"
-                                         style={{
-                                           padding: '7px 12px',
-                                           borderColor: 'rgba(245, 158, 11, 0.3)',
-                                           color: 'var(--warning)',
-                                           fontSize: '0.8rem', gap: '6px'
-                                         }}
-                                         title={`Block ${s.full_name}`}
-                                       >
-                                         <UserX size={14} /> Block
-                                       </button>
-                                     )}
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setDeleteConfirm({ id: s.id, name: s.full_name });
-                                       }}
-                                       className="btn btn-secondary"
-                                       style={{
-                                         padding: '7px 12px',
-                                         borderColor: 'rgba(239,68,68,0.3)',
-                                         color: 'var(--danger)',
-                                         fontSize: '0.8rem', gap: '6px'
-                                       }}
-                                       title={`Delete ${s.full_name}'s account`}
-                                     >
-                                       <Trash2 size={14} /> Delete
-                                     </button>
-                                   </div>
-                                 </td>
+                                </th>
+                                <th style={{ width: '45px' }}>#</th>
+                                <th>Student</th>
+                                <th>Roll / BT</th>
+                                <th>Branch</th>
+                                <th>Year / Sem</th>
+                                <th>Status</th>
+                                <th>Joined</th>
+                                <th className="sticky-action-col" style={{ textAlign: 'center', minWidth: '290px' }}>Action</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {filteredStudents.map((s, idx) => (
+                                <tr
+                                  key={s.id}
+                                  onClick={(e) => {
+                                    if (!e.target.closest('button') && !e.target.closest('input')) {
+                                      setSelectedStudentForActivity(s);
+                                    }
+                                  }}
+                                  style={{ cursor: 'pointer' }}
+                                >
+                                  <td style={{ textAlign: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedUserIds.includes(s.id)}
+                                      onChange={e => handleSelectUser(s.id, e.target.checked)}
+                                      style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                    />
+                                  </td>
+                                  <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{idx + 1}</td>
+                                  <td title="Click to view complete activity history">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                      <div style={{
+                                        width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                                        background: `linear-gradient(135deg, var(--primary), var(--secondary))`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.85rem', fontWeight: 700, color: '#fff',
+                                        boxShadow: '0 2px 8px var(--primary-glow)'
+                                      }}>
+                                        {s.full_name?.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <span>{s.full_name}</span>
+                                          <span style={{ fontSize: '0.72rem', color: 'var(--primary)', opacity: 0.8 }}>↗</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{s.username}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{s.roll_number}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>BT: {s.bt_number || 'N/A'}</div>
+                                  </td>
+                                  <td>
+                                    <span className="badge badge-secondary" style={{ fontSize: '0.65rem', textTransform: 'none' }}>
+                                      {s.branch_name}
+                                    </span>
+                                  </td>
+                                  <td style={{ color: 'var(--text-secondary)' }}>
+                                    Year {s.year} &bull; Sem {s.semester}
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                      {s.status === 'approved' && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Approved</span>}
+                                      {s.status === 'pending' && <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Pending</span>}
+                                      {s.status === 'rejected' && <span className="badge badge-danger" style={{ fontSize: '0.65rem' }}>Rejected</span>}
+                                      {s.is_blocked === 1 && (
+                                        <span className="badge badge-danger" style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>Blocked</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                    {new Date(s.created_at).toLocaleDateString()}
+                                  </td>
+                                  <td className="sticky-action-col" style={{ textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedStudentForActivity(s);
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{
+                                          padding: '7px 12px',
+                                          borderColor: 'rgba(37, 99, 235, 0.35)',
+                                          color: 'var(--primary)',
+                                          fontSize: '0.8rem', gap: '6px'
+                                        }}
+                                        title={`View complete activity & study history for ${s.full_name}`}
+                                      >
+                                        <Activity size={14} /> Activity
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openEditStudentModal(s);
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{
+                                          padding: '7px 12px',
+                                          borderColor: 'rgba(99, 102, 241, 0.35)',
+                                          color: 'var(--primary)',
+                                          fontSize: '0.8rem', gap: '6px'
+                                        }}
+                                        title={`Edit ${s.full_name}'s details`}
+                                      >
+                                        <Edit size={14} /> Edit
+                                      </button>
+
+                                      {s.is_blocked === 1 ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleBlock(s.id, false);
+                                          }}
+                                          className="btn btn-secondary"
+                                          style={{
+                                            padding: '7px 12px',
+                                            borderColor: 'rgba(16, 185, 129, 0.3)',
+                                            color: 'var(--success)',
+                                            fontSize: '0.8rem', gap: '6px'
+                                          }}
+                                          title={`Unblock ${s.full_name}`}
+                                        >
+                                          <UserCheck size={14} /> Unblock
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleBlock(s.id, true);
+                                          }}
+                                          className="btn btn-secondary"
+                                          style={{
+                                            padding: '7px 12px',
+                                            borderColor: 'rgba(245, 158, 11, 0.3)',
+                                            color: 'var(--warning)',
+                                            fontSize: '0.8rem', gap: '6px'
+                                          }}
+                                          title={`Block ${s.full_name}`}
+                                        >
+                                          <UserX size={14} /> Block
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeleteConfirm({ id: s.id, name: s.full_name });
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{
+                                          padding: '7px 12px',
+                                          borderColor: 'rgba(239,68,68,0.3)',
+                                          color: 'var(--danger)',
+                                          fontSize: '0.8rem', gap: '6px'
+                                        }}
+                                        title={`Delete ${s.full_name}'s account`}
+                                      >
+                                        <Trash2 size={14} /> Delete
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Mobile Card View (< 768px) */}
+                      <div className="mobile-cards-view">
+                        {filteredStudents.map((s, idx) => (
+                          <div
+                            key={s.id}
+                            className="mobile-data-card"
+                            onClick={(e) => {
+                              if (!e.target.closest('button') && !e.target.closest('input')) {
+                                setSelectedStudentForActivity(s);
+                              }
+                            }}
+                          >
+                            <div className="mobile-card-header">
+                              <input
+                                type="checkbox"
+                                checked={selectedUserIds.includes(s.id)}
+                                onChange={e => handleSelectUser(s.id, e.target.checked)}
+                                style={{ cursor: 'pointer', transform: 'scale(1.2)', marginTop: '4px' }}
+                              />
+                              <div style={{
+                                width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+                                background: `linear-gradient(135deg, var(--primary), var(--secondary))`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.95rem', fontWeight: 800, color: '#fff'
+                              }}>
+                                {s.full_name?.charAt(0).toUpperCase()}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                                  <span className="mobile-card-title">{s.full_name}</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>#{idx + 1}</span>
+                                </div>
+                                <div className="mobile-card-subtitle">@{s.username}</div>
+                              </div>
+                            </div>
+
+                            <div className="mobile-card-chips">
+                              <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>{s.branch_name}</span>
+                              <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>Year {s.year} • Sem {s.semester}</span>
+                              {s.status === 'approved' && <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Approved</span>}
+                              {s.status === 'pending' && <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Pending</span>}
+                              {s.status === 'rejected' && <span className="badge badge-danger" style={{ fontSize: '0.7rem' }}>Rejected</span>}
+                              {s.is_blocked === 1 && (
+                                <span className="badge badge-danger" style={{ fontSize: '0.7rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>Blocked</span>
+                              )}
+                            </div>
+
+                            <div className="mobile-card-meta-grid">
+                              <div><strong>Roll:</strong> {s.roll_number}</div>
+                              <div><strong>BT:</strong> {s.bt_number || 'N/A'}</div>
+                              <div style={{ gridColumn: 'span 2' }}><strong>Joined:</strong> {new Date(s.created_at).toLocaleDateString()}</div>
+                            </div>
+
+                            <div className="mobile-card-actions">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedStudentForActivity(s);
+                                }}
+                                className="btn btn-secondary"
+                                style={{ borderColor: 'rgba(37, 99, 235, 0.35)', color: 'var(--primary)' }}
+                              >
+                                <Activity size={15} /> Activity
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditStudentModal(s);
+                                }}
+                                className="btn btn-secondary"
+                                style={{ borderColor: 'rgba(99, 102, 241, 0.35)', color: 'var(--primary)' }}
+                              >
+                                <Edit size={15} /> Edit
+                              </button>
+                              {s.is_blocked === 1 ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleBlock(s.id, false);
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: 'var(--success)' }}
+                                >
+                                  <UserCheck size={15} /> Unblock
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleBlock(s.id, true);
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{ borderColor: 'rgba(245, 158, 11, 0.3)', color: 'var(--warning)' }}
+                                >
+                                  <UserX size={15} /> Block
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirm({ id: s.id, name: s.full_name });
+                                }}
+                                className="btn btn-secondary"
+                                style={{ borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                              >
+                                <Trash2 size={15} /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
             )}
@@ -3050,69 +3361,110 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                  <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
-                          <th style={{ padding: '12px' }}>Timestamp</th>
-                          <th style={{ padding: '12px' }}>User / Member</th>
-                          <th style={{ padding: '12px' }}>Event Action</th>
-                          <th style={{ padding: '12px' }}>Entity Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {logsLoading ? (
-                          <tr>
-                            <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                              Loading audit logs...
-                            </td>
-                          </tr>
-                        ) : logs.length === 0 ? (
-                          <tr>
-                            <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                              No logs found.
-                            </td>
-                          </tr>
-                        ) : (
-                          logs.map((log, index) => {
-                            let actionBadgeClass = 'badge-secondary';
-                            if (log.action_type === 'login') actionBadgeClass = 'badge-success';
-                            else if (log.action_type === 'logout') actionBadgeClass = 'badge-primary';
-                            else if (log.action_type === 'download') actionBadgeClass = 'badge-warning';
-                            else if (log.action_type === 'admin_action') actionBadgeClass = 'badge-danger';
-                            else if (log.action_type === 'view') actionBadgeClass = 'badge-secondary';
-
-                            return (
-                              <tr key={log.id || index} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '12px', color: 'var(--text-muted)' }}>
-                                  {new Date(log.created_at).toLocaleString()}
-                                </td>
-                                <td style={{ padding: '12px' }}>
-                                  <div style={{ fontWeight: 600 }}>{log.full_name || 'System'}</div>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                    {log.role} {log.roll_number ? `(${log.roll_number})` : ''}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '12px' }}>
-                                  <span className={`badge ${actionBadgeClass}`} style={{ fontSize: '0.65rem' }}>
-                                    {log.action_type.replace('_', ' ')}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '12px' }}>
-                                  <div>{log.details}</div>
-                                  {log.book_title && (
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                      Book: "{log.book_title}"
-                                    </div>
-                                  )}
-                                </td>
+                  {logsLoading ? (
+                    <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <div style={{ width: '36px', height: '36px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                      <p>Loading audit logs...</p>
+                    </div>
+                  ) : logs.length === 0 ? (
+                    <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No logs found.
+                    </div>
+                  ) : (
+                    <>
+                      {/* Desktop Table */}
+                      <div className="desktop-table-view">
+                        <div className="table-responsive-wrapper" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                          <table className="custom-table" style={{ minWidth: '750px' }}>
+                            <thead>
+                              <tr>
+                                <th>Timestamp</th>
+                                <th>User / Member</th>
+                                <th>Event Action</th>
+                                <th>Entity Details</th>
                               </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                            </thead>
+                            <tbody>
+                              {logs.map((log, index) => {
+                                let actionBadgeClass = 'badge-secondary';
+                                if (log.action_type === 'login') actionBadgeClass = 'badge-success';
+                                else if (log.action_type === 'logout') actionBadgeClass = 'badge-primary';
+                                else if (log.action_type === 'download') actionBadgeClass = 'badge-warning';
+                                else if (log.action_type === 'admin_action') actionBadgeClass = 'badge-danger';
+                                else if (log.action_type === 'view') actionBadgeClass = 'badge-secondary';
+
+                                return (
+                                  <tr key={log.id || index}>
+                                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                      {new Date(log.created_at).toLocaleString()}
+                                    </td>
+                                    <td>
+                                      <div style={{ fontWeight: 600 }}>{log.full_name || 'System'}</div>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {log.role} {log.roll_number ? `(${log.roll_number})` : ''}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className={`badge ${actionBadgeClass}`} style={{ fontSize: '0.65rem' }}>
+                                        {log.action_type.replace('_', ' ')}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <div>{log.details}</div>
+                                      {log.book_title && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '2px', fontWeight: 600 }}>
+                                          Book: "{log.book_title}"
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Mobile Cards */}
+                      <div className="mobile-cards-view">
+                        {logs.map((log, index) => {
+                          let actionBadgeClass = 'badge-secondary';
+                          if (log.action_type === 'login') actionBadgeClass = 'badge-success';
+                          else if (log.action_type === 'logout') actionBadgeClass = 'badge-primary';
+                          else if (log.action_type === 'download') actionBadgeClass = 'badge-warning';
+                          else if (log.action_type === 'admin_action') actionBadgeClass = 'badge-danger';
+                          else if (log.action_type === 'view') actionBadgeClass = 'badge-secondary';
+
+                          return (
+                            <div key={log.id || index} className="mobile-data-card">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>{log.full_name || 'System'}</div>
+                                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{log.role} {log.roll_number ? `(${log.roll_number})` : ''}</div>
+                                </div>
+                                <span className={`badge ${actionBadgeClass}`} style={{ fontSize: '0.7rem' }}>
+                                  {log.action_type.replace('_', ' ')}
+                                </span>
+                              </div>
+
+                              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', background: 'var(--surface-glow)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                                <div>{log.details}</div>
+                                {log.book_title && (
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
+                                    Book: "{log.book_title}"
+                                  </div>
+                                )}
+                              </div>
+
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Clock size={13} /> {new Date(log.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
 
                   {/* M-3 Pagination Controls */}
                   {logsPagination.totalPages > 1 && (
@@ -3225,95 +3577,166 @@ const AdminDashboard = () => {
                       <p style={{ fontSize: '0.82rem' }}>Add your first branch using the form above.</p>
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--border-glass)', background: 'rgba(0,0,0,0.08)' }}>
-                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
-                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch Name</th>
-                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Catalog Books</th>
-                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enrolled Students</th>
-                            <th style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {branches.map((br) => {
-                            const branchBooksCount = books.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name)).length;
-                            const branchStudentsCount = students.filter(s => isSameBranch(s.branch_name, br.name)).length;
-                            const isEditing = editingBranch && editingBranch.id === br.id;
-
-                            return (
-                              <tr key={br.id} style={{ borderBottom: '1px solid var(--border-glass)', transition: 'background 0.15s ease' }}>
-                                <td style={{ padding: '14px 20px', color: 'var(--text-muted)', fontWeight: 600 }}>#{br.id}</td>
-                                <td style={{ padding: '14px 20px' }}>
-                                  {isEditing ? (
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                      <input
-                                        type="text"
-                                        className="glass-input"
-                                        value={editingBranch.name}
-                                        onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
-                                        style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                                        autoFocus
-                                      />
-                                      <button
-                                        onClick={() => handleUpdateBranch(br.id, editingBranch.name)}
-                                        className="btn btn-success"
-                                        style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-                                        disabled={branchActionLoading}
-                                      >
-                                        Save
-                                      </button>
-                                      <button
-                                        onClick={() => setEditingBranch(null)}
-                                        className="btn btn-secondary"
-                                        style={{ padding: '6px 10px', fontSize: '0.75rem' }}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
-                                      {br.name}
-                                    </div>
-                                  )}
-                                </td>
-                                <td style={{ padding: '14px 20px' }}>
-                                  <span className="badge badge-primary" style={{ fontSize: '0.78rem' }}>
-                                    {branchBooksCount} Books
-                                  </span>
-                                </td>
-                                <td style={{ padding: '14px 20px' }}>
-                                  <span className="badge badge-success" style={{ fontSize: '0.78rem' }}>
-                                    {branchStudentsCount} Students
-                                  </span>
-                                </td>
-                                <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                    <button
-                                      onClick={() => setEditingBranch({ id: br.id, name: br.name })}
-                                      className="btn btn-secondary"
-                                      style={{ padding: '6px 10px', fontSize: '0.75rem' }}
-                                      title="Edit Branch Name"
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => setBranchDeleteConfirm(br)}
-                                      className="btn btn-danger"
-                                      style={{ padding: '6px 10px', fontSize: '0.75rem' }}
-                                      title="Delete Branch"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </td>
+                    <>
+                      {/* Desktop Table View */}
+                      <div className="desktop-table-view">
+                        <div className="table-responsive-wrapper">
+                          <table className="custom-table" style={{ minWidth: '700px' }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: '60px' }}>ID</th>
+                                <th>Branch Name</th>
+                                <th>Catalog Books</th>
+                                <th>Enrolled Students</th>
+                                <th className="sticky-action-col" style={{ textAlign: 'right', minWidth: '110px' }}>Actions</th>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                            </thead>
+                            <tbody>
+                              {branches.map((br) => {
+                                const branchBooksCount = books.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name)).length;
+                                const branchStudentsCount = students.filter(s => isSameBranch(s.branch_name, br.name)).length;
+                                const isEditing = editingBranch && editingBranch.id === br.id;
+
+                                return (
+                                  <tr key={br.id}>
+                                    <td style={{ color: 'var(--text-muted)', fontWeight: 600 }}>#{br.id}</td>
+                                    <td>
+                                      {isEditing ? (
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                          <input
+                                            type="text"
+                                            className="glass-input"
+                                            value={editingBranch.name}
+                                            onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                                            style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={() => handleUpdateBranch(br.id, editingBranch.name)}
+                                            className="btn btn-success"
+                                            style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                                            disabled={branchActionLoading}
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingBranch(null)}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                                          {br.name}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td>
+                                      <span className="badge badge-primary" style={{ fontSize: '0.78rem' }}>
+                                        {branchBooksCount} Books
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="badge badge-success" style={{ fontSize: '0.78rem' }}>
+                                        {branchStudentsCount} Students
+                                      </span>
+                                    </td>
+                                    <td className="sticky-action-col" style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                        <button
+                                          onClick={() => setEditingBranch({ id: br.id, name: br.name })}
+                                          className="btn btn-secondary"
+                                          style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                          title="Edit Branch Name"
+                                        >
+                                          <Edit size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => setBranchDeleteConfirm(br)}
+                                          className="btn btn-danger"
+                                          style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                          title="Delete Branch"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Mobile Cards View (< 768px) */}
+                      <div className="mobile-cards-view" style={{ padding: '16px' }}>
+                        {branches.map((br) => {
+                          const branchBooksCount = books.filter(b => b.branch_id === br.id || isSameBranch(b.branch_name, br.name)).length;
+                          const branchStudentsCount = students.filter(s => isSameBranch(s.branch_name, br.name)).length;
+                          const isEditing = editingBranch && editingBranch.id === br.id;
+
+                          return (
+                            <div key={br.id} className="mobile-data-card">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span className="mobile-card-title">{br.name}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>#{br.id}</span>
+                              </div>
+
+                              {isEditing ? (
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                                  <input
+                                    type="text"
+                                    className="glass-input"
+                                    value={editingBranch.name}
+                                    onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                                    style={{ padding: '8px 12px', fontSize: '0.88rem', flex: 1 }}
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateBranch(br.id, editingBranch.name)}
+                                    className="btn btn-success"
+                                    style={{ minHeight: '40px', padding: '0 14px' }}
+                                    disabled={branchActionLoading}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingBranch(null)}
+                                    className="btn btn-secondary"
+                                    style={{ minHeight: '40px', padding: '0 12px' }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="mobile-card-chips">
+                                  <span className="badge badge-primary" style={{ fontSize: '0.74rem' }}>{branchBooksCount} Books</span>
+                                  <span className="badge badge-success" style={{ fontSize: '0.74rem' }}>{branchStudentsCount} Students</span>
+                                </div>
+                              )}
+
+                              <div className="mobile-card-actions">
+                                <button
+                                  onClick={() => setEditingBranch({ id: br.id, name: br.name })}
+                                  className="btn btn-secondary"
+                                >
+                                  <Edit size={15} /> Edit Name
+                                </button>
+                                <button
+                                  onClick={() => setBranchDeleteConfirm(br)}
+                                  className="btn btn-danger"
+                                >
+                                  <Trash2 size={15} /> Delete Branch
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -752,30 +752,60 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                       <p style={{ fontSize: '0.82rem' }}>All inter-departmental book clearance requests will appear here.</p>
                     </div>
                   ) : (
-                    <div className="table-responsive-wrapper">
-                      <table className="custom-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Resource Title</th>
-                            <th>Target Department</th>
-                            <th>Requested On</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {permissions.map((p, idx) => (
-                            <tr key={p.id || idx}>
-                              <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
-                              <td style={{ fontWeight: 600 }}>{p.book?.title || p.book_title || 'General Department Catalog'}</td>
-                              <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.branch?.name || p.requested_branch_name || p.branch_name || 'Department'}</td>
-                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : 'N/A'}</td>
-                              <td><StatusBadge status={p.status} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <>
+                      {/* Desktop View (>= 768px) */}
+                      <div className="desktop-table-view">
+                        <div className="table-responsive-wrapper">
+                          <table className="custom-table" style={{ minWidth: '550px' }}>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Resource Title</th>
+                                <th>Target Department</th>
+                                <th>Requested On</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {permissions.map((p, idx) => (
+                                <tr key={p.id || idx}>
+                                  <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
+                                  <td style={{ fontWeight: 600 }}>{p.book?.title || p.book_title || 'General Department Catalog'}</td>
+                                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.branch?.name || p.requested_branch_name || p.branch_name || 'Department'}</td>
+                                  <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : 'N/A'}</td>
+                                  <td><StatusBadge status={p.status} /></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Mobile Cards View (< 768px) */}
+                      <div className="mobile-cards-view">
+                        {permissions.map((p, idx) => (
+                          <div key={p.id || idx} className="mobile-data-card">
+                            <div className="mobile-card-header">
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {p.book?.title || p.book_title || 'General Department Catalog'}
+                                </h4>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  Target: {p.branch?.name || p.requested_branch_name || p.branch_name || 'Department'}
+                                </div>
+                              </div>
+                              <StatusBadge status={p.status} />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                              <span>Requested On:</span>
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}

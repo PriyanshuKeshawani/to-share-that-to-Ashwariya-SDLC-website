@@ -535,47 +535,86 @@ const Dashboard = ({ onSelectBook }) => {
                 <p>No reading history recorded yet. Open a book to begin tracking!</p>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 16px' }}>Book Title</th>
-                      <th style={{ padding: '12px 16px' }}>Branch</th>
-                      <th style={{ padding: '12px 16px' }}>Last Page Read</th>
-                      <th style={{ padding: '12px 16px' }}>Access Count</th>
-                      <th style={{ padding: '12px 16px' }}>Download Count</th>
-                      <th style={{ padding: '12px 16px' }}>Last Accessed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((record, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '16px', fontWeight: 600 }}>{record.title}</td>
-                        <td style={{ padding: '16px' }}>
-                          <span className="badge badge-secondary" style={{ fontSize: '0.65rem', textTransform: 'none' }}>
+              <div>
+                {/* Desktop View (>= 768px) */}
+                <div className="desktop-table-view">
+                  <div className="table-responsive-wrapper">
+                    <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
+                          <th style={{ padding: '12px 16px' }}>Book Title</th>
+                          <th style={{ padding: '12px 16px' }}>Branch</th>
+                          <th style={{ padding: '12px 16px' }}>Last Page Read</th>
+                          <th style={{ padding: '12px 16px' }}>Access Count</th>
+                          <th style={{ padding: '12px 16px' }}>Download Count</th>
+                          <th style={{ padding: '12px 16px' }}>Last Accessed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((record, index) => (
+                          <tr key={index} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td style={{ padding: '16px', fontWeight: 600 }}>{record.title}</td>
+                            <td style={{ padding: '16px' }}>
+                              <span className="badge badge-secondary" style={{ fontSize: '0.65rem', textTransform: 'none' }}>
+                                {record.branch_name}
+                              </span>
+                            </td>
+                            <td style={{ padding: '16px' }}>
+                              <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+                                Page {record.last_page_read}
+                              </span>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>{record.accessed_count} times</td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                              {record.is_downloaded ? (
+                                <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Downloaded ({record.downloaded_count})</span>
+                              ) : (
+                                <span>{record.downloaded_count} times</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '16px', color: 'var(--text-muted)' }}>
+                              {new Date(record.last_accessed_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Mobile Cards View (< 768px) */}
+                <div className="mobile-cards-view">
+                  {history.map((record, index) => (
+                    <div key={index} className="mobile-data-card">
+                      <div className="mobile-card-header">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h4 style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {record.title}
+                          </h4>
+                          <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
                             {record.branch_name}
                           </span>
-                        </td>
-                        <td style={{ padding: '16px' }}>
-                          <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-                            Page {record.last_page_read}
-                          </span>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>{record.accessed_count} times</td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          {record.is_downloaded ? (
-                            <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Downloaded ({record.downloaded_count})</span>
-                          ) : (
-                            <span>{record.downloaded_count} times</span>
-                          )}
-                        </td>
-                        <td style={{ padding: '16px', color: 'var(--text-muted)' }}>
-                          {new Date(record.last_accessed_at).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                        <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+                          Page {record.last_page_read}
+                        </span>
+                      </div>
+                      <div className="mobile-card-meta-grid" style={{ marginTop: '8px' }}>
+                        <div>
+                          <span className="meta-label">Accesses</span>
+                          <span className="meta-value">{record.accessed_count} times</span>
+                        </div>
+                        <div>
+                          <span className="meta-label">Downloads</span>
+                          <span className="meta-value">{record.downloaded_count || 0} times</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                        Last accessed: {new Date(record.last_accessed_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
