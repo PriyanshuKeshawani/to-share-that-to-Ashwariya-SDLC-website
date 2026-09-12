@@ -7,7 +7,7 @@ import {
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
   Activity, X, Settings, RefreshCw, Printer, FileText,
-  Share2, Info, Sun, Moon
+  Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -35,6 +35,31 @@ const StudentDashboard = ({ onSelectBook }) => {
   // Sharing and Overview Modals State
   const [sharingBook, setSharingBook] = useState(null);
   const [overviewBook, setOverviewBook] = useState(null);
+
+  // Google AI Studio style Collapsible Sidebar State (PC / Desktop users)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('student-sidebar-collapsed') === 'true';
+  });
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('student-sidebar-collapsed', String(next));
+      return next;
+    });
+  }, []);
+
+  // Ctrl+B shortcut to toggle sidebar like Google AI Studio / IDEs
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
 
   const [activeTab, setActiveTabState] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -486,7 +511,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   ];
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
@@ -565,6 +590,14 @@ const StudentDashboard = ({ onSelectBook }) => {
                 aria-label="Toggle theme mode"
               >
                 {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
+              </button>
+              <button
+                onClick={toggleSidebar}
+                className="sidebar-collapse-btn"
+                title="Collapse sidebar (Ctrl+B)"
+                aria-label="Collapse navigation panel"
+              >
+                <PanelLeftClose size={16} />
               </button>
             </div>
           </div>
@@ -654,6 +687,54 @@ const StudentDashboard = ({ onSelectBook }) => {
       </aside>
 
       <main className="main-content">
+        {/* Google AI Studio Style Top Bar when Sidebar is Collapsed (PC) */}
+        {isSidebarCollapsed && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '24px',
+            padding: '10px 16px',
+            borderRadius: '12px',
+            background: 'var(--modal-card-bg, var(--bg-card))',
+            border: '1px solid var(--border-glass)',
+            boxShadow: 'var(--shadow-sm)'
+          }} className="desktop-table-view">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={toggleSidebar}
+                className="sidebar-expand-btn"
+                title="Expand navigation sidebar (Ctrl+B)"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen size={18} />
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src="/logo.png" alt="SISTec" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.04em' }}>SISTEC LIBRARY</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>• {
+                  activeTab === 'all' ? 'All Catalog' :
+                  activeTab === 'home' ? 'Home Branch' :
+                  activeTab === 'other' ? 'Other Branches' :
+                  activeTab === 'requests' ? 'My Requests' :
+                  activeTab === 'history' ? 'Reading History' : 'Settings & Theme'
+                }</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={toggleMode}
+                className="btn btn-secondary"
+                style={{ padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem', gap: '6px' }}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? <Sun size={15} color="#fbbf24" /> : <Moon size={15} color="var(--primary)" />}
+                {isDark ? 'Light' : 'Dark'}
+              </button>
+            </div>
+          </div>
+        )}
         {feedbackMsg.text && (
           <div className={`toast-notification ${toastExiting ? 'toast-exit' : ''}`} style={{
             position: 'fixed', top: '72px', right: '20px', left: '20px', zIndex: 3000,
