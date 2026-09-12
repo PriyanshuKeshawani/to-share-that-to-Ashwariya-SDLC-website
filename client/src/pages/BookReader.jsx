@@ -133,6 +133,7 @@ const BookReader = ({ book, onClose }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(book?.total_pages && book.total_pages > 0 ? book.total_pages : 100);
   const [scale, setScale] = useState(1.15);
+  const [mobileZoom, setMobileZoom] = useState(1.0); // Mobile zoom multiplier (1.0 = Fit to Screen, up to 2.5x)
   const [viewMode, setViewMode] = useState('single'); // 'single' (focused) or 'spread' (open 2-page book)
   const [useNativeViewer, setUseNativeViewer] = useState(false);
   const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
@@ -183,25 +184,51 @@ const BookReader = ({ book, onClose }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Touchscreen swipe support for mobile
+  // Touchscreen swipe & pinch-to-zoom support for mobile
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
+  const pinchStartDistRef = useRef(null);
+  const initialPinchZoomRef = useRef(1.0);
 
   const handleTouchStart = (e) => {
     if (e.touches && e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
+      pinchStartDistRef.current = null;
+    } else if (e.touches && e.touches.length === 2) {
+      // Two-finger pinch gesture start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDistRef.current = Math.hypot(dx, dy);
+      initialPinchZoomRef.current = mobileZoom;
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches && e.touches.length === 2 && pinchStartDistRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const currentDist = Math.hypot(dx, dy);
+      const ratio = currentDist / pinchStartDistRef.current;
+      const targetZoom = Math.min(2.5, Math.max(0.8, Number((initialPinchZoomRef.current * ratio).toFixed(2))));
+      setMobileZoom(targetZoom);
     }
   };
 
   const handleTouchEnd = (e) => {
+    if (e.touches && e.touches.length < 2) {
+      pinchStartDistRef.current = null;
+    }
     if (touchStartXRef.current === null || !e.changedTouches || e.changedTouches.length === 0) return;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
-    if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+    // Only allow swipe page flip when not significantly zoomed in (to avoid accidental flips while panning)
+    if (mobileZoom <= 1.15 && Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
       const step = viewMode === 'spread' ? 2 : 1;
       if (deltaX < 0) {
         if (currentPage < totalPages) {
@@ -460,12 +487,14 @@ const BookReader = ({ book, onClose }) => {
       const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
 
       if (isMobileView) {
-        // Fit cleanly within mobile viewport with comfortable padding (zero horizontal spill!)
+        // Fit cleanly within mobile viewport with comfortable padding
         const availableW = Math.max(260, window.innerWidth - 20);
         const availableH = Math.max(360, (window.innerHeight || 640) - 125);
         const scaleX = availableW / unscaledViewport.width;
         const scaleY = availableH / unscaledViewport.height;
-        effectiveScale = Math.min(scaleX, scaleY);
+        const baseFitScale = Math.min(scaleX, scaleY);
+        // Apply user's selected mobile zoom multiplier
+        effectiveScale = baseFitScale * mobileZoom;
       }
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -475,8 +504,8 @@ const BookReader = ({ book, onClose }) => {
       canvasElement.height = viewport.height;
       const cssWidth = Math.round(viewport.width / dpr);
       const cssHeight = Math.round(viewport.height / dpr);
-      canvasElement.style.width = isMobileView ? '100%' : `${cssWidth}px`;
-      canvasElement.style.height = isMobileView ? 'auto' : `${cssHeight}px`;
+      canvasElement.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
+      canvasElement.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
 
       const ctx = canvasElement.getContext('2d');
       ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -499,9 +528,9 @@ const BookReader = ({ book, onClose }) => {
         console.warn(`Render notice on page ${pageNum}:`, err);
       }
     }
-  }, [pdfDoc, scale, mode]);
+  }, [pdfDoc, scale, mobileZoom, mode]);
 
-  // Re-render canvases when currentPage, scale, viewMode, mobile breakpoint, or dark/light theme mode changes
+  // Re-render canvases when currentPage, scale, mobileZoom, viewMode, mobile breakpoint, or dark/light theme mode changes
   useEffect(() => {
     if (!pdfDoc) return;
 
@@ -512,7 +541,7 @@ const BookReader = ({ book, onClose }) => {
     if (viewMode === 'spread' && !isMobile && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
       renderPage(currentPage + 1, 'right', canvasRightRef.current);
     }
-  }, [pdfDoc, currentPage, scale, viewMode, isMobile, mode, renderPage]);
+  }, [pdfDoc, currentPage, scale, mobileZoom, viewMode, isMobile, mode, renderPage]);
 
   // Page Flip Navigation
   const handlePageChange = useCallback((targetPage, direction = null) => {
@@ -1135,6 +1164,7 @@ const BookReader = ({ book, onClose }) => {
           <div
             className="book-stage-viewport"
             onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
             {useNativeViewer || (!pdfSource && driveEmbed) ? (
@@ -1294,7 +1324,7 @@ const BookReader = ({ book, onClose }) => {
                       width: isMobile ? '100%' : undefined
                     }}
                   >
-                    <div className="book-canvas-holder">
+                    <div className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}>
                       <canvas ref={canvasLeftRef} />
                     </div>
 
@@ -1320,7 +1350,7 @@ const BookReader = ({ book, onClose }) => {
                         minHeight: '70vh'
                       }}
                     >
-                      <div className="book-canvas-holder">
+                      <div className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}>
                         {currentPage + 1 <= totalPages ? (
                           <canvas ref={canvasRightRef} />
                         ) : (
@@ -1369,6 +1399,62 @@ const BookReader = ({ book, onClose }) => {
               </div>
             )}
           </div>
+
+          {/* Floating Mobile Zoom Controls Widget */}
+          {isMobile && !useNativeViewer && !pdfLoading && !pdfLoadError && (
+            <div className="mobile-zoom-pill">
+              <button
+                type="button"
+                onClick={() => setMobileZoom(z => Math.max(0.8, Number((z - 0.15).toFixed(2))))}
+                className="btn btn-ghost"
+                style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '6px' }}
+                title="Zoom Out"
+              >
+                <ZoomOut size={13} />
+              </button>
+              <span
+                onClick={() => setMobileZoom(1.0)}
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  minWidth: '36px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  color: mobileZoom !== 1.0 ? 'var(--primary)' : 'var(--text-primary)'
+                }}
+                title="Tap to reset to 100% Fit"
+              >
+                {Math.round(mobileZoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileZoom(z => Math.min(2.5, Number((z + 0.15).toFixed(2))))}
+                className="btn btn-ghost"
+                style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '6px' }}
+                title="Zoom In"
+              >
+                <ZoomIn size={13} />
+              </button>
+              {mobileZoom !== 1.0 && (
+                <button
+                  type="button"
+                  onClick={() => setMobileZoom(1.0)}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '2px 7px',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    marginLeft: '2px',
+                    lineHeight: '1.2'
+                  }}
+                  title="Reset to Fit Screen"
+                >
+                  Fit
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Mobile Bottom Thumb-friendly Navigation Floating Bar */}
           {isMobile && !useNativeViewer && !pdfLoading && !pdfLoadError && (

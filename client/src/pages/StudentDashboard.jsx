@@ -105,22 +105,54 @@ const StudentDashboard = ({ onSelectBook }) => {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-open Book Overview Modal when URL contains shared book parameter (?book=<id>)
+  // Auto-open Book Overview Modal when URL contains shared book parameter (?book=<id> or #...book=<id>)
   useEffect(() => {
-    if (books.length === 0) return;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const bookParam = params.get('book');
-      if (bookParam) {
-        const targetBook = books.find(b => String(b.id) === String(bookParam));
-        if (targetBook) {
+    let active = true;
+    const checkSharedBookParam = async () => {
+      try {
+        let bookParam = null;
+        if (typeof window !== 'undefined') {
+          const searchParams = new URLSearchParams(window.location.search);
+          bookParam = searchParams.get('book');
+
+          if (!bookParam && window.location.hash) {
+            const hash = window.location.hash;
+            const qIdx = hash.indexOf('?');
+            if (qIdx !== -1) {
+              const hashParams = new URLSearchParams(hash.slice(qIdx));
+              bookParam = hashParams.get('book');
+            }
+          }
+        }
+
+        if (!bookParam) return;
+
+        // 1. Check in currently loaded catalog
+        let targetBook = books.find(b => String(b.id) === String(bookParam));
+
+        // 2. If not found in current catalog (e.g. cross-branch book), fetch directly on the fly!
+        if (!targetBook) {
+          try {
+            const fetched = await apiCall(`/books/${bookParam}`);
+            if (fetched && fetched.id) {
+              targetBook = fetched;
+            }
+          } catch (fetchErr) {
+            console.warn('Notice resolving cross-branch shared book directly:', fetchErr);
+          }
+        }
+
+        if (active && targetBook) {
           setOverviewBook(targetBook);
         }
+      } catch (err) {
+        console.warn('Notice resolving shared book URL parameter:', err);
       }
-    } catch (err) {
-      console.warn('Notice resolving shared book URL parameter:', err);
-    }
-  }, [books]);
+    };
+
+    checkSharedBookParam();
+    return () => { active = false; };
+  }, [books, apiCall]);
 
   const handleRequestAccess = async (book) => {
     if (!book) return;
@@ -1415,11 +1447,15 @@ const StudentDashboard = ({ onSelectBook }) => {
           onShare={(b) => setSharingBook(b)}
           onClose={() => {
             setOverviewBook(null);
-            if (typeof window !== 'undefined' && window.location.search.includes('book=')) {
+            if (typeof window !== 'undefined') {
               try {
-                const url = new URL(window.location);
+                const url = new URL(window.location.href);
                 url.searchParams.delete('book');
-                window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+                if (url.hash && url.hash.includes('book=')) {
+                  const [hashPath] = url.hash.split('?');
+                  url.hash = hashPath === '#' ? '' : hashPath;
+                }
+                window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + (url.hash ? url.hash : ''));
               } catch {}
             }
           }}

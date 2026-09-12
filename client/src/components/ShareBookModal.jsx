@@ -6,7 +6,27 @@ const ShareBookModal = ({ book, onClose, onShowFeedback }) => {
 
   if (!book) return null;
 
-  const shareUrl = `${window.location.origin}/?book=${book.id}`;
+  // Fully dynamic canonical URL - automatically resolves the active origin, port, and deployment subpath
+  const shareUrl = (() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const origin = window.location.origin.replace(/\/+$/, '');
+      let pathname = window.location.pathname || '/';
+      // Strip trailing index.html if present
+      pathname = pathname.replace(/\/index\.html$/i, '/');
+      if (!pathname.endsWith('/')) pathname += '/';
+
+      const hash = window.location.hash || '';
+      if (hash.startsWith('#/')) {
+        const hashBase = hash.split('?')[0];
+        return `${origin}${pathname}${hashBase}?book=${book.id}`;
+      }
+      return `${origin}${pathname}?book=${book.id}`;
+    } catch {
+      return `${window.location.origin}/?book=${book.id}`;
+    }
+  })();
+
   const shareText = `Explore "${book.title}" by ${book.author} on SISTec Digital Library Portal!`;
 
   const handleCopyLink = async () => {

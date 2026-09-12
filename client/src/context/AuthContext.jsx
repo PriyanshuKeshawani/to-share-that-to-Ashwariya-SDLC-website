@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { supabase } from '../supabaseClient';
 import { resolveBookCover } from '../utils/bookCoverResolver';
 
-export const BASE_URL = typeof window !== 'undefined' ? window.location.origin : '';
+export const BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
 // Canonical branch key identifier for 100% accurate branch matching across abbreviations, acronyms, and variations
 export const canonicalBranch = (name) => {
@@ -263,6 +263,48 @@ export const AuthProvider = ({ children }) => {
           isHomeBranch
         };
       });
+    }
+
+    // Single Book fetch (GET /books/:id) - Enables cross-branch shared book preview on demand
+    if (endpoint.startsWith('/books/') && method === 'GET' && !endpoint.includes('/categories') && !endpoint.includes('/branches')) {
+      const bookId = endpoint.split('/').pop();
+      const { data: b, error } = await supabase.from('books').select(`
+        *,
+        category:category_id(name),
+        branch:branch_id(name)
+      `).eq('id', bookId).maybeSingle();
+      if (error) throw error;
+      if (!b) return null;
+
+      let hasAccess = true;
+      let isHomeBranch = false;
+      const branchName = b.branch ? b.branch.name : null;
+      const userBranch = (user?.branchName || user?.branch_name || '').trim();
+      const bookBranch = (branchName || '').trim();
+
+      if (user && user.role === 'student') {
+        isHomeBranch = Boolean(userBranch && bookBranch && isSameBranch(userBranch, bookBranch));
+        let isBookApproved = false;
+        try {
+          const { data: perm } = await supabase
+            .from('permissions')
+            .select('status')
+            .eq('user_id', user.id)
+            .eq('book_id', b.id)
+            .eq('status', 'approved')
+            .maybeSingle();
+          isBookApproved = Boolean(perm);
+        } catch {}
+        hasAccess = isHomeBranch || isBookApproved;
+      }
+
+      return {
+        ...b,
+        category_name: b.category ? b.category.name : null,
+        branch_name: branchName,
+        hasAccess,
+        isHomeBranch
+      };
     }
 
     // 1. Bulk delete books (must be checked before generic /books endpoints)

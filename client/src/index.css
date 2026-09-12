@@ -1960,6 +1960,8 @@ p { color: var(--text-secondary); line-height: 1.65; }
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .book-canvas-holder canvas {
@@ -1970,6 +1972,17 @@ p { color: var(--text-secondary); line-height: 1.65; }
     object-fit: contain !important;
     display: block !important;
     margin: 0 auto !important;
+  }
+
+  .book-canvas-holder.is-zoomed {
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  .book-canvas-holder.is-zoomed canvas {
+    max-width: none !important;
+    max-height: none !important;
+    width: auto !important;
   }
 
   .book-edge-stacked {
@@ -2033,3 +2046,31 @@ p { color: var(--text-secondary); line-height: 1.65; }
     max-height: 94vh !important;
   }
 }
+
+/* ============================================================
+   MOBILE FLOATING ZOOM CONTROLS PILL
+   ============================================================ */
+.mobile-zoom-pill {
+  position: fixed;
+  bottom: 58px;
+  right: 14px;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-radius: 20px;
+  padding: 3px 8px;
+  animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+[data-theme='light'] .mobile-zoom-pill {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
