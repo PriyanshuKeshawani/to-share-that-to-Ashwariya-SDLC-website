@@ -1340,508 +1340,509 @@ const AdminDashboard = () => {
                       Retry Connection
                     </button>
                   </div>
-                ) : selectedBranchForDrilldown ? (
+                ) : selectedBranchForDrilldown ? (() => {
                   /* ═══ DEPARTMENT EXPLORATION DASHBOARD (Drill-Down View) ═══ */
-                  <div className="animate-section-enter">
-                    {/* Back Navigation Bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                      <button
-                        onClick={() => {
-                          setSelectedBranchForDrilldown(null);
-                          setDepartmentActiveTab('overview');
-                          setDepartmentSearch('');
-                        }}
-                        className="btn btn-secondary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
-                      >
-                        <ArrowLeft size={16} /> Back to System Analytics
-                      </button>
+                  // Authoritative live sync with dashboardData
+                  const activeBranch = (dashboardData?.branchPerformance || []).find(b => 
+                    String(b.branch_id) === String(selectedBranchForDrilldown.branch_id) || 
+                    isSameBranch(b.branch_name, selectedBranchForDrilldown.branch_name)
+                  ) || selectedBranchForDrilldown;
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        <span>Analytics</span>
-                        <ChevronRight size={14} />
-                        <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{selectedBranchForDrilldown.branch_name}</span>
-                      </div>
-                    </div>
+                  const branchName = activeBranch?.branch_name || selectedBranchForDrilldown.branch_name;
 
-                    {/* Department Header Card */}
-                    <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px', borderLeft: '4px solid var(--primary)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                        <div>
-                          <span className="badge badge-primary" style={{ marginBottom: '8px', fontSize: '0.7rem' }}>Department Deep Dive</span>
-                          <h2 style={{ fontSize: '1.6rem', fontWeight: 700, margin: '4px 0' }}>{selectedBranchForDrilldown.branch_name}</h2>
-                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-                            Dedicated departmental breakdown of active students, associated books, and reading activities in Supabase.
-                          </p>
+                  // Department Books (matching by branch_id or branch_name)
+                  const departmentBooks = (dashboardData?.drilldowns?.books || []).filter(b => 
+                    (b.branch_id && String(b.branch_id) === String(activeBranch?.branch_id)) || 
+                    isSameBranch(b.branch_name, branchName)
+                  );
+                  const deptBookIdSet = new Set(departmentBooks.map(b => String(b.id)));
+
+                  // Department Students (matching by branch_name or branch_id if present)
+                  const departmentStudents = (dashboardData?.drilldowns?.students || []).filter(s => 
+                    (s.branch_id && String(s.branch_id) === String(activeBranch?.branch_id)) || 
+                    isSameBranch(s.branch_name, branchName)
+                  );
+                  const deptStudentIdSet = new Set(departmentStudents.map(s => String(s.id)));
+
+                  // Comprehensive Log matcher: Book belongs to branch OR Student belongs to branch OR branch name/id matches
+                  const isDeptLog = (l) => {
+                    if (!l) return false;
+                    if (l.book_id && deptBookIdSet.has(String(l.book_id))) return true;
+                    if (l.user_id && deptStudentIdSet.has(String(l.user_id))) return true;
+                    if (l.book_branch_id && String(l.book_branch_id) === String(activeBranch?.branch_id)) return true;
+                    if (l.book_branch_name && isSameBranch(l.book_branch_name, branchName)) return true;
+                    if (l.user_branch_name && isSameBranch(l.user_branch_name, branchName)) return true;
+                    if (l.branch_name && isSameBranch(l.branch_name, branchName)) return true;
+                    return false;
+                  };
+
+                  const deptViews = (dashboardData?.drilldowns?.views || []).filter(isDeptLog);
+                  const deptDownloads = (dashboardData?.drilldowns?.downloads || []).filter(isDeptLog);
+                  const departmentAllLogs = [...deptViews, ...deptDownloads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                  const deptTotalBooks = Math.max(activeBranch?.total_books || 0, departmentBooks.length);
+                  const deptTotalStudents = Math.max(activeBranch?.total_students || 0, departmentStudents.length);
+                  const deptTotalAccesses = Math.max(activeBranch?.total_accesses || 0, deptViews.length);
+                  const deptTotalDownloads = Math.max(activeBranch?.total_downloads || 0, deptDownloads.length);
+                  const deptTotalActivity = Math.max(activeBranch?.total_activity || 0, departmentAllLogs.length, deptTotalAccesses + deptTotalDownloads);
+
+                  return (
+                    <div className="animate-section-enter">
+                      {/* Back Navigation Bar */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedBranchForDrilldown(null);
+                            setDepartmentActiveTab('overview');
+                            setDepartmentSearch('');
+                          }}
+                          className="btn btn-secondary"
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
+                        >
+                          <ArrowLeft size={16} /> Back to System Analytics
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          <span>Analytics</span>
+                          <ChevronRight size={14} />
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{branchName}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: '16px' }}>
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>{selectedBranchForDrilldown.total_books}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Books</div>
+                      </div>
+
+                      {/* Department Header Card */}
+                      <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px', borderLeft: '4px solid var(--primary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                          <div>
+                            <span className="badge badge-primary" style={{ marginBottom: '8px', fontSize: '0.7rem' }}>Department Deep Dive</span>
+                            <h2 style={{ fontSize: '1.6rem', fontWeight: 700, margin: '4px 0' }}>{branchName}</h2>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                              Dedicated departmental breakdown of active students, associated books, and reading activities in Supabase.
+                            </p>
                           </div>
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--secondary)' }}>{selectedBranchForDrilldown.total_students}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Students</div>
+                          <div style={{ display: 'flex', gap: '16px' }}>
+                            <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>{deptTotalBooks}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Books</div>
+                            </div>
+                            <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--secondary)' }}>{deptTotalStudents}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Students</div>
+                            </div>
+                            <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--success)' }}>{deptTotalAccesses}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Accesses</div>
+                            </div>
+                            <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--warning)' }}>{deptTotalDownloads}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Downloads</div>
+                            </div>
                           </div>
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--success)' }}>{selectedBranchForDrilldown.total_accesses}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Accesses</div>
-                          </div>
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--warning)' }}>{selectedBranchForDrilldown.total_downloads}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Downloads</div>
-                          </div>
+                        </div>
+
+                        {/* Department Sub-Tabs */}
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '24px', borderTop: '1px solid var(--border-glass)', paddingTop: '16px' }}>
+                          {[
+                            { id: 'overview', label: 'Department Overview' },
+                            { id: 'students', label: `Students (${deptTotalStudents})` },
+                            { id: 'books', label: `Books (${deptTotalBooks})` },
+                            { id: 'activity', label: `Activity (${deptTotalActivity})` }
+                          ].map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => setDepartmentActiveTab(t.id)}
+                              className={`btn ${departmentActiveTab === t.id ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
 
-                      {/* Department Sub-Tabs */}
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '24px', borderTop: '1px solid var(--border-glass)', paddingTop: '16px' }}>
-                        {[
-                          { id: 'overview', label: 'Department Overview' },
-                          { id: 'students', label: `Students (${selectedBranchForDrilldown.total_students})` },
-                          { id: 'books', label: `Books (${selectedBranchForDrilldown.total_books})` },
-                          { id: 'activity', label: `Activity (${selectedBranchForDrilldown.total_activity})` }
-                        ].map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => setDepartmentActiveTab(t.id)}
-                            className={`btn ${departmentActiveTab === t.id ? 'btn-primary' : 'btn-secondary'}`}
-                            style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                      {/* Sub-Tab 1: Overview */}
+                      {departmentActiveTab === 'overview' && (() => {
+                        const branchTopBook = dashboardData.mostReadPerBranch.find(m => String(m.branch_id) === String(activeBranch?.branch_id) || isSameBranch(m.branch_name, branchName));
+                        const branchStudents = departmentStudents;
+                        const branchTopStudent = [...branchStudents].sort((a, b) => b.total_activity - a.total_activity)[0];
 
-                    {/* Sub-Tab 1: Overview */}
-                    {departmentActiveTab === 'overview' && (() => {
-                      const branchTopBook = dashboardData.mostReadPerBranch.find(m => m.branch_id === selectedBranchForDrilldown.branch_id || isSameBranch(m.branch_name, selectedBranchForDrilldown.branch_name));
-                      const branchStudents = dashboardData.drilldowns.students.filter(s => isSameBranch(s.branch_name, selectedBranchForDrilldown.branch_name));
-                      const branchTopStudent = [...branchStudents].sort((a, b) => b.total_activity - a.total_activity)[0];
-
-                      return (
-                        <div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }} className="responsive-grid-1col">
-                            {/* Branch Best Book */}
-                            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--secondary)' }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                                  <Award size={20} color="var(--secondary)" />
-                                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                                    Most Read in {selectedBranchForDrilldown.branch_name}
-                                  </span>
-                                </div>
-                                {branchTopBook && branchTopBook.has_activity ? (
-                                  <div
-                                    onClick={() => setSelectedBookForActivity(books.find(b => b.id === (branchTopBook.id || branchTopBook.book_id)) || { ...branchTopBook, id: branchTopBook.id || branchTopBook.book_id })}
-                                    style={{ cursor: 'pointer', display: 'flex', gap: '14px', alignItems: 'flex-start' }}
-                                    title="Click to view complete book records and reader history"
-                                  >
-                                    <div style={{ width: '48px', height: '64px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      {branchTopBook.cover_url ? (
-                                        <img src={branchTopBook.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      ) : (
-                                        <BookOpen size={24} color="var(--text-muted)" />
-                                      )}
-                                    </div>
+                        return (
+                          <div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }} className="responsive-grid-1col">
+                              {/* Branch Best Book */}
+                              <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--secondary)' }}>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                                    <Award size={20} color="var(--secondary)" />
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                      Most Read in {branchName}
+                                    </span>
+                                  </div>
+                                  {branchTopBook && branchTopBook.has_activity ? (
                                     <div>
-                                      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                                        "{branchTopBook.title}"
+                                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                                        {branchTopBook.book_title}
                                       </h3>
-                                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>By {branchTopBook.author}</p>
-                                      <div style={{ display: 'flex', gap: '12px', marginTop: '10px', fontSize: '0.78rem' }}>
-                                        <span className="badge badge-success">{branchTopBook.total_accesses} views</span>
-                                        <span className="badge badge-warning">{branchTopBook.total_downloads} downloads</span>
+                                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                                        By {branchTopBook.book_author || 'Unknown Author'}
+                                      </p>
+                                      <div style={{ display: 'flex', gap: '12px' }}>
+                                        <span className="badge badge-primary">{branchTopBook.total_accesses} Accesses</span>
+                                        <span className="badge badge-warning">{branchTopBook.total_downloads} Downloads</span>
                                       </div>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                                    No reading activity recorded for this department.
-                                  </p>
-                                )}
-                              </div>
-                              {branchTopBook && branchTopBook.has_activity && (
-                                <button
-                                  onClick={() => setSelectedBookForActivity(books.find(b => b.id === (branchTopBook.id || branchTopBook.book_id)) || { ...branchTopBook, id: branchTopBook.id || branchTopBook.book_id })}
-                                  className="btn btn-outline"
-                                  style={{ marginTop: '16px', width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '6px 12px' }}
-                                >
-                                  Inspect Book & Readers <ExternalLink size={12} />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Branch Top Student */}
-                            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--primary)' }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                                  <TrendingUp size={20} color="var(--primary)" />
-                                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                                    Top Reader in {selectedBranchForDrilldown.branch_name}
-                                  </span>
-                                </div>
-                                {branchTopStudent && branchTopStudent.total_activity > 0 ? (
-                                  <div
-                                    onClick={() => setSelectedStudentForActivity(branchTopStudent)}
-                                    style={{ cursor: 'pointer' }}
-                                    title="Click to view complete student reading records"
-                                  >
-                                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                                      {branchTopStudent.full_name}
-                                    </h3>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Roll Number: {branchTopStudent.roll_number || 'N/A'}</p>
-                                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px', fontSize: '0.78rem' }}>
-                                      <span className="badge badge-primary">{branchTopStudent.total_accesses} accesses</span>
-                                      <span className="badge badge-secondary">{branchTopStudent.unique_books_accessed} books</span>
+                                  ) : (
+                                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0' }}>
+                                      No reading activity logged yet for books in this branch.
                                     </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Branch Top Student */}
+                              <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--primary)' }}>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                                    <UserCheck size={20} color="var(--primary)" />
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                      Top Reader in {branchName}
+                                    </span>
                                   </div>
-                                ) : (
-                                  <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                                    No student reading activity recorded for this department.
-                                  </p>
+                                  {branchTopStudent && branchTopStudent.total_activity > 0 ? (
+                                    <div>
+                                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                                        {branchTopStudent.full_name}
+                                      </h3>
+                                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                                        Roll: {branchTopStudent.roll_number || 'N/A'} {branchTopStudent.semester ? `· Sem ${branchTopStudent.semester}` : ''}
+                                      </p>
+                                      <div style={{ display: 'flex', gap: '12px' }}>
+                                        <span className="badge badge-success">{branchTopStudent.total_activity} Engagements</span>
+                                        <span className="badge badge-primary">{branchTopStudent.books_accessed_count} Books Read</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0' }}>
+                                      {branchStudents.length > 0 
+                                        ? `${branchStudents.length} student(s) enrolled, no reading activity recorded yet.`
+                                        : 'No student activity recorded yet for this department.'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Quick Summary Grid */}
+                            <div className="glass-panel" style={{ padding: '24px' }}>
+                              <h4 style={{ fontSize: '0.95rem', textTransform: 'uppercase', marginBottom: '16px', letterSpacing: '0.04em' }}>
+                                Department Metrics Summary
+                              </h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>REGISTERED STUDENTS</span>
+                                  <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px' }}>{deptTotalStudents}</div>
+                                </div>
+                                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ALLOCATED BOOKS</span>
+                                  <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px' }}>{deptTotalBooks}</div>
+                                </div>
+                                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PAGE REVIEWS</span>
+                                  <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px', color: 'var(--primary)' }}>{deptTotalAccesses}</div>
+                                </div>
+                                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>DOWNLOADS</span>
+                                  <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px', color: 'var(--warning)' }}>{deptTotalDownloads}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Sub-Tab 2: Department Students */}
+                      {departmentActiveTab === 'students' && (() => {
+                        const branchStudents = departmentStudents
+                          .filter(s => {
+                            const q = departmentSearch.toLowerCase().trim();
+                            return !q || s.full_name?.toLowerCase().includes(q) || s.roll_number?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q);
+                          });
+
+                        return (
+                          <div className="glass-panel" style={{ padding: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                              <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                Students Enrolled in {branchName} ({branchStudents.length})
+                              </h4>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                                <span className="search-icon">
+                                  <Search size={15} />
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="Search by name, roll, email..."
+                                  value={departmentSearch}
+                                  onChange={(e) => setDepartmentSearch(e.target.value)}
+                                  className="glass-input has-search-icon"
+                                  style={{ height: '38px', fontSize: '0.82rem' }}
+                                />
+                                {departmentSearch && (
+                                  <button
+                                    type="button"
+                                    className="search-clear-btn"
+                                    onClick={() => setDepartmentSearch('')}
+                                    title="Clear search"
+                                  >
+                                    <X size={13} />
+                                  </button>
                                 )}
                               </div>
-                              {branchTopStudent && branchTopStudent.total_activity > 0 && (
-                                <button
-                                  onClick={() => setSelectedStudentForActivity(branchTopStudent)}
-                                  className="btn btn-outline"
-                                  style={{ marginTop: '16px', width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '6px 12px' }}
-                                >
-                                  Inspect Student History <ExternalLink size={12} />
-                                </button>
-                              )}
                             </div>
-                          </div>
 
-                          {/* Quick Summary Grid */}
+                            {branchStudents.length === 0 ? (
+                              <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
+                                No students found matching this criteria.
+                              </p>
+                            ) : (
+                              <div className="table-responsive-wrapper">
+                                <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                      <th style={{ padding: '12px' }}>Student Name</th>
+                                      <th style={{ padding: '12px' }}>Enrollment / Roll</th>
+                                      <th style={{ padding: '12px' }}>Email</th>
+                                      <th style={{ padding: '12px' }}>Status</th>
+                                      <th style={{ padding: '12px', textAlign: 'center' }}>Total Reads</th>
+                                      <th style={{ padding: '12px', textAlign: 'center' }}>Downloads</th>
+                                      <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {branchStudents.map(st => (
+                                      <tr key={st.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                        <td style={{ padding: '12px', fontWeight: 600 }}>{st.full_name}</td>
+                                        <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{st.roll_number || 'N/A'}</td>
+                                        <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{st.email}</td>
+                                        <td style={{ padding: '12px' }}>
+                                          <StatusBadge status={st.status} />
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                                          <span className="badge badge-primary">{st.total_accesses || 0}</span>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                                          <span className="badge badge-warning">{st.total_downloads || 0}</span>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                                          <button
+                                            onClick={() => setSelectedStudentForActivity(st)}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                                          >
+                                            Inspect Profile
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Sub-Tab 3: Department Books */}
+                      {departmentActiveTab === 'books' && (() => {
+                        const branchBooks = departmentBooks
+                          .filter(b => {
+                            const q = departmentSearch.toLowerCase().trim();
+                            return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q);
+                          });
+
+                        return (
                           <div className="glass-panel" style={{ padding: '24px' }}>
-                            <h4 style={{ fontSize: '0.95rem', textTransform: 'uppercase', marginBottom: '16px', letterSpacing: '0.04em' }}>
-                              Department Metrics Summary
-                            </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                              <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>REGISTERED STUDENTS</span>
-                                <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px' }}>{selectedBranchForDrilldown.total_students}</div>
-                              </div>
-                              <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ALLOCATED BOOKS</span>
-                                <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px' }}>{selectedBranchForDrilldown.total_books}</div>
-                              </div>
-                              <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PAGE REVIEWS</span>
-                                <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px', color: 'var(--primary)' }}>{selectedBranchForDrilldown.total_accesses}</div>
-                              </div>
-                              <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>DOWNLOADS</span>
-                                <div style={{ fontSize: '1.3rem', fontWeight: 700, marginTop: '4px', color: 'var(--warning)' }}>{selectedBranchForDrilldown.total_downloads}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                              <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                Books Allocated to {branchName} ({branchBooks.length})
+                              </h4>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                                <span className="search-icon">
+                                  <Search size={15} />
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="Search by title or author..."
+                                  value={departmentSearch}
+                                  onChange={(e) => setDepartmentSearch(e.target.value)}
+                                  className="glass-input has-search-icon"
+                                  style={{ height: '38px', fontSize: '0.82rem' }}
+                                />
+                                {departmentSearch && (
+                                  <button
+                                    type="button"
+                                    className="search-clear-btn"
+                                    onClick={() => setDepartmentSearch('')}
+                                    title="Clear search"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
 
-                    {/* Sub-Tab 2: Department Students */}
-                    {departmentActiveTab === 'students' && (() => {
-                      const branchStudents = dashboardData.drilldowns.students
-                        .filter(s => isSameBranch(s.branch_name, selectedBranchForDrilldown.branch_name))
-                        .filter(s => {
+                            {branchBooks.length === 0 ? (
+                              <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
+                                No books allocated to this department.
+                              </p>
+                            ) : (
+                              <div className="table-responsive-wrapper">
+                                <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                      <th style={{ padding: '12px' }}>Cover</th>
+                                      <th style={{ padding: '12px' }}>Book Title</th>
+                                      <th style={{ padding: '12px' }}>Author</th>
+                                      <th style={{ padding: '12px', textAlign: 'center' }}>Total Accesses</th>
+                                      <th style={{ padding: '12px', textAlign: 'center' }}>Downloads</th>
+                                      <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {branchBooks.map(bk => (
+                                      <tr key={bk.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                        <td style={{ padding: '12px', width: '60px' }}>
+                                          <div style={{ width: '38px', height: '52px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {bk.cover_url ? (
+                                              <img src={bk.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                              <BookOpen size={18} color="var(--text-muted)" />
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: '12px', fontWeight: 600 }}>{bk.title}</td>
+                                        <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{bk.author}</td>
+                                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                                          <span className="badge badge-primary">{bk.total_accesses || 0}</span>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                                          <span className="badge badge-warning">{bk.total_downloads || 0}</span>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                                          <button
+                                            onClick={() => setSelectedBookForActivity(bk)}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                                          >
+                                            View Readers
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Sub-Tab 4: Department Activity */}
+                      {departmentActiveTab === 'activity' && (() => {
+                        const branchLogs = departmentAllLogs.filter(l => {
                           const q = departmentSearch.toLowerCase().trim();
-                          return !q || s.full_name?.toLowerCase().includes(q) || s.roll_number?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q);
+                          return !q ||
+                            l.user_name?.toLowerCase().includes(q) ||
+                            l.roll_number?.toLowerCase().includes(q) ||
+                            l.book_title?.toLowerCase().includes(q) ||
+                            l.action_type?.toLowerCase().includes(q);
                         });
 
-                      return (
-                        <div className="glass-panel" style={{ padding: '24px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                            <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
-                              Students Enrolled in {selectedBranchForDrilldown.branch_name} ({branchStudents.length})
-                            </h4>
-                            <div className="search-input-wrapper" style={{ width: '260px' }}>
-                              <span className="search-icon">
-                                <Search size={15} />
-                              </span>
-                              <input
-                                type="text"
-                                placeholder="Search by name, roll, email..."
-                                value={departmentSearch}
-                                onChange={(e) => setDepartmentSearch(e.target.value)}
-                                className="glass-input has-search-icon"
-                                style={{ height: '38px', fontSize: '0.82rem' }}
-                              />
-                              {departmentSearch && (
-                                <button
-                                  type="button"
-                                  className="search-clear-btn"
-                                  onClick={() => setDepartmentSearch('')}
-                                  title="Clear search"
-                                >
-                                  <X size={13} />
-                                </button>
-                              )}
+                        return (
+                          <div className="glass-panel" style={{ padding: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                              <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                Activity Logs for {branchName} ({branchLogs.length})
+                              </h4>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                                <span className="search-icon">
+                                  <Search size={15} />
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="Search by student, book, roll..."
+                                  value={departmentSearch}
+                                  onChange={(e) => setDepartmentSearch(e.target.value)}
+                                  className="glass-input has-search-icon"
+                                  style={{ height: '38px', fontSize: '0.82rem' }}
+                                />
+                                {departmentSearch && (
+                                  <button
+                                    type="button"
+                                    className="search-clear-btn"
+                                    onClick={() => setDepartmentSearch('')}
+                                    title="Clear search"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          </div>
 
-                          {branchStudents.length === 0 ? (
-                            <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
-                              No students found matching this criteria.
-                            </p>
-                          ) : (
-                            <div className="table-responsive-wrapper">
-                              <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                                <thead>
-                                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                                    <th style={{ padding: '12px' }}>Student Name</th>
-                                    <th style={{ padding: '12px' }}>Enrollment / Roll</th>
-                                    <th style={{ padding: '12px' }}>Email</th>
-                                    <th style={{ padding: '12px' }}>Status</th>
-                                    <th style={{ padding: '12px', textAlign: 'center' }}>Total Reads</th>
-                                    <th style={{ padding: '12px', textAlign: 'center' }}>Downloads</th>
-                                    <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {branchStudents.map(st => (
-                                    <tr key={st.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                      <td style={{ padding: '12px', fontWeight: 600 }}>{st.full_name}</td>
-                                      <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{st.roll_number || 'N/A'}</td>
-                                      <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{st.email}</td>
-                                      <td style={{ padding: '12px' }}>
-                                        <StatusBadge status={st.status} />
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                                        <span className="badge badge-primary">{st.total_accesses || 0}</span>
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                                        <span className="badge badge-warning">{st.total_downloads || 0}</span>
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right' }}>
-                                        <button
-                                          onClick={() => setSelectedStudentForActivity(st)}
-                                          className="btn btn-secondary"
-                                          style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                                        >
-                                          Inspect Profile
-                                        </button>
-                                      </td>
+                            {branchLogs.length === 0 ? (
+                              <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
+                                {departmentSearch ? 'No activity logs matching your search.' : 'No activity recorded in Supabase for this branch.'}
+                              </p>
+                            ) : (
+                              <div className="table-responsive-wrapper">
+                                <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                      <th style={{ padding: '12px' }}>Time</th>
+                                      <th style={{ padding: '12px' }}>Event</th>
+                                      <th style={{ padding: '12px' }}>Student</th>
+                                      <th style={{ padding: '12px' }}>Book Title</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Sub-Tab 3: Department Books */}
-                    {departmentActiveTab === 'books' && (() => {
-                      const branchBooks = dashboardData.drilldowns.books
-                        .filter(b => b.branch_id === selectedBranchForDrilldown.branch_id || isSameBranch(b.branch_name, selectedBranchForDrilldown.branch_name))
-                        .filter(b => {
-                          const q = departmentSearch.toLowerCase().trim();
-                          return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q);
-                        });
-
-                      return (
-                        <div className="glass-panel" style={{ padding: '24px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                            <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
-                              Books Allocated to {selectedBranchForDrilldown.branch_name} ({branchBooks.length})
-                            </h4>
-                            <div className="search-input-wrapper" style={{ width: '260px' }}>
-                              <span className="search-icon">
-                                <Search size={15} />
-                              </span>
-                              <input
-                                type="text"
-                                placeholder="Search by title or author..."
-                                value={departmentSearch}
-                                onChange={(e) => setDepartmentSearch(e.target.value)}
-                                className="glass-input has-search-icon"
-                                style={{ height: '38px', fontSize: '0.82rem' }}
-                              />
-                              {departmentSearch && (
-                                <button
-                                  type="button"
-                                  className="search-clear-btn"
-                                  onClick={() => setDepartmentSearch('')}
-                                  title="Clear search"
-                                >
-                                  <X size={13} />
-                                </button>
-                              )}
-                            </div>
+                                  </thead>
+                                  <tbody>
+                                    {branchLogs.map(l => (
+                                      <tr key={l.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                        <td style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                          {new Date(l.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </td>
+                                        <td style={{ padding: '12px' }}>
+                                          <span className={`badge ${l.action_type === 'download' ? 'badge-warning' : 'badge-primary'}`}>
+                                            {l.action_type === 'download' ? 'Download' : 'View / Access'}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '12px' }}>
+                                          <button
+                                            onClick={() => setSelectedStudentForActivity(students.find(s => s.id === l.user_id) || { id: l.user_id, full_name: l.user_name, roll_number: l.roll_number, branch_name: l.branch_name })}
+                                            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textAlign: 'left', fontWeight: 600, padding: 0 }}
+                                          >
+                                            {l.user_name || 'Anonymous Student'}
+                                          </button>
+                                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Roll: {l.roll_number || 'N/A'}</div>
+                                        </td>
+                                        <td style={{ padding: '12px' }}>
+                                          <button
+                                            onClick={() => setSelectedBookForActivity(books.find(b => b.id === l.book_id) || { id: l.book_id, title: l.book_title, author: l.book_author, branch_name: l.branch_name })}
+                                            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textAlign: 'left', fontWeight: 600, padding: 0 }}
+                                          >
+                                            "{l.book_title}"
+                                          </button>
+                                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>By {l.book_author}</div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </div>
-
-                          {branchBooks.length === 0 ? (
-                            <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
-                              No books allocated to this department.
-                            </p>
-                          ) : (
-                            <div className="table-responsive-wrapper">
-                              <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                                <thead>
-                                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                                    <th style={{ padding: '12px' }}>Cover</th>
-                                    <th style={{ padding: '12px' }}>Book Title</th>
-                                    <th style={{ padding: '12px' }}>Author</th>
-                                    <th style={{ padding: '12px', textAlign: 'center' }}>Total Accesses</th>
-                                    <th style={{ padding: '12px', textAlign: 'center' }}>Downloads</th>
-                                    <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {branchBooks.map(bk => (
-                                    <tr key={bk.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                      <td style={{ padding: '12px', width: '60px' }}>
-                                        <div style={{ width: '38px', height: '52px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          {bk.cover_url ? (
-                                            <img src={bk.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                          ) : (
-                                            <BookOpen size={18} color="var(--text-muted)" />
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td style={{ padding: '12px', fontWeight: 600 }}>{bk.title}</td>
-                                      <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{bk.author}</td>
-                                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                                        <span className="badge badge-primary">{bk.total_accesses || 0}</span>
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                                        <span className="badge badge-warning">{bk.total_downloads || 0}</span>
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right' }}>
-                                        <button
-                                          onClick={() => setSelectedBookForActivity(bk)}
-                                          className="btn btn-secondary"
-                                          style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                                        >
-                                          View Readers
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Sub-Tab 4: Department Activity */}
-                    {departmentActiveTab === 'activity' && (() => {
-                      const isBranchLog = (l) => {
-                        if (!l) return false;
-                        if (l.book_branch_id && l.book_branch_id === selectedBranchForDrilldown.branch_id) return true;
-                        if (l.book_branch_name && isSameBranch(l.book_branch_name, selectedBranchForDrilldown.branch_name)) return true;
-                        if (l.user_branch_name && isSameBranch(l.user_branch_name, selectedBranchForDrilldown.branch_name)) return true;
-                        if (l.branch_name && isSameBranch(l.branch_name, selectedBranchForDrilldown.branch_name)) return true;
-                        return false;
-                      };
-
-                      const allBranchLogs = [
-                        ...dashboardData.drilldowns.views.filter(isBranchLog),
-                        ...dashboardData.drilldowns.downloads.filter(isBranchLog)
-                      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-                      const branchLogs = allBranchLogs.filter(l => {
-                        const q = departmentSearch.toLowerCase().trim();
-                        return !q ||
-                          l.user_name?.toLowerCase().includes(q) ||
-                          l.roll_number?.toLowerCase().includes(q) ||
-                          l.book_title?.toLowerCase().includes(q) ||
-                          l.action_type?.toLowerCase().includes(q);
-                      });
-
-                      return (
-                        <div className="glass-panel" style={{ padding: '24px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                            <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
-                              Activity Logs for {selectedBranchForDrilldown.branch_name} ({branchLogs.length})
-                            </h4>
-                            <div className="search-input-wrapper" style={{ width: '260px' }}>
-                              <span className="search-icon">
-                                <Search size={15} />
-                              </span>
-                              <input
-                                type="text"
-                                placeholder="Search by student, book, roll..."
-                                value={departmentSearch}
-                                onChange={(e) => setDepartmentSearch(e.target.value)}
-                                className="glass-input has-search-icon"
-                                style={{ height: '38px', fontSize: '0.82rem' }}
-                              />
-                              {departmentSearch && (
-                                <button
-                                  type="button"
-                                  className="search-clear-btn"
-                                  onClick={() => setDepartmentSearch('')}
-                                  title="Clear search"
-                                >
-                                  <X size={13} />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {branchLogs.length === 0 ? (
-                            <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', textAlign: 'center', padding: '30px' }}>
-                              {departmentSearch ? 'No activity logs matching your search.' : 'No activity recorded in Supabase for this branch.'}
-                            </p>
-                          ) : (
-                            <div className="table-responsive-wrapper">
-                              <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                                <thead>
-                                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                                    <th style={{ padding: '12px' }}>Time</th>
-                                    <th style={{ padding: '12px' }}>Event</th>
-                                    <th style={{ padding: '12px' }}>Student</th>
-                                    <th style={{ padding: '12px' }}>Book Title</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {branchLogs.map(l => (
-                                    <tr key={l.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                      <td style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                                        {new Date(l.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                      </td>
-                                      <td style={{ padding: '12px' }}>
-                                        <span className={`badge ${l.action_type === 'download' ? 'badge-warning' : 'badge-primary'}`}>
-                                          {l.action_type === 'download' ? 'Download' : 'View / Access'}
-                                        </span>
-                                      </td>
-                                      <td style={{ padding: '12px' }}>
-                                        <button
-                                          onClick={() => setSelectedStudentForActivity(students.find(s => s.id === l.user_id) || { id: l.user_id, full_name: l.user_name, roll_number: l.roll_number, branch_name: l.branch_name })}
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textAlign: 'left', fontWeight: 600, padding: 0 }}
-                                        >
-                                          {l.user_name}
-                                        </button>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{l.roll_number}</div>
-                                      </td>
-                                      <td style={{ padding: '12px' }}>
-                                        <button
-                                          onClick={() => setSelectedBookForActivity(books.find(b => b.id === l.book_id) || { id: l.book_id, title: l.book_title, author: l.book_author, cover_url: l.cover_url })}
-                                          style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontWeight: 500, padding: 0 }}
-                                        >
-                                          "{l.book_title}"
-                                        </button>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>By {l.book_author}</div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
+                        );
+                      })()}
+                    </div>
+                  );
+                })() : (
                   /* ═══ MAIN SYSTEM ANALYTICS VIEW ═══ */
                   <>
                     {/* Top Stat Cards (All Clickable with Underlying Supabase Records) */}
