@@ -269,8 +269,16 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Single Book fetch (GET /books/:id) - Enables cross-branch shared book preview on demand
-    if (endpoint.startsWith('/books/') && method === 'GET' && !endpoint.includes('/categories') && !endpoint.includes('/branches')) {
-      const bookId = endpoint.split('/').pop();
+    const isSingleBookGet = (() => {
+      if (method !== 'GET') return false;
+      const parts = endpoint.split('/');
+      // Expected format: /books/:id (parts: ['', 'books', ':id'])
+      return parts.length === 3 && parts[1] === 'books' && parts[2] &&
+        !['categories', 'branches', 'bulk-delete', 'batch-import', 'resolve-missing-covers', 'activity', 'notes', 'bookmarks'].includes(parts[2]);
+    })();
+
+    if (isSingleBookGet) {
+      const bookId = endpoint.split('/')[2];
       const { data: b, error } = await supabase.from('books').select(`
         *,
         category:category_id(name),
@@ -565,7 +573,8 @@ export const AuthProvider = ({ children }) => {
 
     // Book readers & activity monitoring (overall and per-student)
     if (endpoint.startsWith('/books/') && endpoint.endsWith('/activity') && method === 'GET') {
-      const bookId = Number(endpoint.split('/')[2]);
+      const rawBookId = endpoint.split('/')[2];
+      const bookId = Number(rawBookId) || rawBookId;
 
       let bookData = null;
       try {
@@ -637,10 +646,35 @@ export const AuthProvider = ({ children }) => {
         console.warn('Notice fetching logs for book:', logErr);
       }
 
+      // Ensure any missing user data from progress or logs is hydrated
+      const missingUserIds = [
+        ...readers.filter(r => !r.user && r.user_id).map(r => r.user_id),
+        ...logs.filter(l => !l.user && l.user_id).map(l => l.user_id)
+      ];
+      if (missingUserIds.length > 0) {
+        try {
+          const { data: missingUsers } = await supabase
+            .from('users')
+            .select('id, full_name, username, roll_number, branch_name, year, semester, avatar_url')
+            .in('id', [...new Set(missingUserIds)]);
+          if (missingUsers) {
+            const userMap = new Map(missingUsers.map(u => [u.id, u]));
+            readers.forEach(r => {
+              if (!r.user && userMap.has(r.user_id)) r.user = userMap.get(r.user_id);
+            });
+            logs.forEach(l => {
+              if (!l.user && userMap.has(l.user_id)) l.user = userMap.get(l.user_id);
+            });
+          }
+        } catch (uErr) {
+          console.warn('Notice hydrating missing users for book activity:', uErr);
+        }
+      }
+
       // Merge any users from logs who might not have a progress row yet
       const existingUserIds = new Set(readers.map(r => r.user_id));
       logs.forEach(l => {
-        if (l.user_id && !existingUserIds.has(l.user_id) && l.user) {
+        if (l.user_id && !existingUserIds.has(l.user_id)) {
           existingUserIds.add(l.user_id);
           readers.push({
             id: `log-${l.id}`,
@@ -660,9 +694,11 @@ export const AuthProvider = ({ children }) => {
 
       const totalUniqueReaders = readers.length;
       const progSessions = readers.reduce((acc, r) => acc + (Number(r.accessed_count) || 1), 0);
-      const totalReadSessions = Math.max(progSessions, totalViewLogs, logs.length);
+      const viewLogCount = logs.filter(l => l.action_type === 'view').length;
+      const totalReadSessions = Math.max(progSessions, totalViewLogs, viewLogCount, logs.length > 0 ? 1 : 0);
       const progDownloads = readers.reduce((acc, r) => acc + (Number(r.downloaded_count) || (r.is_downloaded ? 1 : 0)), 0);
-      const totalDownloads = Math.max(progDownloads, totalDownloadLogs);
+      const dwnLogCount = logs.filter(l => l.action_type === 'download').length;
+      const totalDownloads = Math.max(progDownloads, totalDownloadLogs, dwnLogCount);
       const maxPageRead = readers.reduce((max, r) => Math.max(max, Number(r.last_page_read) || 1), 1);
       const avgPageRead = totalUniqueReaders > 0
         ? Math.round(readers.reduce((acc, r) => acc + (Number(r.last_page_read) || 1), 0) / totalUniqueReaders)
