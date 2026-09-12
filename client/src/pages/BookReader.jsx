@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth, BASE_URL, isSameBranch } from '../context/AuthContext';
+import * as pdfjsLib from 'pdfjs-dist';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -12,13 +13,32 @@ import {
   Copy,
   Check,
   Search,
-  Sparkles,
   ExternalLink,
   X,
   FileDown,
   Lock,
-  Clock
+  Clock,
+  BookOpen,
+  Book,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Minimize2,
+  Layers,
+  Sparkles
 } from 'lucide-react';
+
+// Configure PDF.js worker reliably for both dev and production build
+if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+  } catch {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  }
+}
 
 const TAG_COLORS = {
   Concept: { bg: 'rgba(59, 130, 246, 0.15)', text: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },
@@ -31,33 +51,41 @@ const TAG_COLORS = {
 const BookReader = ({ book, onClose }) => {
   const { apiCall, user, extractDriveFileId } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Determine source: Drive (preferred) > PDF URL > Mock
-  const driveEmbed = (() => {
-    if (book.drive_link) {
-      const { embed } = extractDriveFileId(book.drive_link);
-      return embed;
-    }
-    if (book.drive_file_id) {
-      return `https://drive.google.com/file/d/${book.drive_file_id}/preview`;
-    }
-    return null;
-  })();
-
-  const pdfSource = (() => {
-    if (!book.pdf_url) return null;
-    if (book.pdf_url.startsWith('/uploads/')) return `${BASE_URL}${book.pdf_url}`;
-    if (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('data:')) return book.pdf_url;
-    return null;
-  })();
-
-  const isUploaded = Boolean(driveEmbed || pdfSource);
-  const totalPages = book?.total_pages && book.total_pages > 0
-    ? book.total_pages
-    : (isUploaded ? 100 : 60);
+  const [totalPages, setTotalPages] = useState(book?.total_pages && book.total_pages > 0 ? book.total_pages : 100);
+  const [scale, setScale] = useState(1.15);
+  const [viewMode, setViewMode] = useState('single'); // 'single' (focused) or 'spread' (open 2-page book)
+  const [useNativeViewer, setUseNativeViewer] = useState(false);
+  const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
   const [saving, setSaving] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Strictly enforce permission access for non-home branch books
+  // PDF.js State
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLoadError, setPdfLoadError] = useState(null);
+
+  // Canvases refs
+  const canvasLeftRef = useRef(null);
+  const canvasRightRef = useRef(null);
+  const activeRenderTasks = useRef({});
+
+  // Slide-over drawer state (showNotes closed by default for distraction-free reading!)
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('notes'); // 'notes' | 'bookmarks'
+  const [notes, setNotes] = useState([]);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [loadingNotes, setLoadingNotes] = useState(true);
+  const [loadingBookmarks, setLoadingBookmarks] = useState(true);
+
+  // Note form state
+  const [newNoteText, setNewNoteText] = useState('');
+  const [newNoteTag, setNewNoteTag] = useState('Concept');
+  const [noteSearch, setNoteSearch] = useState('');
+  const [selectedTagFilter, setSelectedTagFilter] = useState('All');
+  const [copiedNoteId, setCopiedNoteId] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  // Permission access enforcement
   const hasAccess = useMemo(() => {
     if (!book) return false;
     if (user?.role === 'admin') return true;
@@ -65,10 +93,7 @@ const BookReader = ({ book, onClose }) => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim();
     const bookBranch = (book.branch_name || book.branch?.name || '').trim();
 
-    // Home branch books ALWAYS have instant direct access (no request required)
     if (isSameBranch(userBranch, bookBranch) || book.isHomeBranch) return true;
-
-    // For books outside home branch, verify admin approved status
     if (book.hasAccess !== undefined) return Boolean(book.hasAccess);
     return false;
   }, [book, user]);
@@ -96,40 +121,67 @@ const BookReader = ({ book, onClose }) => {
     }
   };
 
-  // Notes state
-  const storageKey = `sistec_reader_notes_${book.id}`;
-  const [notes, setNotes] = useState(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+  // Determine external drive embed or direct PDF source
+  const driveEmbed = useMemo(() => {
+    if (book.drive_link) {
+      const { embed } = extractDriveFileId(book.drive_link);
+      return embed;
     }
-  });
-  const [showNotes, setShowNotes] = useState(true);
-  const [newNoteText, setNewNoteText] = useState('');
-  const [newNoteTag, setNewNoteTag] = useState('Concept');
-  const [noteSearch, setNoteSearch] = useState('');
-  const [selectedTagFilter, setSelectedTagFilter] = useState('All');
-  const [copiedNoteId, setCopiedNoteId] = useState(null);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
+    if (book.drive_file_id) {
+      return `https://drive.google.com/file/d/${book.drive_file_id}/preview`;
+    }
+    return null;
+  }, [book, extractDriveFileId]);
 
+  const pdfSource = useMemo(() => {
+    if (!book.pdf_url) return null;
+    if (book.pdf_url.startsWith('/uploads/')) return `${BASE_URL}${book.pdf_url}`;
+    if (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('data:')) return book.pdf_url;
+    return null;
+  }, [book.pdf_url]);
+
+  const openInNewTabUrl = book.drive_link || (book.drive_file_id ? `https://drive.google.com/file/d/${book.drive_file_id}/view` : null) || pdfSource;
+
+  // Title tag
   useEffect(() => {
     if (book) {
-      document.title = `Reading: ${book.title} - SISTEC Library`;
+      document.title = `Reading: ${book.title} - SISTec Digital Library`;
     }
   }, [book]);
 
-  // Persist notes to localStorage
+  // Load Cloud DB Notes & Bookmarks on mount
   useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(notes));
-    } catch (e) {
-      console.warn('Failed to persist notes to localStorage:', e);
-    }
-  }, [notes, storageKey]);
+    const loadCloudData = async () => {
+      if (!book?.id) return;
+      try {
+        setLoadingNotes(true);
+        const notesData = await apiCall(`/books/${book.id}/notes`);
+        if (Array.isArray(notesData)) {
+          setNotes(notesData);
+        }
+      } catch (err) {
+        console.warn('Notice loading notes from cloud database:', err);
+      } finally {
+        setLoadingNotes(false);
+      }
 
-  // Restore saved reading position from analytics history
+      try {
+        setLoadingBookmarks(true);
+        const bookmarksData = await apiCall(`/books/${book.id}/bookmarks`);
+        if (Array.isArray(bookmarksData)) {
+          setBookmarks(bookmarksData);
+        }
+      } catch (err) {
+        console.warn('Notice loading bookmarks from cloud database:', err);
+      } finally {
+        setLoadingBookmarks(false);
+      }
+    };
+
+    loadCloudData();
+  }, [book?.id, apiCall]);
+
+  // Restore saved reading position from analytics history on mount
   useEffect(() => {
     const initReader = async () => {
       let restoredPage = 1;
@@ -141,7 +193,7 @@ const BookReader = ({ book, onClose }) => {
           setCurrentPage(restoredPage);
         }
       } catch (err) {
-        console.error('Error fetching book progress:', err);
+        console.error('Error restoring book reading position:', err);
       }
 
       try {
@@ -152,7 +204,7 @@ const BookReader = ({ book, onClose }) => {
             action_type: 'view',
             last_page_read: restoredPage,
             total_pages: totalPages,
-            details: `Opened "${book.title}" — resumed from page ${restoredPage} of ${totalPages}`
+            details: `Opened "${book.title}" — resumed at page ${restoredPage} of ${totalPages}`
           })
         });
       } catch (err) {
@@ -161,12 +213,10 @@ const BookReader = ({ book, onClose }) => {
     };
 
     initReader();
-  }, [book.id, book.title, apiCall]);
+  }, [book.id, book.title, apiCall, totalPages]);
 
-  // Debounce timer ref — prevents flooding API on rapid page changes
+  // Debounced real-time progress updater
   const saveDebounceRef = useRef(null);
-
-  // Update backend reading progress in real time (debounced 300ms)
   const saveProgress = useCallback((page) => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaving(true);
@@ -187,51 +237,207 @@ const BookReader = ({ book, onClose }) => {
       } finally {
         setSaving(false);
       }
-    }, 300);
+    }, 350);
   }, [apiCall, book.id, book.title, totalPages]);
 
-  const handlePageChange = useCallback((newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-      saveProgress(newPage);
-    }
-  }, [totalPages, saveProgress]);
+  // Load PDF document into memory via PDF.js
+  useEffect(() => {
+    if (!pdfSource || useNativeViewer) return;
 
-  // Keyboard arrow navigation for seamless reading
+    let isMounted = true;
+    setPdfLoading(true);
+    setPdfLoadError(null);
+
+    const loadPdf = async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument({
+          url: pdfSource,
+          withCredentials: false
+        });
+        const doc = await loadingTask.promise;
+        if (!isMounted) return;
+
+        setPdfDoc(doc);
+        if (doc.numPages && doc.numPages > 0) {
+          setTotalPages(doc.numPages);
+        }
+      } catch (err) {
+        console.warn('PDF.js loading notice (switching to graceful fallback if needed):', err);
+        if (isMounted) {
+          setPdfLoadError(err.message || 'Failed to render PDF in book engine');
+        }
+      } finally {
+        if (isMounted) setPdfLoading(false);
+      }
+    };
+
+    loadPdf();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pdfSource, useNativeViewer]);
+
+  // Function to render a page cleanly to a target canvas
+  const renderPage = useCallback(async (pageNum, canvasKey, canvasElement) => {
+    if (!pdfDoc || !canvasElement || pageNum < 1 || pageNum > pdfDoc.numPages) return;
+
+    // Cancel existing render on this canvas if any
+    if (activeRenderTasks.current[canvasKey]) {
+      try {
+        activeRenderTasks.current[canvasKey].cancel();
+      } catch {}
+      delete activeRenderTasks.current[canvasKey];
+    }
+
+    try {
+      const page = await pdfDoc.getPage(pageNum);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({ scale: scale * dpr });
+
+      canvasElement.width = viewport.width;
+      canvasElement.height = viewport.height;
+      canvasElement.style.width = `${viewport.width / dpr}px`;
+      canvasElement.style.height = `${viewport.height / dpr}px`;
+
+      const ctx = canvasElement.getContext('2d');
+      ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      const renderTask = page.render({
+        canvasContext: ctx,
+        viewport: viewport
+      });
+
+      activeRenderTasks.current[canvasKey] = renderTask;
+      await renderTask.promise;
+      delete activeRenderTasks.current[canvasKey];
+    } catch (err) {
+      if (err?.name !== 'RenderingCancelledException') {
+        console.warn(`Render notice on page ${pageNum}:`, err);
+      }
+    }
+  }, [pdfDoc, scale]);
+
+  // Re-render canvases when currentPage, scale, or viewMode changes
+  useEffect(() => {
+    if (!pdfDoc) return;
+
+    if (canvasLeftRef.current) {
+      renderPage(currentPage, 'left', canvasLeftRef.current);
+    }
+
+    if (viewMode === 'spread' && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
+      renderPage(currentPage + 1, 'right', canvasRightRef.current);
+    }
+  }, [pdfDoc, currentPage, scale, viewMode, renderPage]);
+
+  // Page Flip Navigation
+  const handlePageChange = useCallback((targetPage, direction = null) => {
+    const pageNum = Math.max(1, Math.min(targetPage, totalPages));
+    if (pageNum === currentPage) return;
+
+    const dir = direction || (pageNum > currentPage ? 'next' : 'prev');
+    setIsFlipping(dir);
+
+    setTimeout(() => {
+      setCurrentPage(pageNum);
+      saveProgress(pageNum);
+    }, 180);
+
+    setTimeout(() => {
+      setIsFlipping(null);
+    }, 450);
+  }, [currentPage, totalPages, saveProgress]);
+
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
-      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      const step = viewMode === 'spread' ? 2 : 1;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         e.preventDefault();
-        handlePageChange(currentPage + 1);
+        handlePageChange(currentPage + step, 'next');
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
-        handlePageChange(currentPage - 1);
+        handlePageChange(currentPage - step, 'prev');
+      } else if (e.key === 'f' || e.key === 'F') {
+        setIsFullscreen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPage, handlePageChange]);
+  }, [currentPage, viewMode, handlePageChange]);
 
-  // Notes actions
-  const handleAddNote = (e) => {
+  // Check if active page is bookmarked
+  const isCurrentPageBookmarked = useMemo(() => {
+    return bookmarks.some(b => Number(b.page) === currentPage);
+  }, [bookmarks, currentPage]);
+
+  // Toggle bookmark in Supabase Database
+  const handleToggleBookmark = async (targetPage = currentPage) => {
+    const pageNum = Number(targetPage);
+    const exists = bookmarks.some(b => Number(b.page) === pageNum);
+    let updated;
+    if (exists) {
+      updated = bookmarks.filter(b => Number(b.page) !== pageNum);
+    } else {
+      const newBm = {
+        id: Date.now().toString(),
+        page: pageNum,
+        title: `Page ${pageNum}`,
+        createdAt: new Date().toISOString()
+      };
+      updated = [...bookmarks, newBm].sort((a, b) => a.page - b.page);
+    }
+    setBookmarks(updated);
+
+    try {
+      const res = await apiCall(`/books/${book.id}/bookmarks`, {
+        method: 'POST',
+        body: JSON.stringify({ page: pageNum, title: `Page ${pageNum}`, book_title: book.title })
+      });
+      if (Array.isArray(res)) setBookmarks(res);
+    } catch (err) {
+      console.error('Error syncing bookmark to cloud DB:', err);
+    }
+  };
+
+  // Add study note to Supabase Database
+  const handleAddNote = async (e) => {
     e.preventDefault();
     if (!newNoteText.trim()) return;
 
-    const newNote = {
-      id: Date.now().toString(),
+    const payload = {
       page: currentPage,
       text: newNoteText.trim(),
       tag: newNoteTag,
-      createdAt: new Date().toISOString()
+      book_title: book.title
     };
 
+    const tempId = Date.now().toString();
+    const newNote = { id: tempId, ...payload, createdAt: new Date().toISOString() };
     setNotes(prev => [newNote, ...prev]);
     setNewNoteText('');
+
+    try {
+      const res = await apiCall(`/books/${book.id}/notes`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (Array.isArray(res)) setNotes(res);
+    } catch (err) {
+      console.error('Error saving note to cloud DB:', err);
+    }
   };
 
-  const handleDeleteNote = (id) => {
-    setNotes(prev => prev.filter(n => n.id !== id));
+  // Delete study note from Supabase Database
+  const handleDeleteNote = async (noteId) => {
+    setNotes(prev => prev.filter(n => n.id !== noteId));
+    try {
+      await apiCall(`/books/${book.id}/notes/${noteId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error deleting note from DB:', err);
+    }
   };
 
   const handleCopyNote = (note) => {
@@ -240,6 +446,7 @@ const BookReader = ({ book, onClose }) => {
     setTimeout(() => setCopiedNoteId(null), 2000);
   };
 
+  // Export all notes as Markdown study sheet
   const handleExportNotes = () => {
     if (notes.length === 0) return;
     const dateStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'full' });
@@ -249,7 +456,6 @@ const BookReader = ({ book, onClose }) => {
     content += `**Total Notes:** ${notes.length}\n`;
     content += `====================================================\n\n`;
 
-    // Group notes by page ascending
     const sorted = [...notes].sort((a, b) => a.page - b.page);
     sorted.forEach((n, idx) => {
       const tagStr = n.tag.toUpperCase();
@@ -271,7 +477,7 @@ const BookReader = ({ book, onClose }) => {
     URL.revokeObjectURL(url);
   };
 
-  // Robust Direct PDF Download
+  // Direct PDF Download
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     try {
@@ -285,7 +491,7 @@ const BookReader = ({ book, onClose }) => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else if (book.pdf_url && (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('/uploads/'))) {
+      } else if (book.pdf_url) {
         const fullUrl = book.pdf_url.startsWith('http') ? book.pdf_url : `${BASE_URL}${book.pdf_url}`;
         try {
           const resp = await fetch(fullUrl);
@@ -301,14 +507,6 @@ const BookReader = ({ book, onClose }) => {
         } catch {
           window.open(fullUrl, '_blank');
         }
-      } else {
-        const blob = new Blob([`%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\ntrailer<</Size 4/Root 1 0 R>>\n%%EOF`], { type: 'application/pdf' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
       }
     } catch (e) {
       console.error('Download error:', e);
@@ -317,7 +515,7 @@ const BookReader = ({ book, onClose }) => {
     }
   };
 
-  // Filtered notes
+  // Filtered study notes
   const filteredNotes = useMemo(() => {
     return notes.filter(note => {
       const matchTag = selectedTagFilter === 'All' || note.tag === selectedTagFilter;
@@ -328,57 +526,11 @@ const BookReader = ({ book, onClose }) => {
     });
   }, [notes, selectedTagFilter, noteSearch]);
 
-  // Mock content generation based on page number
-  const getPageContent = (page) => {
-    const chapters = [
-      { title: 'Chapter 1: Foundational Engineering Concepts', text: 'This section details the primary elements of the subject. In early stages, researchers discovered that simple systems combined with robust structures yield high performance. Understanding these elements is critical for advanced application design. We examine foundational schemas, verify core invariants, and review peer-reviewed frameworks in this discipline.' },
-      { title: 'Chapter 2: Computational Logic & Methodologies', text: 'Methodological approaches define how we execute research and solve complex engineering equations. In this chapter, we establish the standard algorithm structure, analyze resource allocation tables, and diagram workflows. We cover validation techniques and detail sample parameters used to execute test suites under simulated stress.' },
-      { title: 'Chapter 3: Deep System Architecture & Scalability', text: 'Architectural blueprints serve as the backbone of high-capacity institutional systems. Here, we outline multi-tier pipelines, highlight fail-safe protocols, and explore load distribution logic. Reviewing these layouts helps students design solutions that scale across both local servers and distributed cloud platforms.' },
-      { title: 'Chapter 4: Implementation, Testing & Verification', text: 'Transitioning from theoretical designs to concrete code requires robust verification. We implement components, run unit checkers, and analyze the resulting dataset. Automated benchmarks confirm that prioritizing core structures improves responsiveness and decreases memory footprint.' }
-    ];
-
-    const chapterIndex = Math.floor((page - 1) / 15) % chapters.length;
-    const currentChapter = chapters[chapterIndex];
-
-    return (
-      <div style={{ padding: '20px 0' }}>
-        <h4 style={{ color: 'var(--secondary, #38bdf8)', marginBottom: '16px', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {currentChapter.title}
-        </h4>
-        <p style={{ fontSize: '1.05rem', lineHeight: '1.8', color: 'var(--text-primary)', textAlign: 'justify', marginBottom: '20px' }}>
-          <strong>[Page {page}]</strong> {currentChapter.text}
-        </p>
-        <p style={{ fontSize: '1.05rem', lineHeight: '1.8', color: 'var(--text-secondary)', textAlign: 'justify' }}>
-          Continuing our analysis of these schemas, we observe that the relative efficiency is dependent on standard deviations of node clusters. Students should always account for network latency, memory limits, and data synchronization constraints before committing to a final production framework.
-        </p>
-      </div>
-    );
-  };
-
-  const fileUrl = driveEmbed || pdfSource;
-  const activePdfUrl = useMemo(() => {
-    if (driveEmbed) return driveEmbed;
-    if (pdfSource) {
-      const base = pdfSource.split('#')[0];
-      return `${base}#page=${currentPage}&navpanes=0`;
-    }
-    return null;
-  }, [driveEmbed, pdfSource, currentPage]);
-  const openInNewTabUrl = book.drive_link || (book.drive_file_id ? `https://drive.google.com/file/d/${book.drive_file_id}/view` : null) || pdfSource;
-
   return (
-    <div className="animate-fade-in" style={{
-      maxWidth: '1440px',
-      margin: '0 auto',
-      minHeight: '92vh',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '14px',
-      padding: '0 8px'
-    }}>
+    <div className={`book-reader-container animate-fade-in ${isFullscreen ? 'reader-fullscreen' : ''}`}>
       {/* Access Denied Guard for Non-Home Branch Books */}
       {!hasAccess ? (
-        <div className="animate-fade-in" style={{
+        <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -388,44 +540,42 @@ const BookReader = ({ book, onClose }) => {
           textAlign: 'center'
         }}>
           <div className="glass-panel" style={{
-            maxWidth: '500px',
+            maxWidth: '480px',
             width: '100%',
             padding: '36px 28px',
             borderRadius: '20px',
             border: '1px solid rgba(239, 68, 68, 0.25)',
-            background: 'var(--bg-surface)',
-            boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4)'
+            background: 'var(--bg-surface)'
           }}>
             <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '20px',
+              width: '60px',
+              height: '60px',
+              borderRadius: '18px',
               background: 'rgba(239, 68, 68, 0.12)',
               color: '#ef4444',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 18px',
-              boxShadow: '0 0 20px rgba(239, 68, 68, 0.2)'
+              margin: '0 auto 16px'
             }}>
-              <Lock size={32} />
+              <Lock size={30} />
             </div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
               Reading Permission Required
             </h3>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
               <strong>"{book.title}"</strong> is part of the <strong>{book.branch_name || 'different department'}</strong> catalog.
-              As per institutional library policy, you must request permission from the Central Library Administrator to access books outside your registered branch.
+              Please request permission from the Central Library Administrator to access books outside your registered department.
             </p>
 
             {requestedDone ? (
               <div style={{
-                padding: '14px 18px',
-                borderRadius: '12px',
+                padding: '12px 16px',
+                borderRadius: '10px',
                 background: 'rgba(245, 158, 11, 0.12)',
                 border: '1px solid rgba(245, 158, 11, 0.3)',
                 color: '#fbbf24',
-                fontSize: '0.86rem',
+                fontSize: '0.84rem',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
@@ -449,7 +599,7 @@ const BookReader = ({ book, onClose }) => {
             <button
               onClick={onClose}
               className="btn btn-secondary"
-              style={{ width: '100%', padding: '10px 18px', fontSize: '0.88rem', justifyContent: 'center' }}
+              style={{ width: '100%', padding: '10px 18px', fontSize: '0.86rem', justifyContent: 'center' }}
             >
               <ArrowLeft size={16} /> Return to Catalog
             </button>
@@ -457,707 +607,909 @@ const BookReader = ({ book, onClose }) => {
         </div>
       ) : (
         <>
-          {/* Top Controls Header Bar */}
-      <div className="glass-panel reader-header" style={{
-        padding: '12px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        borderRadius: '16px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
-        border: '1px solid rgba(255, 255, 255, 0.08)'
-      }}>
-        {/* Left: Back button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            onClick={onClose}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.85rem', gap: '6px' }}
-          >
-            <ArrowLeft size={16} /> Close
-          </button>
-          <span className="badge badge-primary" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>
-            {book.branch_name || 'Engineering'}
-          </span>
-        </div>
-
-        {/* Center: Title and Author */}
-        <div style={{ textAlign: 'center', minWidth: '220px', flex: '1 1 auto' }}>
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: '0 0 2px', color: 'var(--text-primary)' }}>
-            {book.title}
-          </h4>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            By {book.author} {book.priority && `• ${book.priority.toUpperCase()} Book`}
-          </span>
-        </div>
-
-        {/* Right: Actions (Bookmark, Download PDF, Toggle Notes) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Interactive Live Page Stepper */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            padding: '4px 8px',
-            borderRadius: '10px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-          }}>
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
-              className="btn btn-secondary"
-              style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
-              title="Previous Page (Left Arrow)"
-            >
-              <ChevronLeft size={14} />
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
-              <Bookmark size={13} color="var(--primary, #3b82f6)" />
-              <span style={{ color: 'var(--text-muted)' }}>Pg</span>
-              <input
-                type="number"
-                min="1"
-                max={totalPages}
-                value={currentPage}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val) && val >= 1) {
-                    handlePageChange(Math.min(val, totalPages));
-                  }
-                }}
-                className="glass-input"
-                style={{ width: '48px', padding: '3px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
-                title={`Enter page number (1 - ${totalPages})`}
-              />
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'var(--primary)',
-                background: 'rgba(59, 130, 246, 0.15)',
-                padding: '2px 5px',
-                borderRadius: '5px'
-              }}>
-                {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
+          {/* ══════════════════════════════════════════════════════════
+              MINIMALIST, DISTRACTION-FREE TOP CONTROLS
+              ══════════════════════════════════════════════════════════ */}
+          <div className="reader-minimal-bar">
+            {/* Left: Back & Branch */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={onClose}
+                className="btn btn-secondary"
+                style={{ padding: '7px 12px', fontSize: '0.82rem', gap: '6px' }}
+                title="Close Reader"
+              >
+                <ArrowLeft size={15} /> Close
+              </button>
+              <span className="badge badge-primary hide-mobile" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
+                {book.branch_name || 'Engineering'}
               </span>
             </div>
 
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages}
-              className="btn btn-secondary"
-              style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
-              title="Next Page (Right Arrow)"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* Quick Download PDF button */}
-          <button
-            onClick={handleDownloadPdf}
-            disabled={downloadingPdf}
-            className="btn btn-secondary"
-            style={{ padding: '8px 12px', fontSize: '0.82rem', gap: '6px' }}
-            title="Download PDF Document"
-          >
-            <Download size={15} />
-            <span className="hide-mobile">{downloadingPdf ? 'Saving...' : 'PDF'}</span>
-          </button>
-
-          {/* Toggle Study Notes Panel */}
-          <button
-            onClick={() => setShowNotes(!showNotes)}
-            className={`btn ${showNotes ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ padding: '8px 14px', fontSize: '0.82rem', gap: '6px' }}
-            title="Toggle In-Built Study Notes"
-          >
-            <StickyNote size={15} />
-            <span>Study Notes</span>
-            {notes.length > 0 && (
-              <span style={{
-                background: showNotes ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
-                color: '#fff',
-                fontSize: '0.7rem',
-                padding: '1px 6px',
-                borderRadius: '10px',
-                fontWeight: 700
-              }}>
-                {notes.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Main Workspace Body: PDF Viewer on Left + Notes Drawer on Right */}
-      <div className="reader-layout" style={{
-        display: 'flex',
-        gap: '16px',
-        flex: 1,
-        minHeight: '75vh',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {/* ===================== LEFT: PDF VIEWER / READER ===================== */}
-        <div
-          className="reader-pdf-container"
-          style={{
-            flex: showNotes ? '1 1 68%' : '1 1 100%',
-            display: 'flex',
-            flexDirection: 'column',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            minWidth: 0
-          }}
-        >
-          {isUploaded ? (
-            <div className="glass-panel" style={{
-              flex: 1,
-              borderRadius: '16px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              background: '#0b0f19',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)'
-            }}>
-              {/* Mobile Fallback & Open In Tab Banner */}
-              <div style={{
-                padding: '10px 16px',
-                background: 'rgba(59, 130, 246, 0.08)',
-                borderBottom: '1px solid rgba(59, 130, 246, 0.15)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: '0.8rem',
-                color: 'var(--text-secondary)'
-              }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sparkles size={14} color="var(--primary)" />
-                  {driveEmbed ? `Google Drive • ${book.title}` : `In-Built Digital PDF Viewer • ${book.title}`}
-                </span>
-                <a
-                  href={openInNewTabUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: 'var(--primary, #3b82f6)',
-                    textDecoration: 'none',
-                    fontSize: '0.78rem',
-                    fontWeight: 500
-                  }}
-                >
-                  <ExternalLink size={13} /> Open in New Tab
-                </a>
+            {/* Center: Book Title & Active Page Navigator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 auto', justifyContent: 'center' }}>
+              <div className="hide-mobile" style={{ textAlign: 'right', maxWidth: '300px' }}>
+                <div style={{
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {book.title}
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  By {book.author}
+                </div>
               </div>
 
-              {/* PDF Embed / Iframe */}
-              <iframe
-                src={activePdfUrl || fileUrl}
-                width="100%"
-                height="100%"
-                style={{
-                  border: 'none',
-                  flex: 1,
-                  minHeight: '68vh',
-                  background: '#1e293b'
-                }}
-                title={book.title}
-              />
-
-              {/* Real-time Reading Scrubber & Progress Bar */}
+              {/* Central Dynamic Page Stepper */}
               <div style={{
-                padding: '8px 16px',
-                background: 'rgba(11, 15, 25, 0.95)',
-                backdropFilter: 'blur(12px)',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap'
+                gap: '5px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '4px 8px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    onClick={() => handlePageChange(Math.max(1, currentPage - 5))}
-                    disabled={currentPage <= 1}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: '0.74rem' }}
-                    title="Jump back 5 pages"
-                  >
-                    -5
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage <= 1}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 10px', fontSize: '0.78rem', gap: '4px' }}
-                    title="Previous page (Left Arrow)"
-                  >
-                    <ChevronLeft size={14} /> Prev
-                  </button>
-                </div>
+                <button
+                  onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
+                  disabled={currentPage <= 1}
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
+                  title="Previous Page (Left Arrow)"
+                >
+                  <ChevronLeft size={14} />
+                </button>
 
-                {/* Range slider scrubber */}
-                <div style={{ flex: 1, minWidth: '160px', maxWidth: '440px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Pg</span>
                   <input
-                    type="range"
+                    type="number"
                     min="1"
                     max={totalPages}
                     value={currentPage}
-                    onChange={(e) => handlePageChange(parseInt(e.target.value, 10))}
-                    style={{
-                      width: '100%',
-                      cursor: 'pointer',
-                      accentColor: 'var(--primary, #3b82f6)',
-                      height: '4px'
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val) && val >= 1) {
+                        handlePageChange(Math.min(val, totalPages));
+                      }
                     }}
-                    title="Scrub reading pages"
+                    className="glass-input"
+                    style={{ width: '48px', padding: '2px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
+                    title={`Jump to page (1 - ${totalPages})`}
                   />
-                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                    {currentPage} / {totalPages}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages}
-                    className="btn btn-primary"
-                    style={{ padding: '4px 10px', fontSize: '0.78rem', gap: '4px' }}
-                    title="Next page (Right Arrow)"
-                  >
-                    Next <ChevronRight size={14} />
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 5))}
-                    disabled={currentPage >= totalPages}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: '0.74rem' }}
-                    title="Jump forward 5 pages"
-                  >
-                    +5
-                  </button>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
                   <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    fontSize: '0.72rem',
-                    color: saving ? '#f59e0b' : '#10b981',
-                    marginLeft: '6px',
-                    fontWeight: 600
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    color: 'var(--primary)',
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    padding: '2px 5px',
+                    borderRadius: '5px'
                   }}>
-                    <span style={{
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      background: saving ? '#f59e0b' : '#10b981',
-                      boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
-                    }} />
-                    {saving ? 'Syncing...' : 'Live'}
+                    {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
                   </span>
                 </div>
-              </div>
-            </div>
-          ) : (
-            /* Mock Document Book Reader */
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
-              <div className="glass-panel" style={{
-                padding: '36px 40px',
-                flex: 1,
-                borderRadius: '16px',
-                background: 'rgba(11, 15, 25, 0.85)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center'
-              }}>
-                {getPageContent(currentPage)}
-              </div>
-
-              {/* Navigation Footer for Mock Reader */}
-              <div className="glass-panel" style={{
-                padding: '12px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                borderRadius: '14px',
-                gap: '14px'
-              }}>
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1 || saving}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 14px', fontSize: '0.82rem', opacity: currentPage === 1 ? 0.4 : 1 }}
-                >
-                  <ChevronLeft size={16} /> Prev Page
-                </button>
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{
-                    height: '5px',
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    borderRadius: '4px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${(currentPage / totalPages) * 100}%`,
-                      height: '100%',
-                      background: 'linear-gradient(90deg, var(--primary, #3b82f6), var(--secondary, #38bdf8))',
-                      transition: 'width 0.3s ease'
-                    }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    <span>Progress: {Math.round((currentPage / totalPages) * 100)}%</span>
-                    <span>Page {currentPage} of {totalPages}</span>
-                  </div>
-                </div>
 
                 <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages || saving}
+                  onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
+                  disabled={currentPage >= totalPages}
                   className="btn btn-secondary"
-                  style={{ padding: '8px 14px', fontSize: '0.82rem', opacity: currentPage === totalPages ? 0.4 : 1 }}
+                  style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
+                  title="Next Page (Right Arrow)"
                 >
-                  Next Page <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                 </button>
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* ===================== RIGHT: IN-BUILT STUDY NOTES WORKSPACE ===================== */}
-        {showNotes && (
-          <div
-            className="glass-panel animate-fade-in reader-notes-container"
-            style={{
-              flex: '0 0 340px',
-              width: '340px',
-              borderRadius: '16px',
-              border: '1px solid var(--border-glass)',
-              background: 'var(--bg-surface)',
-              boxShadow: 'var(--shadow-glass)',
-              backdropFilter: 'blur(16px)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-          >
-            {/* Notes Panel Header */}
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'rgba(255, 255, 255, 0.02)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <StickyNote size={17} color="var(--primary, #3b82f6)" />
-                <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Study Notes
-                </h5>
                 <span style={{
-                  fontSize: '0.72rem',
-                  padding: '1px 6px',
-                  borderRadius: '10px',
-                  background: 'rgba(59, 130, 246, 0.15)',
-                  color: '#60a5fa',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.7rem',
+                  color: saving ? '#f59e0b' : '#10b981',
+                  marginLeft: '4px',
                   fontWeight: 600
                 }}>
-                  {notes.length}
+                  <span style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: saving ? '#f59e0b' : '#10b981',
+                    boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
+                  }} />
+                  {saving ? 'Saving...' : 'Live'}
                 </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {notes.length > 0 && (
-                  <button
-                    onClick={handleExportNotes}
-                    className="btn btn-secondary"
-                    style={{ padding: '5px 8px', fontSize: '0.72rem', gap: '4px' }}
-                    title="Export notes as Markdown study sheet"
-                  >
-                    <FileDown size={13} /> Export
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowNotes(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '4px'
-                  }}
-                  title="Close notes panel"
-                >
-                  <X size={16} />
-                </button>
               </div>
             </div>
 
-            {/* Note Creation Form */}
-            <form onSubmit={handleAddNote} style={{
-              padding: '14px 18px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px'
-            }}>
-              {/* Tag selector pills */}
-              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                {Object.keys(TAG_COLORS).map(tag => {
-                  const style = TAG_COLORS[tag];
-                  const active = newNoteTag === tag;
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setNewNoteTag(tag)}
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: '0.7rem',
-                        borderRadius: '6px',
-                        border: `1px solid ${active ? style.text : 'rgba(255,255,255,0.08)'}`,
-                        background: active ? style.bg : 'transparent',
-                        color: active ? style.text : 'var(--text-muted)',
-                        cursor: 'pointer',
-                        fontWeight: active ? 600 : 400,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Right: Interactive Reading Tools */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Quick Bookmark Toggle with Ribbon State */}
+              <button
+                onClick={() => handleToggleBookmark()}
+                className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '7px 11px',
+                  fontSize: '0.8rem',
+                  gap: '5px',
+                  background: isCurrentPageBookmarked ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : undefined,
+                  borderColor: isCurrentPageBookmarked ? '#ef4444' : undefined,
+                  color: isCurrentPageBookmarked ? '#fef08a' : undefined
+                }}
+                title={isCurrentPageBookmarked ? 'Remove Bookmark for this Page' : 'Bookmark this Page'}
+              >
+                <Bookmark size={14} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
+                <span className="hide-mobile">{isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+              </button>
 
-              {/* Note Textarea */}
-              <div style={{ position: 'relative' }}>
-                <textarea
-                  value={newNoteText}
-                  onChange={(e) => setNewNoteText(e.target.value)}
-                  placeholder={`Write note for Page ${currentPage}... (key formula, summary, exam pointer)`}
-                  rows={3}
-                  className="glass-input"
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    fontSize: '0.82rem',
-                    resize: 'none',
-                    lineHeight: '1.4'
-                  }}
-                />
-              </div>
+              {/* View Mode Toggle: Single Page vs 2-Page Open Book */}
+              <button
+                onClick={() => setViewMode(prev => prev === 'single' ? 'spread' : 'single')}
+                className="btn btn-secondary hide-mobile"
+                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                title={viewMode === 'single' ? 'Switch to 2-Page Open Book Spread' : 'Switch to Single Page Focused View'}
+              >
+                {viewMode === 'single' ? <BookOpen size={14} /> : <Book size={14} />}
+                <span>{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
+              </button>
 
-              {/* Submit Note Button */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  📌 Tagged to <strong>Page {currentPage}</strong>
+              {/* Zoom Controls */}
+              <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
+                <button
+                  onClick={() => setScale(s => Math.max(0.75, Number((s - 0.15).toFixed(2))))}
+                  className="btn btn-ghost"
+                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={13} />
+                </button>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center' }}>
+                  {Math.round(scale * 100)}%
                 </span>
                 <button
-                  type="submit"
-                  disabled={!newNoteText.trim()}
-                  className="btn btn-primary"
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '0.78rem',
-                    gap: '5px',
-                    opacity: newNoteText.trim() ? 1 : 0.5
-                  }}
+                  onClick={() => setScale(s => Math.min(1.8, Number((s + 0.15).toFixed(2))))}
+                  className="btn btn-ghost"
+                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                  title="Zoom In"
                 >
-                  <Plus size={14} /> Add Note
+                  <ZoomIn size={13} />
                 </button>
               </div>
-            </form>
 
-            {/* Filter & Search Bar */}
-            <div style={{
-              padding: '10px 18px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  placeholder="Search notes or page..."
-                  value={noteSearch}
-                  onChange={(e) => setNoteSearch(e.target.value)}
-                  className="glass-input"
-                  style={{
-                    width: '100%',
-                    padding: '6px 10px 6px 30px',
-                    fontSize: '0.76rem'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px' }}>
-                {['All', ...Object.keys(TAG_COLORS)].map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setSelectedTagFilter(t)}
-                    style={{
-                      padding: '2px 7px',
-                      fontSize: '0.68rem',
-                      borderRadius: '4px',
-                      border: 'none',
-                      background: selectedTagFilter === t ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                      color: selectedTagFilter === t ? '#fff' : 'var(--text-muted)',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes List Scroll Area */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '12px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px'
-            }}>
-              {filteredNotes.length === 0 ? (
-                <div style={{
-                  padding: '30px 16px',
-                  textAlign: 'center',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.8rem'
-                }}>
-                  <StickyNote size={28} style={{ opacity: 0.3, margin: '0 auto 8px' }} />
-                  <p style={{ margin: '0 0 4px' }}>No notes found</p>
-                  <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>
-                    Add key concepts and formulas to revise anytime!
+              {/* Study Notes & Bookmarks Drawer Toggle */}
+              <button
+                onClick={() => setShowDrawer(prev => !prev)}
+                className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '6px' }}
+                title="Open Study Notes & Bookmarks Drawer"
+              >
+                <StickyNote size={14} />
+                <span>Notes</span>
+                {(notes.length > 0 || bookmarks.length > 0) && (
+                  <span style={{
+                    background: 'var(--primary)',
+                    color: '#fff',
+                    fontSize: '0.68rem',
+                    padding: '1px 5px',
+                    borderRadius: '10px',
+                    fontWeight: 700
+                  }}>
+                    {notes.length + bookmarks.length}
                   </span>
-                </div>
-              ) : (
-                filteredNotes.map(note => {
-                  const tagStyle = TAG_COLORS[note.tag] || TAG_COLORS.General;
-                  return (
-                    <div
-                      key={note.id}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {/* Note Header: Page, Tag, and Actions */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handlePageChange(note.page)}
-                            title={`Jump to Page ${note.page}`}
-                            style={{
-                              background: 'rgba(59, 130, 246, 0.12)',
-                              border: '1px solid rgba(59, 130, 246, 0.25)',
-                              color: '#60a5fa',
-                              fontSize: '0.68rem',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontWeight: 600
-                            }}
-                          >
-                            Pg {note.page}
-                          </button>
-                          <span style={{
-                            fontSize: '0.66rem',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            background: tagStyle.bg,
-                            color: tagStyle.text,
-                            border: `1px solid ${tagStyle.border}`,
-                            fontWeight: 600
-                          }}>
-                            {note.tag}
-                          </span>
-                        </div>
+                )}
+              </button>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyNote(note)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: copiedNoteId === note.id ? '#34d399' : 'var(--text-muted)',
-                              cursor: 'pointer',
-                              padding: '3px'
-                            }}
-                            title="Copy note"
-                          >
-                            {copiedNoteId === note.id ? <Check size={13} /> : <Copy size={13} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteNote(note.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer',
-                              padding: '3px'
-                            }}
-                            title="Delete note"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
+              {/* Quick PDF Download */}
+              <button
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="btn btn-secondary"
+                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                title="Download PDF Document"
+              >
+                <Download size={14} />
+                <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
+              </button>
 
-                      {/* Note Text */}
-                      <p style={{
-                        margin: 0,
-                        fontSize: '0.82rem',
-                        color: 'var(--text-primary)',
-                        lineHeight: '1.45',
-                        wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap'
-                      }}>
-                        {note.text}
-                      </p>
-
-                      {/* Note Footer: Time */}
-                      <span style={{
-                        fontSize: '0.65rem',
-                        color: 'var(--text-muted)',
-                        alignSelf: 'flex-end'
-                      }}>
-                        {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
+              {/* Fallback to Native Viewer if student desires browser PDF UI */}
+              <button
+                onClick={() => setUseNativeViewer(prev => !prev)}
+                className="btn btn-secondary"
+                style={{ padding: '7px 9px', fontSize: '0.76rem' }}
+                title={useNativeViewer ? 'Switch to 3D Book Mode' : 'Switch to Native Browser Viewer'}
+              >
+                <Layers size={13} />
+              </button>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* ══════════════════════════════════════════════════════════
+              MAIN READING STAGE: REALISTIC 3D BOOK ENGINE
+              ══════════════════════════════════════════════════════════ */}
+          <div className="book-stage-viewport">
+            {useNativeViewer || (!pdfSource && driveEmbed) ? (
+              /* Native / External Drive Embed View */
+              <div className="glass-panel" style={{
+                width: '100%',
+                height: '76vh',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                background: '#0b0f19',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
+              }}>
+                <div style={{
+                  padding: '8px 16px',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  borderBottom: '1px solid rgba(59, 130, 246, 0.15)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.8rem'
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+                    <Sparkles size={14} color="var(--primary)" />
+                    {driveEmbed ? `Google Drive • ${book.title}` : `Browser Digital Viewer • ${book.title}`}
+                  </span>
+                  <a
+                    href={openInNewTabUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      color: 'var(--primary, #3b82f6)',
+                      textDecoration: 'none',
+                      fontSize: '0.78rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    <ExternalLink size={13} /> Open in New Tab
+                  </a>
+                </div>
+                <iframe
+                  src={driveEmbed || `${pdfSource}#page=${currentPage}`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 'none', flex: 1, background: '#1e293b' }}
+                  title={book.title}
+                />
+              </div>
+            ) : pdfLoading ? (
+              /* Smooth Book Loading State */
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '65vh',
+                gap: '16px'
+              }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  border: '3px solid rgba(59, 130, 246, 0.2)',
+                  borderTopColor: 'var(--primary, #3b82f6)',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                <div style={{ textAlign: 'center' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    Preparing 3D Book Experience...
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Loading high-resolution pages for "{book.title}"
+                  </p>
+                </div>
+              </div>
+            ) : pdfLoadError ? (
+              /* Graceful Error Fallback */
+              <div className="glass-panel" style={{
+                padding: '36px',
+                borderRadius: '16px',
+                textAlign: 'center',
+                maxWidth: '500px'
+              }}>
+                <BookOpen size={40} color="#f59e0b" style={{ margin: '0 auto 12px' }} />
+                <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px' }}>
+                  Standard Book Engine Ready
+                </h4>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                  This book can be read seamlessly in the digital viewer or downloaded directly.
+                </p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                  <button
+                    onClick={() => setUseNativeViewer(true)}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.84rem' }}
+                  >
+                    Open in Digital Viewer
+                  </button>
+                  <button
+                    onClick={handleDownloadPdf}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.84rem' }}
+                  >
+                    <Download size={14} /> Download PDF
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ══════════════════════════════════════════════════════════
+                 AUTHENTIC 3D PHYSICAL BOOK CASING & PAGES
+                 ══════════════════════════════════════════════════════════ */
+              <div className="book-hardcover-casing">
+                {/* Left Stacked Paper Edges */}
+                <div className="book-edge-stacked book-edge-left" />
+
+                {/* The Open Book Spread */}
+                <div
+                  className="book-open-spread"
+                  style={{
+                    flexDirection: viewMode === 'spread' ? 'row' : 'column',
+                    minWidth: viewMode === 'spread' ? 'min(92vw, 1100px)' : 'min(90vw, 680px)',
+                    minHeight: '70vh'
+                  }}
+                >
+                  {/* Center Spine Binding Groove (Two-Page Mode) */}
+                  {viewMode === 'spread' && <div className="book-center-spine" />}
+
+                  {/* Silk Ribbon Bookmark hanging from active page */}
+                  {isCurrentPageBookmarked && (
+                    <div
+                      className="silk-ribbon-bookmark"
+                      onClick={() => handleToggleBookmark()}
+                      title="Page Bookmarked (Click to toggle)"
+                    >
+                      <Bookmark size={13} fill="currentColor" />
+                    </div>
+                  )}
+
+                  {/* LEFT PAGE (or Sole Page in Single Mode) */}
+                  <div
+                    className="book-page-leaf"
+                    style={{
+                      flex: 1,
+                      borderRight: viewMode === 'spread' ? '1px solid rgba(0,0,0,0.06)' : 'none',
+                      minHeight: '70vh'
+                    }}
+                  >
+                    <div className="book-canvas-holder">
+                      <canvas ref={canvasLeftRef} />
+                    </div>
+
+                    {/* Left Interactive Page Turn Zone */}
+                    <div
+                      className="page-turn-trigger page-turn-trigger-left"
+                      onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
+                      title="Click to Turn Back (or use Left Arrow key)"
+                    >
+                      <div className="page-turn-arrow-badge">
+                        <ChevronLeft size={20} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT PAGE (in Two-Page Spread Mode) */}
+                  {viewMode === 'spread' && (
+                    <div
+                      className="book-page-leaf"
+                      style={{
+                        flex: 1,
+                        borderLeft: '1px solid rgba(0,0,0,0.06)',
+                        minHeight: '70vh'
+                      }}
+                    >
+                      <div className="book-canvas-holder">
+                        {currentPage + 1 <= totalPages ? (
+                          <canvas ref={canvasRightRef} />
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '100%',
+                            color: '#94a3b8',
+                            fontSize: '0.86rem'
+                          }}>
+                            <Book size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                            <span>End of Book</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right Interactive Page Turn Zone */}
+                      <div
+                        className="page-turn-trigger page-turn-trigger-right"
+                        onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
+                        title="Click to Turn Forward (or use Right Arrow key)"
+                      >
+                        <div className="page-turn-arrow-badge">
+                          <ChevronRight size={20} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3D Page Flip Animation Sheet */}
+                  {isFlipping && (
+                    <div className={`page-turning-sheet ${isFlipping === 'next' ? 'page-turning-sheet-next' : 'page-turning-sheet-prev'}`}>
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        background: 'linear-gradient(to right, #f8fafc 0%, #e2e8f0 100%)',
+                        boxShadow: 'inset 0 0 30px rgba(0,0,0,0.15)'
+                      }} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Stacked Paper Edges */}
+                <div className="book-edge-stacked book-edge-right" />
+              </div>
+            )}
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════
+              DISTRACTION-FREE SLIDE-OVER STUDY NOTES & BOOKMARKS DRAWER
+              ══════════════════════════════════════════════════════════ */}
+          {showDrawer && (
+            <>
+              {/* Dimmed backdrop */}
+              <div
+                className="study-drawer-overlay"
+                onClick={() => setShowDrawer(false)}
+              />
+
+              {/* Drawer Content */}
+              <div className="study-drawer-content">
+                {/* Drawer Header with Tabs */}
+                <div style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'rgba(255, 255, 255, 0.02)'
+                }}>
+                  {/* Tab Selector: Notes vs Bookmarks */}
+                  <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.05)', padding: '3px', borderRadius: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDrawerTab('notes')}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        borderRadius: '7px',
+                        border: 'none',
+                        background: drawerTab === 'notes' ? 'var(--primary)' : 'transparent',
+                        color: drawerTab === 'notes' ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <StickyNote size={14} /> Notes ({notes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDrawerTab('bookmarks')}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        borderRadius: '7px',
+                        border: 'none',
+                        background: drawerTab === 'bookmarks' ? 'var(--primary)' : 'transparent',
+                        color: drawerTab === 'bookmarks' ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Bookmark size={14} /> Bookmarks ({bookmarks.length})
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {drawerTab === 'notes' && notes.length > 0 && (
+                      <button
+                        onClick={handleExportNotes}
+                        className="btn btn-secondary"
+                        style={{ padding: '5px 8px', fontSize: '0.72rem', gap: '4px' }}
+                        title="Export notes as Markdown"
+                      >
+                        <FileDown size={13} /> Export
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowDrawer(false)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '6px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="Close drawer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* ================= TAB 1: STUDY NOTES ================= */}
+                {drawerTab === 'notes' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    {/* Add Note Form */}
+                    <form onSubmit={handleAddNote} style={{
+                      padding: '14px 20px',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}>
+                      {/* Tag selector pills */}
+                      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                        {Object.keys(TAG_COLORS).map(tag => {
+                          const style = TAG_COLORS[tag];
+                          const active = newNoteTag === tag;
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setNewNoteTag(tag)}
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: '0.7rem',
+                                borderRadius: '6px',
+                                border: `1px solid ${active ? style.text : 'rgba(255,255,255,0.08)'}`,
+                                background: active ? style.bg : 'transparent',
+                                color: active ? style.text : 'var(--text-muted)',
+                                cursor: 'pointer',
+                                fontWeight: active ? 600 : 400
+                              }}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <textarea
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        placeholder={`Write note for Page ${currentPage}... (key formula, summary, exam pointer)`}
+                        rows={3}
+                        className="glass-input"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          fontSize: '0.82rem',
+                          resize: 'none',
+                          lineHeight: '1.45'
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          📌 Tagged to <strong>Page {currentPage}</strong>
+                        </span>
+                        <button
+                          type="submit"
+                          disabled={!newNoteText.trim()}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '0.78rem',
+                            gap: '5px',
+                            opacity: newNoteText.trim() ? 1 : 0.5
+                          }}
+                        >
+                          <Plus size={14} /> Add Note
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Filter & Search Bar */}
+                    <div style={{
+                      padding: '10px 20px',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                          type="text"
+                          placeholder="Search notes or page..."
+                          value={noteSearch}
+                          onChange={(e) => setNoteSearch(e.target.value)}
+                          className="glass-input"
+                          style={{
+                            width: '100%',
+                            padding: '6px 10px 6px 30px',
+                            fontSize: '0.76rem'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px' }}>
+                        {['All', ...Object.keys(TAG_COLORS)].map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setSelectedTagFilter(t)}
+                            style={{
+                              padding: '2px 7px',
+                              fontSize: '0.68rem',
+                              borderRadius: '4px',
+                              border: 'none',
+                              background: selectedTagFilter === t ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                              color: selectedTagFilter === t ? '#fff' : 'var(--text-muted)',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notes List Scroll Area */}
+                    <div style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}>
+                      {filteredNotes.length === 0 ? (
+                        <div style={{
+                          padding: '40px 16px',
+                          textAlign: 'center',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.82rem'
+                        }}>
+                          <StickyNote size={30} style={{ opacity: 0.3, margin: '0 auto 8px' }} />
+                          <p style={{ margin: '0 0 4px', fontWeight: 600 }}>No notes saved yet</p>
+                          <span style={{ fontSize: '0.74rem', opacity: 0.7 }}>
+                            Add formulas and key pointers to revise directly from database anytime!
+                          </span>
+                        </div>
+                      ) : (
+                        filteredNotes.map(note => {
+                          const tagStyle = TAG_COLORS[note.tag] || TAG_COLORS.General;
+                          return (
+                            <div
+                              key={note.id}
+                              style={{
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                border: '1px solid rgba(255, 255, 255, 0.06)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePageChange(note.page)}
+                                    title={`Jump to Page ${note.page}`}
+                                    style={{
+                                      background: 'rgba(59, 130, 246, 0.12)',
+                                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                                      color: '#60a5fa',
+                                      fontSize: '0.68rem',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Pg {note.page}
+                                  </button>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    background: tagStyle.bg,
+                                    color: tagStyle.text,
+                                    border: `1px solid ${tagStyle.border}`,
+                                    fontWeight: 600
+                                  }}>
+                                    {note.tag}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyNote(note)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: copiedNoteId === note.id ? '#34d399' : 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      padding: '3px'
+                                    }}
+                                    title="Copy note"
+                                  >
+                                    {copiedNoteId === note.id ? <Check size={13} /> : <Copy size={13} />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      padding: '3px'
+                                    }}
+                                    title="Delete note"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <p style={{
+                                margin: 0,
+                                fontSize: '0.82rem',
+                                color: 'var(--text-primary)',
+                                lineHeight: '1.45',
+                                wordBreak: 'break-word',
+                                whiteSpace: 'pre-wrap'
+                              }}>
+                                {note.text}
+                              </p>
+
+                              <span style={{
+                                fontSize: '0.66rem',
+                                color: 'var(--text-muted)',
+                                alignSelf: 'flex-end'
+                              }}>
+                                {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ================= TAB 2: BOOKMARKS ================= */}
+                {drawerTab === 'bookmarks' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    <div style={{
+                      padding: '14px 20px',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                        Current Reading Page: <strong>Pg {currentPage}</strong>
+                      </span>
+                      <button
+                        onClick={() => handleToggleBookmark(currentPage)}
+                        className={`btn ${isCurrentPageBookmarked ? 'btn-danger' : 'btn-primary'}`}
+                        style={{ padding: '6px 12px', fontSize: '0.76rem', gap: '5px' }}
+                      >
+                        <Bookmark size={13} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
+                        {isCurrentPageBookmarked ? 'Remove Current' : 'Bookmark Page'}
+                      </button>
+                    </div>
+
+                    <div style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}>
+                      {bookmarks.length === 0 ? (
+                        <div style={{
+                          padding: '40px 16px',
+                          textAlign: 'center',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.82rem'
+                        }}>
+                          <Bookmark size={30} style={{ opacity: 0.3, margin: '0 auto 8px' }} />
+                          <p style={{ margin: '0 0 4px', fontWeight: 600 }}>No bookmarks saved yet</p>
+                          <span style={{ fontSize: '0.74rem', opacity: 0.7 }}>
+                            Bookmark any page to quickly jump back right here anytime!
+                          </span>
+                        </div>
+                      ) : (
+                        bookmarks.map(bm => (
+                          <div
+                            key={bm.id || bm.page}
+                            style={{
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              background: Number(bm.page) === currentPage ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                              border: Number(bm.page) === currentPage ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div
+                              onClick={() => {
+                                handlePageChange(bm.page);
+                                setShowDrawer(false);
+                              }}
+                              style={{ flex: 1, cursor: 'pointer' }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                <span style={{
+                                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                                  color: '#fef08a',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '5px'
+                                }}>
+                                  Page {bm.page}
+                                </span>
+                                {Number(bm.page) === currentPage && (
+                                  <span style={{ fontSize: '0.68rem', color: '#60a5fa', fontWeight: 600 }}>
+                                    Current Page
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                Bookmarked {new Date(bm.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBookmark(bm.page)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '4px'
+                              }}
+                              title="Delete bookmark"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

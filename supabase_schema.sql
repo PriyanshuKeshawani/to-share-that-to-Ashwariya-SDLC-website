@@ -188,6 +188,29 @@ VALUES ('registration_policy', '{"policy": "manual"}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
 -- =========================================================
+-- 8c. Study Notes & Bookmarks (Per-User, Per-Book)
+-- =========================================================
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+  page INTEGER NOT NULL DEFAULT 1,
+  text TEXT NOT NULL,
+  tag TEXT DEFAULT 'Concept',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+  page INTEGER NOT NULL DEFAULT 1,
+  title TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, book_id, page)
+);
+
+-- =========================================================
 -- 9. RLS - Open for development
 -- =========================================================
 ALTER TABLE branches ENABLE ROW LEVEL SECURITY;

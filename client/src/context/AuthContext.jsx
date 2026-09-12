@@ -599,6 +599,136 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
+    // 3b. Student Study Notes (Cloud DB Persisted)
+    if (endpoint.startsWith('/books/') && endpoint.includes('/notes')) {
+      if (!user) return [];
+      const parts = endpoint.split('/');
+      const bookId = parts[2];
+      const key = `notes_${user.id}_${bookId}`;
+
+      if (method === 'GET') {
+        const { data } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        return Array.isArray(data?.value?.list) ? data.value.list : [];
+      }
+
+      if (method === 'POST') {
+        const { page = 1, text = '', tag = 'Concept', book_title = '' } = body || {};
+        if (!text.trim()) return [];
+
+        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+
+        const newNote = {
+          id: Date.now().toString(),
+          page: Number(page) || 1,
+          text: text.trim(),
+          tag: tag || 'Concept',
+          createdAt: new Date().toISOString()
+        };
+
+        const updatedList = [newNote, ...currentList];
+        await supabase.from('system_settings').upsert({
+          key,
+          value: { list: updatedList },
+          updated_at: new Date().toISOString()
+        });
+
+        // Audit log in Supabase
+        try {
+          await supabase.from('activity_logs').insert([{
+            user_id: user.id,
+            book_id: Number(bookId) || null,
+            action_type: 'add_note',
+            details: `Saved ${tag} note for page ${newNote.page} of "${book_title || 'Book'}"`
+          }]);
+        } catch {}
+
+        return updatedList;
+      }
+
+      if (method === 'DELETE') {
+        const noteId = parts[4];
+        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+        const updatedList = currentList.filter(n => String(n.id) !== String(noteId));
+
+        await supabase.from('system_settings').upsert({
+          key,
+          value: { list: updatedList },
+          updated_at: new Date().toISOString()
+        });
+
+        return updatedList;
+      }
+    }
+
+    // 3c. Student Bookmarks (Cloud DB Persisted)
+    if (endpoint.startsWith('/books/') && endpoint.includes('/bookmarks')) {
+      if (!user) return [];
+      const parts = endpoint.split('/');
+      const bookId = parts[2];
+      const key = `bookmarks_${user.id}_${bookId}`;
+
+      if (method === 'GET') {
+        const { data } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        return Array.isArray(data?.value?.list) ? data.value.list : [];
+      }
+
+      if (method === 'POST') {
+        const { page = 1, title = '', book_title = '' } = body || {};
+        const pageNum = Number(page) || 1;
+
+        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+
+        const exists = currentList.some(b => Number(b.page) === pageNum);
+        let updatedList;
+        if (exists) {
+          updatedList = currentList.filter(b => Number(b.page) !== pageNum);
+        } else {
+          const newBm = {
+            id: Date.now().toString(),
+            page: pageNum,
+            title: title || `Page ${pageNum}`,
+            createdAt: new Date().toISOString()
+          };
+          updatedList = [...currentList, newBm].sort((a, b) => a.page - b.page);
+
+          try {
+            await supabase.from('activity_logs').insert([{
+              user_id: user.id,
+              book_id: Number(bookId) || null,
+              action_type: 'bookmark',
+              details: `Bookmarked page ${pageNum} of "${book_title || 'Book'}"`
+            }]);
+          } catch {}
+        }
+
+        await supabase.from('system_settings').upsert({
+          key,
+          value: { list: updatedList },
+          updated_at: new Date().toISOString()
+        });
+
+        return updatedList;
+      }
+
+      if (method === 'DELETE') {
+        const targetPage = Number(parts[4]);
+        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
+        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+        const updatedList = currentList.filter(b => Number(b.page) !== targetPage && String(b.id) !== String(parts[4]));
+
+        await supabase.from('system_settings').upsert({
+          key,
+          value: { list: updatedList },
+          updated_at: new Date().toISOString()
+        });
+
+        return updatedList;
+      }
+    }
+
     // 4. Users / Students
     if (endpoint === '/auth/users') {
       const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
