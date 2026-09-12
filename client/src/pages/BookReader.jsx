@@ -62,8 +62,8 @@ const BookReader = ({ book, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const readerContainerRef = useRef(null);
 
-  // Audio Page Flip Sound State
-  const audioCtxRef = useRef(null);
+  // Realistic Physical Book Page Flip Audio Pool
+  const audioPoolRef = useRef([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     return localStorage.getItem('sistec_reader_sound') !== 'false';
   });
@@ -76,45 +76,46 @@ const BookReader = ({ book, onClose }) => {
     });
   }, []);
 
-  // Procedural Realistic Physical Paper Turn Sound Synthesis
+  // Preload authentic studio recordings of physical book pages turning
+  useEffect(() => {
+    const sounds = ['/sounds/page-flip.mp3', '/sounds/page-flip-soft.mp3', '/sounds/page-flip.mp3'];
+    const pool = sounds.map(src => {
+      const audio = new Audio(src);
+      audio.preload = 'auto';
+      audio.volume = 0.65;
+      return audio;
+    });
+    audioPoolRef.current = pool;
+
+    return () => {
+      if (audioPoolRef.current) {
+        audioPoolRef.current.forEach(a => {
+          try { a.pause(); } catch {}
+        });
+        audioPoolRef.current = [];
+      }
+    };
+  }, []);
+
+  // Play crisp, organic physical book page flip sound
   const playPageFlipSound = useCallback(() => {
     if (!soundEnabled) return;
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
+      if (audioPoolRef.current && audioPoolRef.current.length > 0) {
+        // Pick an idle audio instance from the pool to avoid clipping on rapid flips
+        const available = audioPoolRef.current.find(a => a.paused || a.ended) || audioPoolRef.current[Math.floor(Math.random() * audioPoolRef.current.length)];
+        if (available) {
+          available.currentTime = 0;
+          available.volume = 0.65;
+          // Natural acoustic micro-pitch variation (0.97x to 1.07x) for realistic tactile page turn sensation
+          available.playbackRate = 0.97 + Math.random() * 0.10;
+          const playPromise = available.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {});
+          }
+          return;
+        }
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
-      const bufferSize = Math.floor(ctx.sampleRate * 0.18);
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
-      }
-
-      const whiteNoise = ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1600, ctx.currentTime);
-      filter.frequency.exponentialRampToValueAtTime(650, ctx.currentTime + 0.18);
-      filter.Q.setValueAtTime(2.2, ctx.currentTime);
-
-      const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(0.28, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-
-      whiteNoise.connect(filter);
-      filter.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      whiteNoise.start();
     } catch {}
   }, [soundEnabled]);
 
