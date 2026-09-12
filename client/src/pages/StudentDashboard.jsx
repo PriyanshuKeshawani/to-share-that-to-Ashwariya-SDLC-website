@@ -418,24 +418,27 @@ const StudentDashboard = ({ onSelectBook }) => {
 
       <aside className="sidebar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: '4px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
-              flexShrink: 0
-            }}>
-              <img src="/logo.png" alt="SISTec Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '12px',
+                background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '4px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+                flexShrink: 0
+              }}>
+                <img src="/logo.png" alt="SISTec Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+                  SISTec
+                </h3>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
+                  Digital Library Portal
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
-                SISTec
-              </h3>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
-                Digital Library Portal
-              </p>
-            </div>
+            <NotificationBell />
           </div>
 
           <div className="glass-panel" style={{ padding: '14px', marginBottom: '20px' }}>

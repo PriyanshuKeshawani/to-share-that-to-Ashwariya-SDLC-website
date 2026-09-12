@@ -939,29 +939,32 @@ const AdminDashboard = () => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
-            <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
-              flexShrink: 0
-            }}>
-              <img src="/logo.png" alt="SISTec" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+                flexShrink: 0
+              }}>
+                <img src="/logo.png" alt="SISTec" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, lineHeight: 1.1 }}>
+                  SISTEC
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Admin Portal
+                </span>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, lineHeight: 1.1 }}>
-                SISTEC
-              </h3>
-              <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Admin Portal
-              </span>
-            </div>
+            <NotificationBell />
           </div>
 
           <div className="glass-panel" style={{ padding: '12px', marginBottom: '24px', fontSize: '0.85rem', textAlign: 'center' }}>

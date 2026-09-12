@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles } from 'lucide-react';
 import { requestNotificationPermission } from '../firebase';
@@ -10,6 +10,8 @@ const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'unread'
+  const buttonRef = useRef(null);
+  const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 'auto', right: 'auto', transformOrigin: 'top right' });
   const [pushStatus, setPushStatus] = useState(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       return Notification.permission;
@@ -18,6 +20,39 @@ const NotificationBell = () => {
   });
   const [pushEnabling, setPushEnabling] = useState(false);
   const [pushMessage, setPushMessage] = useState('');
+
+  // Close dropdown on window resize
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('resize', handleClose);
+    return () => window.removeEventListener('resize', handleClose);
+  }, [isOpen]);
+
+  const toggleOpen = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const isNearRight = rect.left > window.innerWidth / 2;
+      const top = Math.min(window.innerHeight - 500, Math.max(10, rect.bottom + 8));
+      
+      if (isNearRight) {
+        setDropdownCoords({
+          top,
+          right: Math.max(12, window.innerWidth - rect.right),
+          left: 'auto',
+          transformOrigin: 'top right'
+        });
+      } else {
+        setDropdownCoords({
+          top,
+          left: Math.max(12, rect.left),
+          right: 'auto',
+          transformOrigin: 'top left'
+        });
+      }
+    }
+    setIsOpen(!isOpen);
+  };
 
   // Silently refresh token in Supabase if permission is already granted
   useEffect(() => {
@@ -136,7 +171,8 @@ const NotificationBell = () => {
     <div style={{ position: 'relative' }}>
       {/* ── Bell Trigger Button ── */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={buttonRef}
+        onClick={toggleOpen}
         className="btn btn-secondary"
         style={{
           position: 'relative',
@@ -203,12 +239,13 @@ const NotificationBell = () => {
           <div
             className="notification-dropdown animate-fade-in-scale"
             style={{
-              position: 'absolute',
-              top: 'calc(100% + 10px)',
-              right: 0,
+              position: 'fixed',
+              top: dropdownCoords.top,
+              left: dropdownCoords.left,
+              right: dropdownCoords.right,
               width: 'min(360px, calc(100vw - 32px))',
               maxHeight: '480px',
-              zIndex: 1200,
+              zIndex: 9999,
               background: 'var(--bg-surface)',
               border: '1px solid var(--border-glass-hover)',
               boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-glass)',
@@ -216,7 +253,7 @@ const NotificationBell = () => {
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
-              transformOrigin: 'top right'
+              transformOrigin: dropdownCoords.transformOrigin || 'top right'
             }}
           >
             {/* Header */}

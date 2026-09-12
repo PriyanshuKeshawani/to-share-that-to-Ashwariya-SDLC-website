@@ -48,7 +48,11 @@ export const requestNotificationPermission = async (user) => {
   }
 
   if (Notification.permission === 'denied') {
-    return { success: false, reason: 'blocked', error: 'Notifications have been blocked in your browser settings. Please enable them in site permissions.' };
+    return { 
+      success: false, 
+      reason: 'blocked', 
+      error: 'Notifications are blocked in browser settings. (Note: Chrome blocks notifications in Incognito mode — please use a normal window, or click the 🔒 lock icon in the address bar to set Notifications to Allow).' 
+    };
   }
 
   try {
