@@ -1,6 +1,70 @@
-import { Sun, Moon, Palette, Check, User, Shield, Laptop } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  Sun, Moon, Palette, Check, User, Shield, Laptop,
+  Bell, Send, Volume2, Radio, Sparkles, AlertCircle, Info, CheckCircle2, 
+  AlertTriangle, Users, BookOpen, Clock, Loader2, RefreshCw, Megaphone
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
+
+const OFFICIAL_BRANCHES = [
+  'CSE (Computer Science & Engineering)',
+  'CSE (Artificial Intelligence & Data Science)',
+  'IT (Information Technology)',
+  'ECE (Electronics & Communication Engineering)',
+  'Cyber Security',
+  'Civil Engineering',
+  'Mechanical Engineering (ME)',
+  'Electrical Engineering (EX/EE)',
+  'B.Pharm',
+  'M.Pharm (Pharmaceutical Chemistry)',
+  'M.Pharm (Pharmaceutics)',
+  'BBA',
+  'MBA',
+  'M.Tech CSE',
+  'CTM (Construction Technology & Management)',
+  'SE (Structural Engineering)',
+  'Machine Design',
+  'Thermal Engineering',
+  'Digital Communication',
+  'VLSI Design'
+];
+
+const NOTIF_TYPES = [
+  { id: 'announcement', label: 'Announcement', icon: Megaphone, color: '#a855f7', bg: 'rgba(168, 85, 247, 0.14)' },
+  { id: 'info', label: 'Notice / Info', icon: Info, color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.14)' },
+  { id: 'success', label: 'Good News / Approval', icon: CheckCircle2, color: '#10b981', bg: 'rgba(16, 185, 129, 0.14)' },
+  { id: 'warning', label: 'Reminder / Warning', icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
+  { id: 'alert', label: 'Urgent Alert', icon: AlertCircle, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.14)' }
+];
+
+const QUICK_TEMPLATES = [
+  {
+    label: '📚 New Books Arrived',
+    title: 'New Books Added to Central Library',
+    message: 'Exciting new reference books, textbooks, and syllabus guides have just been added to the Central Library portal for the current semester.',
+    type: 'announcement'
+  },
+  {
+    label: '⏰ Extended Study Hours',
+    title: 'Extended Library & Reading Hours',
+    message: 'The Central Library and e-portal reading access will remain open with extended hours to support students preparing for upcoming examinations.',
+    type: 'info'
+  },
+  {
+    label: '⚠️ Book Review Reminder',
+    title: 'Annual Library Inventory & Book Review',
+    message: 'All students are kindly requested to verify their issued digital textbooks and complete their reading progress reviews this week.',
+    type: 'warning'
+  },
+  {
+    label: '🚨 Urgent Department Notice',
+    title: 'Important Academic Curriculum Notice',
+    message: 'Department faculty has released updated reference publications. Please access your branch collection to view available reading materials.',
+    type: 'alert'
+  }
+];
 
 const SettingsView = ({ isAdmin = false }) => {
   const {
@@ -13,6 +77,222 @@ const SettingsView = ({ isAdmin = false }) => {
 
   const { user } = useAuth();
   const isDark = mode === 'dark';
+
+  // ── Admin Notification States ──
+  const [branches, setBranches] = useState(OFFICIAL_BRANCHES);
+  const [targetAudience, setTargetAudience] = useState('all_students'); // 'all_students' | 'branch' | 'all_users'
+  const [selectedBranch, setSelectedBranch] = useState(OFFICIAL_BRANCHES[0]);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifType, setNotifType] = useState('announcement');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [broadcastStatus, setBroadcastStatus] = useState(null);
+
+  // Self Test state
+  const [isTestingNotification, setIsTestingNotification] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  // Broadcast History state
+  const [recentBroadcasts, setRecentBroadcasts] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchBroadcastHistory = useCallback(async () => {
+    if (!isAdmin) return;
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('action_type', 'admin_broadcast_notification')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (!error && data) {
+        setRecentBroadcasts(data);
+      }
+    } catch (err) {
+      console.warn('Notice fetching broadcast history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const loadBranches = async () => {
+      try {
+        const { data, error } = await supabase.from('branches').select('name').order('name', { ascending: true });
+        if (!error && data && data.length > 0) {
+          const names = Array.from(new Set(data.map(b => b.name).filter(Boolean)));
+          if (names.length >= 10) {
+            setBranches(names);
+            setSelectedBranch(names[0]);
+          }
+        }
+      } catch (err) {
+        console.warn('Using default official branches:', err);
+      }
+    };
+    loadBranches();
+    fetchBroadcastHistory();
+  }, [isAdmin, fetchBroadcastHistory]);
+
+  const handleSelfTest = async () => {
+    setIsTestingNotification(true);
+    setTestResult(null);
+    try {
+      // 1. Play audio chime
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.6;
+        await audio.play();
+      } catch (audioErr) {
+        console.warn('Audio play note:', audioErr);
+      }
+
+      // 2. Insert test alert into notifications for this admin
+      if (user?.id) {
+        const { error: insErr } = await supabase.from('notifications').insert([{
+          user_id: user.id,
+          title: 'System Self-Test: Notifications Online',
+          message: 'Realtime WebSocket push, bell unread counters, and audio chimes are functioning properly.',
+          type: 'info',
+          is_read: false
+        }]);
+        if (insErr) throw insErr;
+      }
+
+      // 3. Native desktop notification if permission granted
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('SISTec Library Diagnostic Test', {
+            body: 'Notification chime & alert system are active!',
+            icon: '/sistec-logo.png'
+          });
+        } catch {}
+      }
+
+      setTestResult({
+        success: true,
+        message: 'Notification chime played and test alert added to your bell icon (top right)!'
+      });
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: err.message || 'Error triggering test notification'
+      });
+    } finally {
+      setIsTestingNotification(false);
+    }
+  };
+
+  const applyTemplate = (tpl) => {
+    setNotifTitle(tpl.title);
+    setNotifMessage(tpl.message);
+    setNotifType(tpl.type);
+    setBroadcastStatus(null);
+  };
+
+  const handleSendBroadcast = async (e) => {
+    e?.preventDefault();
+    if (!notifTitle.trim() || !notifMessage.trim()) {
+      setBroadcastStatus({ success: false, message: 'Please provide both a Title and a Message.' });
+      return;
+    }
+
+    setIsBroadcasting(true);
+    setBroadcastStatus(null);
+
+    try {
+      // 1. Fetch targeted users from Supabase
+      let query = supabase.from('users').select('id, full_name, username, branch_name, role, status');
+      
+      if (targetAudience === 'all_students') {
+        query = query.eq('role', 'student').eq('status', 'approved');
+      } else if (targetAudience === 'branch') {
+        query = query.eq('role', 'student').eq('status', 'approved');
+      } else if (targetAudience === 'all_users') {
+        query = query.eq('status', 'approved');
+      }
+
+      const { data: targetUsers, error: fetchErr } = await query;
+      if (fetchErr) throw fetchErr;
+
+      let recipients = targetUsers || [];
+      if (targetAudience === 'branch') {
+        recipients = recipients.filter(u => {
+          const userBranch = (u.branch_name || '').toLowerCase().trim();
+          const target = selectedBranch.toLowerCase().trim();
+          return userBranch === target || userBranch.includes(target) || target.includes(userBranch);
+        });
+      }
+
+      if (recipients.length === 0) {
+        setBroadcastStatus({ 
+          success: false, 
+          message: `No approved users found for target: ${targetAudience === 'branch' ? selectedBranch : 'selected audience'}.` 
+        });
+        setIsBroadcasting(false);
+        return;
+      }
+
+      // 2. Prepare notification rows
+      const notifRows = recipients.map(r => ({
+        user_id: r.id,
+        title: notifTitle.trim(),
+        message: notifMessage.trim(),
+        type: notifType,
+        is_read: false
+      }));
+
+      // 3. Batch insert in chunks of 100
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < notifRows.length; i += CHUNK_SIZE) {
+        const chunk = notifRows.slice(i, i + CHUNK_SIZE);
+        const { error: insErr } = await supabase.from('notifications').insert(chunk);
+        if (insErr) throw insErr;
+      }
+
+      // 4. Log in activity_logs
+      const targetLabel = targetAudience === 'all_students'
+        ? 'All Approved Students'
+        : targetAudience === 'branch'
+        ? `Department: ${selectedBranch}`
+        : 'All Registered Portal Users';
+
+      if (user?.id) {
+        await supabase.from('activity_logs').insert([{
+          user_id: user.id,
+          action_type: 'admin_broadcast_notification',
+          details: `Broadcast sent to ${targetLabel} (${recipients.length} recipients): "${notifTitle.trim()}"`
+        }]);
+      }
+
+      // 5. Play chime on admin screen
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch {}
+
+      setBroadcastStatus({
+        success: true,
+        message: `Successfully broadcasted to ${recipients.length} ${targetAudience === 'branch' ? selectedBranch + ' ' : ''}user(s) in real-time! Their screens and bells will update automatically without page refresh.`
+      });
+
+      // Reset form fields
+      setNotifTitle('');
+      setNotifMessage('');
+      fetchBroadcastHistory();
+    } catch (err) {
+      console.error('Error broadcasting notification:', err);
+      setBroadcastStatus({
+        success: false,
+        message: err.message || 'Failed to dispatch broadcast notification.'
+      });
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '880px', margin: '0 auto' }}>
@@ -231,6 +511,519 @@ const SettingsView = ({ isAdmin = false }) => {
           })}
         </div>
       </div>
+
+      {/* ── Admin Section: Notification Diagnostic & Self-Test ── */}
+      {isAdmin && (
+        <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px' }}>
+          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                padding: '10px', borderRadius: '12px', 
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(168, 85, 247, 0.12))', 
+                color: 'var(--primary)' 
+              }}>
+                <Volume2 size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
+                  Notification Diagnostics & Audio Self-Test
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Test live notification sound chime, top-right bell counters, and desktop alerts
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSelfTest}
+              disabled={isTestingNotification}
+              className="btn btn-primary"
+              style={{
+                padding: '10px 18px',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
+              }}
+            >
+              {isTestingNotification ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Testing System...
+                </>
+              ) : (
+                <>
+                  <Bell size={16} />
+                  Test Sound Chime & Bell Alert
+                </>
+              )}
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+            Clicking this button triggers the <strong>/sounds/notification.mp3</strong> chime and inserts an immediate real-time test notification into your administrator account. Check the notification bell icon at the top right to verify that unread counter badge and popup list update dynamically without reloading.
+          </p>
+
+          {testResult && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '10px',
+              background: testResult.success ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              border: testResult.success ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
+              color: testResult.success ? 'var(--success)' : 'var(--danger)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              {testResult.success ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Admin Section: Custom Broadcast Notification Center ── */}
+      {isAdmin && (
+        <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px', border: '1.5px solid rgba(168, 85, 247, 0.25)' }}>
+          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                padding: '10px', borderRadius: '12px', 
+                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(59, 130, 246, 0.12))', 
+                color: '#a855f7' 
+              }}>
+                <Radio size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
+                    Instant Realtime Broadcast Dispatcher
+                  </h3>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: 'rgba(168, 85, 247, 0.16)',
+                    color: '#a855f7',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase'
+                  }}>
+                    Live Sync
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Dispatch custom notices, book announcements, or alerts to all students or specific departments in real-time
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Pre-Set Templates */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ 
+              fontSize: '0.75rem', 
+              color: 'var(--text-muted)', 
+              fontWeight: 700, 
+              display: 'block', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.05em',
+              marginBottom: '8px' 
+            }}>
+              Quick 1-Click Templates
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {QUICK_TEMPLATES.map((tpl, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => applyTemplate(tpl)}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-glass)',
+                    color: 'var(--text-primary)',
+                    padding: '7px 13px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-glass)';
+                    e.currentTarget.style.transform = 'none';
+                  }}
+                >
+                  <Sparkles size={13} color="var(--primary)" />
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <form onSubmit={handleSendBroadcast}>
+            {/* Target Audience Selector */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ 
+                fontSize: '0.75rem', 
+                color: 'var(--text-muted)', 
+                fontWeight: 700, 
+                display: 'block', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em',
+                marginBottom: '8px' 
+              }}>
+                Target Audience
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                {[
+                  { id: 'all_students', title: 'All Approved Students', desc: 'Broadcast to all enrolled students' },
+                  { id: 'branch', title: 'Specific Department / Branch', desc: 'Target a particular academic branch' },
+                  { id: 'all_users', title: 'All Portal Users', desc: 'Includes both students and administrators' }
+                ].map(aud => {
+                  const isSel = targetAudience === aud.id;
+                  return (
+                    <div
+                      key={aud.id}
+                      onClick={() => setTargetAudience(aud.id)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        border: isSel ? '2px solid var(--primary)' : '1.5px solid var(--border-glass)',
+                        background: isSel ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-card)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>{aud.title}</span>
+                        {isSel && <Check size={15} color="var(--primary)" strokeWidth={3} />}
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.3, display: 'block' }}>
+                        {aud.desc}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Department Branch Dropdown (When branch is targeted) */}
+            {targetAudience === 'branch' && (
+              <div style={{ marginBottom: '20px', padding: '16px', borderRadius: '12px', background: 'var(--input-bg)', border: '1px solid var(--border-glass)' }}>
+                <label style={{ 
+                  fontSize: '0.78rem', 
+                  color: 'var(--text-secondary)', 
+                  fontWeight: 700, 
+                  display: 'block', 
+                  marginBottom: '8px' 
+                }}>
+                  Select College Academic Department (All 20 Official Branches Available):
+                </label>
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="input-field"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-glass)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    fontWeight: 600
+                  }}
+                >
+                  {branches.map((b, idx) => (
+                    <option key={idx} value={b} style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Notification Type Selector */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ 
+                fontSize: '0.75rem', 
+                color: 'var(--text-muted)', 
+                fontWeight: 700, 
+                display: 'block', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em',
+                marginBottom: '8px' 
+              }}>
+                Notification Category & Color Accent
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {NOTIF_TYPES.map(nt => {
+                  const isSel = notifType === nt.id;
+                  const IconComp = nt.icon;
+                  return (
+                    <button
+                      key={nt.id}
+                      type="button"
+                      onClick={() => setNotifType(nt.id)}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        border: isSel ? `2px solid ${nt.color}` : '1.5px solid var(--border-glass)',
+                        background: isSel ? nt.bg : 'var(--bg-card)',
+                        color: isSel ? nt.color : 'var(--text-secondary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '7px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <IconComp size={15} color={nt.color} />
+                      <span>{nt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Notification Title Input */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                fontSize: '0.75rem', 
+                color: 'var(--text-muted)', 
+                fontWeight: 700, 
+                display: 'block', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em',
+                marginBottom: '6px' 
+              }}>
+                Notification Title *
+              </label>
+              <input
+                type="text"
+                value={notifTitle}
+                onChange={(e) => setNotifTitle(e.target.value)}
+                placeholder="e.g., Important Notice: New Engineering Reference Books Available"
+                className="input-field"
+                required
+                style={{
+                  width: '100%',
+                  padding: '11px 14px',
+                  borderRadius: '10px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.92rem',
+                  fontWeight: 600
+                }}
+              />
+            </div>
+
+            {/* Notification Message Textarea */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ 
+                fontSize: '0.75rem', 
+                color: 'var(--text-muted)', 
+                fontWeight: 700, 
+                display: 'block', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em',
+                marginBottom: '6px' 
+              }}>
+                Notification Message Body *
+              </label>
+              <textarea
+                value={notifMessage}
+                onChange={(e) => setNotifMessage(e.target.value)}
+                placeholder="Write the full notification message to be delivered instantly to users' notification bells and screens..."
+                rows={3}
+                className="input-field"
+                required
+                style={{
+                  width: '100%',
+                  padding: '11px 14px',
+                  borderRadius: '10px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.88rem',
+                  lineHeight: 1.5,
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            {/* Live Card Preview */}
+            <div style={{ marginBottom: '22px', padding: '16px 20px', borderRadius: '12px', background: 'rgba(0,0,0,0.18)', border: '1px dashed var(--border-glass)' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '10px' }}>
+                Live Student Bell Dropdown Preview
+              </span>
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-glass)',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '10px',
+                  background: NOTIF_TYPES.find(t => t.id === notifType)?.bg || 'rgba(59, 130, 246, 0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  {(() => {
+                    const found = NOTIF_TYPES.find(t => t.id === notifType);
+                    const Comp = found?.icon || Bell;
+                    return <Comp size={16} color={found?.color || 'var(--primary)'} />;
+                  })()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {notifTitle || 'Notification Title Preview'}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Just now</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    {notifMessage || 'Notification message description will appear here on recipients devices...'}
+                  </p>
+                </div>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0, marginTop: '6px' }} />
+              </div>
+            </div>
+
+            {/* Broadcast Status Alerts */}
+            {broadcastStatus && (
+              <div style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                background: broadcastStatus.success ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                border: broadcastStatus.success ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                color: broadcastStatus.success ? 'var(--success)' : 'var(--danger)',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                {broadcastStatus.success ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+                <span>{broadcastStatus.message}</span>
+              </div>
+            )}
+
+            {/* Submit Dispatch Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="submit"
+                disabled={isBroadcasting || !notifTitle.trim() || !notifMessage.trim()}
+                className="btn btn-primary"
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #a855f7, var(--primary))',
+                  boxShadow: '0 4px 16px rgba(168, 85, 247, 0.35)',
+                  border: 'none',
+                  color: '#ffffff'
+                }}
+              >
+                {isBroadcasting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Broadcasting in Real-Time...
+                  </>
+                ) : (
+                  <>
+                    <Send size={18} />
+                    Dispatch Realtime Broadcast
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          {/* Broadcast History */}
+          {recentBroadcasts.length > 0 && (
+            <div style={{ marginTop: '30px', paddingTop: '22px', borderTop: '1px solid var(--border-glass)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} color="var(--text-muted)" />
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Recent Broadcast Activity Log
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchBroadcastHistory}
+                  disabled={loadingHistory}
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 10px', fontSize: '0.72rem', borderRadius: '8px', gap: '4px' }}
+                >
+                  <RefreshCw size={12} className={loadingHistory ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {recentBroadcasts.map((log) => (
+                  <div
+                    key={log.id}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-glass)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: '220px' }}>
+                      <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                        {log.details || 'Broadcast notification sent'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                      Delivered Live
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Section 3: Profile Details ── */}
       {user && (

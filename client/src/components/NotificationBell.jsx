@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-import { Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles } from 'lucide-react';
+import { 
+  Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles, 
+  Megaphone, AlertTriangle, AlertCircle, Info 
+} from 'lucide-react';
 import { requestNotificationPermission } from '../firebase';
 import { supabase } from '../supabaseClient';
 
@@ -181,13 +184,41 @@ const NotificationBell = () => {
 
   const getNotificationIcon = (type) => {
     switch (type) {
+      case 'announcement':
+        return <Megaphone size={16} color="#a855f7" />;
+      case 'info':
+        return <Info size={16} color="#38bdf8" />;
+      case 'warning':
+        return <AlertTriangle size={16} color="#f59e0b" />;
+      case 'alert':
+      case 'danger':
+        return <AlertCircle size={16} color="#ef4444" />;
       case 'approval':
+        return <Check size={16} color="#10b981" />;
       case 'rejection':
-        return <Check size={16} color="var(--success)" />;
+        return <X size={16} color="#ef4444" />;
       case 'download':
         return <BookOpen size={16} color="var(--primary)" />;
       default:
         return <Bell size={16} color="var(--primary)" />;
+    }
+  };
+
+  const getNotificationBg = (type) => {
+    switch (type) {
+      case 'announcement':
+        return 'rgba(168, 85, 247, 0.14)';
+      case 'info':
+        return 'rgba(56, 189, 248, 0.14)';
+      case 'warning':
+        return 'rgba(245, 158, 11, 0.14)';
+      case 'alert':
+      case 'danger':
+        return 'rgba(239, 68, 68, 0.14)';
+      case 'approval':
+        return 'rgba(16, 185, 129, 0.14)';
+      default:
+        return 'rgba(59, 130, 246, 0.12)';
     }
   };
 
@@ -538,7 +569,7 @@ const NotificationBell = () => {
                       width: '32px',
                       height: '32px',
                       borderRadius: '10px',
-                      background: 'rgba(59, 130, 246, 0.12)',
+                      background: getNotificationBg(notif.type),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
