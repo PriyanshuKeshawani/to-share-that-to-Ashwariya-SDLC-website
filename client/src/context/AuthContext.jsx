@@ -137,11 +137,50 @@ const setSystemRegistrationPolicy = async (newPolicy, username) => {
   }
 };
 
+// UUID Validation and Deterministic Sanitization
+// Ensures external bridges (Flutter WebView / mock IDs) never inject non-UUID strings into PostgreSQL UUID columns
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isValidUuid = (id) => typeof id === 'string' && UUID_REGEX.test(id.trim());
+
+export const toDeterministicUuid = (str) => {
+  if (!str) return '00000000-0000-4000-8000-000000000000';
+  const clean = String(str).trim();
+  if (isValidUuid(clean)) return clean;
+  let h1 = 0xdeadbeef, h2 = 0x41c64e6d, h3 = 0x9e3779b9, h4 = 0x27d4eb2f;
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 3812015801);
+    h4 = Math.imul(h4 ^ ch, 2246822519);
+  }
+  const toHex = (n) => (n >>> 0).toString(16).padStart(8, '0');
+  const rawHex = (toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4)).toLowerCase();
+  return `${rawHex.slice(0, 8)}-${rawHex.slice(8, 12)}-4${rawHex.slice(13, 16)}-a${rawHex.slice(17, 20)}-${rawHex.slice(20, 32)}`;
+};
+
+const sanitizeCustomUser = (u) => {
+  if (!u || typeof u !== 'object') return u;
+  if (u.id && !isValidUuid(u.id)) {
+    const validId = toDeterministicUuid(u.id);
+    const updated = { ...u, id: validId };
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('lib_custom_user', JSON.stringify(updated));
+      }
+    } catch {
+      // ignore storage error
+    }
+    return updated;
+  }
+  return u;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('lib_custom_user');
-      return saved ? JSON.parse(saved) : null;
+      return saved ? sanitizeCustomUser(JSON.parse(saved)) : null;
     } catch {
       return null;
     }
@@ -232,12 +271,15 @@ export const AuthProvider = ({ children }) => {
       let approvedBookIds = [];
       if (user && user.role === 'student') {
         try {
-          const { data: perms } = await supabase
-            .from('permissions')
-            .select('book_id')
-            .eq('user_id', user.id)
-            .eq('status', 'approved');
-          approvedBookIds = (perms || []).map(p => p.book_id).filter(Boolean);
+          const effectiveId = user.id && isValidUuid(user.id) ? user.id : (user.id ? toDeterministicUuid(user.id) : null);
+          if (effectiveId) {
+            const { data: perms } = await supabase
+              .from('permissions')
+              .select('book_id')
+              .eq('user_id', effectiveId)
+              .eq('status', 'approved');
+            approvedBookIds = (perms || []).map(p => p.book_id).filter(Boolean);
+          }
         } catch {
           // ignore permissions fetch error
         }
@@ -1173,38 +1215,47 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (endpoint === '/permissions/my-requests') {
-      if (!user) return [];
-      const { data: permData, error: permError } = await supabase
-        .from('permissions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (permError) throw permError;
+      const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveId) return [];
+      try {
+        const { data: permData, error: permError } = await supabase
+          .from('permissions')
+          .select('*')
+          .eq('user_id', effectiveId)
+          .order('created_at', { ascending: false });
+        if (permError) {
+          console.warn('Notice loading my-requests:', permError.message);
+          return [];
+        }
 
-      const bookIds = [...new Set((permData || []).map(p => p.book_id).filter(Boolean))];
+        const bookIds = [...new Set((permData || []).map(p => p.book_id).filter(Boolean))];
 
-      const [
-        { data: allBranches },
-        { data: booksList }
-      ] = await Promise.all([
-        supabase.from('branches').select('id, name'),
-        bookIds.length > 0 ? supabase.from('books').select('id, title, author, cover_url').in('id', bookIds) : { data: [] }
-      ]);
+        const [
+          { data: allBranches },
+          { data: booksList }
+        ] = await Promise.all([
+          supabase.from('branches').select('id, name'),
+          bookIds.length > 0 ? supabase.from('books').select('id, title, author, cover_url').in('id', bookIds) : { data: [] }
+        ]);
 
-      const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
-      const bookMap = new Map((booksList || []).map(b => [b.id, b]));
+        const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
+        const bookMap = new Map((booksList || []).map(b => [b.id, b]));
 
-      return (permData || []).map(req => {
-        const bk = bookMap.get(req.book_id);
-        return {
-          ...req,
-          book_id: req.book_id,
-          book_title: bk?.title || 'Book Access',
-          book_author: bk?.author || '',
-          cover_url: bk?.cover_url || null,
-          branch_name: branchMap.get(req.branch_id) || 'Branch'
-        };
-      });
+        return (permData || []).map(req => {
+          const bk = bookMap.get(req.book_id);
+          return {
+            ...req,
+            book_id: req.book_id,
+            book_title: bk?.title || 'Book Access',
+            book_author: bk?.author || '',
+            cover_url: bk?.cover_url || null,
+            branch_name: branchMap.get(req.branch_id) || 'Branch'
+          };
+        });
+      } catch (err) {
+        console.warn('Error fetching permissions requests:', err.message);
+        return [];
+      }
     }
 
     if (endpoint.startsWith('/permissions/cancel/')) {
@@ -1266,9 +1317,9 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      let effectiveUserId = user?.id;
-      if (user?.id) {
-        const { data: userRow } = await supabase.from('users').select('id').eq('id', user.id).maybeSingle();
+      let effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (effectiveUserId) {
+        const { data: userRow } = await supabase.from('users').select('id').eq('id', effectiveUserId).maybeSingle();
         if (!userRow) {
           const { data: anyStudent } = await supabase.from('users').select('id').eq('role', 'student').limit(1).maybeSingle();
           if (anyStudent) effectiveUserId = anyStudent.id;
@@ -1340,7 +1391,8 @@ export const AuthProvider = ({ children }) => {
 
     // 8. Analytics & Logs (real-time progress + audit logs)
     if (endpoint === '/analytics/track' && method === 'POST') {
-      if (!user) return null;
+      const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveId) return null;
       const targetBookId = Number(body.bookId || body.book_id) || null;
       const actionType = body.actionType || body.action_type || 'view';
       const pageRead = Math.max(1, parseInt(body.last_page_read || body.lastPageRead || 1, 10));
@@ -1349,7 +1401,7 @@ export const AuthProvider = ({ children }) => {
       let logData = null;
       try {
         const { data, error } = await supabase.from('activity_logs').insert([{
-          user_id: user.id,
+          user_id: effectiveId,
           book_id: targetBookId,
           action_type: actionType,
           details: details
@@ -1367,7 +1419,7 @@ export const AuthProvider = ({ children }) => {
             supabase
               .from('user_book_progress')
               .select('*')
-              .eq('user_id', user.id)
+              .eq('user_id', effectiveId)
               .eq('book_id', targetBookId)
               .maybeSingle(),
             supabase
@@ -1408,7 +1460,7 @@ export const AuthProvider = ({ children }) => {
             await supabase
               .from('user_book_progress')
               .insert([{
-                user_id: user.id,
+                user_id: effectiveId,
                 book_id: targetBookId,
                 last_page_read: finalPage,
                 total_pages: bookTotalPages,
@@ -1721,28 +1773,37 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (endpoint === '/analytics/my-history') {
-      if (!user) return [];
-      const [{ data: logsData, error: logError }, { data: progressData }] = await Promise.all([
-        supabase.from('activity_logs').select('*, book:book_id(title, author)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
-        supabase.from('user_book_progress').select('*, book:book_id(title, author, total_pages)').eq('user_id', user.id)
-      ]);
-      if (logError) throw logError;
+      const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveId) return [];
+      try {
+        const [{ data: logsData, error: logError }, { data: progressData }] = await Promise.all([
+          supabase.from('activity_logs').select('*, book:book_id(title, author)').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(20),
+          supabase.from('user_book_progress').select('*, book:book_id(title, author, total_pages)').eq('user_id', effectiveId)
+        ]);
+        if (logError) {
+          console.warn('Notice loading my-history activity logs:', logError.message);
+          return [];
+        }
 
-      const progressMap = new Map((progressData || []).map(p => [p.book_id, p]));
-      const progressByTitle = new Map((progressData || []).map(p => [p.book?.title, p]));
+        const progressMap = new Map((progressData || []).map(p => [p.book_id, p]));
+        const progressByTitle = new Map((progressData || []).map(p => [p.book?.title, p]));
 
-      return (logsData || []).map(l => {
-        const prog = progressMap.get(l.book_id) || (l.book?.title ? progressByTitle.get(l.book.title) : null);
-        const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
-        return {
-          ...l,
-          book_title: l.book ? l.book.title : null,
-          book_author: l.book ? l.book.author : null,
-          last_page_read: prog ? (prog.last_page_read || 1) : parsedPage,
-          total_pages: prog?.total_pages || prog?.book?.total_pages || 100,
-          progress_percentage: prog?.progress_percentage || 0
-        };
-      });
+        return (logsData || []).map(l => {
+          const prog = progressMap.get(l.book_id) || (l.book?.title ? progressByTitle.get(l.book.title) : null);
+          const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
+          return {
+            ...l,
+            book_title: l.book ? l.book.title : null,
+            book_author: l.book ? l.book.author : null,
+            last_page_read: prog ? (prog.last_page_read || 1) : parsedPage,
+            total_pages: prog?.total_pages || prog?.book?.total_pages || 100,
+            progress_percentage: prog?.progress_percentage || 0
+          };
+        });
+      } catch (err) {
+        console.warn('Error loading my-history:', err.message);
+        return [];
+      }
     }
 
     if (endpoint.startsWith('/analytics/logs')) {
@@ -1812,8 +1873,8 @@ export const AuthProvider = ({ children }) => {
       const savedUserStr = localStorage.getItem('lib_custom_user');
       if (savedUserStr) {
         try {
-          const savedUser = JSON.parse(savedUserStr);
-          if (savedUser && (savedUser.authProvider === 'credentials' || savedUser.role === 'admin' || savedUser.authProvider === 'bypass')) {
+          const savedUser = sanitizeCustomUser(JSON.parse(savedUserStr));
+          if (savedUser && (savedUser.authProvider === 'credentials' || savedUser.role === 'admin' || savedUser.authProvider === 'bypass' || savedUser.authProvider === 'google')) {
             setUser(savedUser);
             setLoading(false);
             return;

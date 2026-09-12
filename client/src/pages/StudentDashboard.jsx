@@ -121,11 +121,11 @@ const StudentDashboard = ({ onSelectBook }) => {
     try {
       setLoading(true);
       const [booksData, catsData, branchesData, reqsData, histData] = await Promise.all([
-        apiCall('/books'),
-        apiCall('/books/categories'),
-        apiCall('/books/branches'),
-        apiCall('/permissions/my-requests'),
-        apiCall('/analytics/my-history')
+        apiCall('/books').catch(() => []),
+        apiCall('/books/categories').catch(() => []),
+        apiCall('/books/branches').catch(() => []),
+        apiCall('/permissions/my-requests').catch(() => []),
+        apiCall('/analytics/my-history').catch(() => [])
       ]);
 
       setBooks(booksData || []);
@@ -143,10 +143,10 @@ const StudentDashboard = ({ onSelectBook }) => {
   const silentRefresh = useCallback(async () => {
     try {
       const [booksData, reqsData, histData, branchesData] = await Promise.all([
-        apiCall('/books'),
-        apiCall('/permissions/my-requests'),
-        apiCall('/analytics/my-history'),
-        apiCall('/books/branches')
+        apiCall('/books').catch(() => null),
+        apiCall('/permissions/my-requests').catch(() => null),
+        apiCall('/analytics/my-history').catch(() => null),
+        apiCall('/books/branches').catch(() => null)
       ]);
       if (booksData) setBooks(booksData);
       if (reqsData) setRequests(reqsData);
