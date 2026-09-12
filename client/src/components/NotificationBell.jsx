@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Bell, Check, X, BookOpen, CheckCheck } from 'lucide-react';
+import { Bell, Check, X, BookOpen, CheckCheck, BellRing, Sparkles } from 'lucide-react';
+import { requestNotificationPermission } from '../firebase';
 
 const NotificationBell = () => {
   const { user, apiCall } = useAuth();
@@ -9,6 +10,40 @@ const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'unread'
+  const [pushStatus, setPushStatus] = useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'unsupported';
+  });
+  const [pushEnabling, setPushEnabling] = useState(false);
+  const [pushMessage, setPushMessage] = useState('');
+
+  // Silently refresh token in Supabase if permission is already granted
+  useEffect(() => {
+    if (user && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      requestNotificationPermission(user).catch(() => {});
+    }
+  }, [user]);
+
+  const handleEnablePush = async () => {
+    setPushEnabling(true);
+    setPushMessage('');
+    try {
+      const res = await requestNotificationPermission(user);
+      if (res.success) {
+        setPushStatus('granted');
+        setPushMessage('Live push alerts enabled on this device!');
+        setTimeout(() => setPushMessage(''), 4000);
+      } else {
+        setPushMessage(res.error || 'Could not enable push notifications.');
+      }
+    } catch (err) {
+      setPushMessage(err.message || 'Error enabling notifications');
+    } finally {
+      setPushEnabling(false);
+    }
+  };
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -259,6 +294,53 @@ const NotificationBell = () => {
                 </button>
               </div>
             </div>
+
+            {/* Push Notifications Enable Banner */}
+            {pushStatus !== 'granted' && pushStatus !== 'unsupported' && (
+              <div style={{
+                padding: '10px 14px',
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(147, 51, 234, 0.14))',
+                borderBottom: '1px solid var(--border-glass)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <BellRing size={16} color="var(--primary)" />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: 1.2 }}>
+                    Live alerts for new books & approvals
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEnablePush}
+                  disabled={pushEnabling}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '3px 9px',
+                    fontSize: '0.7rem',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {pushEnabling ? 'Enabling...' : 'Enable'}
+                </button>
+              </div>
+            )}
+            {pushMessage && (
+              <div style={{
+                padding: '6px 14px',
+                fontSize: '0.68rem',
+                background: pushStatus === 'granted' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                color: pushStatus === 'granted' ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)',
+                fontWeight: 600
+              }}>
+                {pushMessage}
+              </div>
+            )}
 
             {/* Filter Tabs (All / Unread) */}
             {notifications.length > 0 && (
