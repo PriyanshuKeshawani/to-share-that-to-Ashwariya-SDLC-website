@@ -184,7 +184,7 @@ const AppContent = () => {
   // Student View (Reader or Dashboard)
   if (selectedBook) {
     return (
-      <div style={{ padding: '40px 20px', minHeight: '100vh', background: 'var(--bg-main)' }}>
+      <div className="reader-page-wrapper">
         <BookReader
           book={selectedBook}
           onClose={() => setSelectedBook(null)}

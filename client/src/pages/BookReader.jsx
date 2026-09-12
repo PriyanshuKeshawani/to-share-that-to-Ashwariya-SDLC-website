@@ -62,7 +62,12 @@ const BookReader = ({ book, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const readerContainerRef = useRef(null);
 
-  // Realistic Physical Book Page Flip Audio Pool
+  // Mobile viewport reactive detection
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  // Web Audio API buffer cache for zero-latency, multi-variation page flips
+  const audioCtxRef = useRef(null);
+  const audioBuffersRef = useRef([]);
   const audioPoolRef = useRef([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     return localStorage.getItem('sistec_reader_sound') !== 'false';
@@ -76,18 +81,64 @@ const BookReader = ({ book, onClose }) => {
     });
   }, []);
 
-  // Preload authentic studio recordings of physical book pages turning
+  // Preload and decode 4 distinct physical book page turn sounds into RAM
   useEffect(() => {
-    const sounds = ['/sounds/page-flip.mp3', '/sounds/page-flip-soft.mp3', '/sounds/page-flip.mp3'];
-    const pool = sounds.map(src => {
+    let isMounted = true;
+    const soundUrls = [
+      '/sounds/page-flip-1.wav',
+      '/sounds/page-flip-2.wav',
+      '/sounds/page-flip-3.wav',
+      '/sounds/page-flip-4.wav',
+      '/sounds/page-flip-soft.mp3',
+      '/sounds/page-flip.mp3'
+    ];
+
+    // Fallback HTML5 audio elements
+    const pool = soundUrls.map(src => {
       const audio = new Audio(src);
       audio.preload = 'auto';
-      audio.volume = 0.65;
+      audio.volume = 0.75;
       return audio;
     });
     audioPoolRef.current = pool;
 
+    // Load and decode into Web Audio API for true ZERO latency (< 5ms)
+    const initWebAudio = async () => {
+      try {
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtxClass) return;
+        const ctx = new AudioCtxClass();
+        audioCtxRef.current = ctx;
+
+        const decodedBuffers = [];
+        for (const url of soundUrls.slice(0, 4)) {
+          try {
+            const resp = await fetch(url);
+            if (!resp.ok) continue;
+            const arrayBuf = await resp.arrayBuffer();
+            const decoded = await ctx.decodeAudioData(arrayBuf);
+            if (isMounted && decoded) {
+              decodedBuffers.push(decoded);
+            }
+          } catch (e) {
+            console.debug('Audio decode note for', url, e);
+          }
+        }
+        if (isMounted && decodedBuffers.length > 0) {
+          audioBuffersRef.current = decodedBuffers;
+        }
+      } catch (err) {
+        console.debug('Web Audio init note:', err);
+      }
+    };
+
+    initWebAudio();
+
     return () => {
+      isMounted = false;
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        try { audioCtxRef.current.close(); } catch {}
+      }
       if (audioPoolRef.current) {
         audioPoolRef.current.forEach(a => {
           try { a.pause(); } catch {}
@@ -97,23 +148,48 @@ const BookReader = ({ book, onClose }) => {
     };
   }, []);
 
-  // Play crisp, organic physical book page flip sound
+  // Play crisp, organic physical book page flip sound with zero latency
   const playPageFlipSound = useCallback(() => {
     if (!soundEnabled) return;
     try {
+      // 1. First priority: Web Audio API (Instantaneous, zero latency)
+      const ctx = audioCtxRef.current || (window.AudioContext ? new (window.AudioContext || window.webkitAudioContext)() : null);
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        audioCtxRef.current = ctx;
+        const buffers = audioBuffersRef.current;
+        if (buffers && buffers.length > 0) {
+          // Select randomly among the natural acoustic variations
+          const buffer = buffers[Math.floor(Math.random() * buffers.length)];
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+
+          // Natural tactile micro-pitch variation (0.95x to 1.05x)
+          source.playbackRate.value = 0.95 + Math.random() * 0.10;
+
+          const gainNode = ctx.createGain();
+          gainNode.gain.value = 0.75;
+
+          source.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          source.start(0); // 0ms instantaneous zero-latency playback!
+          return;
+        }
+      }
+
+      // 2. Fallback: Preloaded Audio Element Pool
       if (audioPoolRef.current && audioPoolRef.current.length > 0) {
-        // Pick an idle audio instance from the pool to avoid clipping on rapid flips
         const available = audioPoolRef.current.find(a => a.paused || a.ended) || audioPoolRef.current[Math.floor(Math.random() * audioPoolRef.current.length)];
         if (available) {
           available.currentTime = 0;
-          available.volume = 0.65;
-          // Natural acoustic micro-pitch variation (0.97x to 1.07x) for realistic tactile page turn sensation
-          available.playbackRate = 0.97 + Math.random() * 0.10;
+          available.volume = 0.75;
+          available.playbackRate = 0.96 + Math.random() * 0.08;
           const playPromise = available.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {});
           }
-          return;
         }
       }
     } catch {}
@@ -144,12 +220,13 @@ const BookReader = ({ book, onClose }) => {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-adapt to 1-Page on mobile viewports (< 768px)
+  // Auto-adapt to 1-Page and compute responsive state on mobile viewports (< 768px)
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 768) {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
         setViewMode('single');
-        setScale(0.92);
       }
     };
     handleResize();
@@ -175,12 +252,16 @@ const BookReader = ({ book, onClose }) => {
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
-    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+    if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
       const step = viewMode === 'spread' ? 2 : 1;
       if (deltaX < 0) {
-        handlePageChange(currentPage + step, 'next');
+        if (currentPage < totalPages) {
+          handlePageChange(currentPage + step, 'next');
+        }
       } else {
-        handlePageChange(currentPage - step, 'prev');
+        if (currentPage > 1) {
+          handlePageChange(currentPage - step, 'prev');
+        }
       }
     }
   };
@@ -418,13 +499,29 @@ const BookReader = ({ book, onClose }) => {
 
     try {
       const page = await pdfDoc.getPage(pageNum);
+      const unscaledViewport = page.getViewport({ scale: 1.0 });
+
+      let effectiveScale = scale;
+      const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+
+      if (isMobileView) {
+        // Fit cleanly within mobile viewport with comfortable padding (zero horizontal spill!)
+        const availableW = Math.max(260, window.innerWidth - 20);
+        const availableH = Math.max(360, (window.innerHeight || 640) - 125);
+        const scaleX = availableW / unscaledViewport.width;
+        const scaleY = availableH / unscaledViewport.height;
+        effectiveScale = Math.min(scaleX, scaleY);
+      }
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const viewport = page.getViewport({ scale: scale * dpr });
+      const viewport = page.getViewport({ scale: effectiveScale * dpr });
 
       canvasElement.width = viewport.width;
       canvasElement.height = viewport.height;
-      canvasElement.style.width = `${viewport.width / dpr}px`;
-      canvasElement.style.height = `${viewport.height / dpr}px`;
+      const cssWidth = Math.round(viewport.width / dpr);
+      const cssHeight = Math.round(viewport.height / dpr);
+      canvasElement.style.width = isMobileView ? '100%' : `${cssWidth}px`;
+      canvasElement.style.height = isMobileView ? 'auto' : `${cssHeight}px`;
 
       const ctx = canvasElement.getContext('2d');
       ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -444,7 +541,7 @@ const BookReader = ({ book, onClose }) => {
     }
   }, [pdfDoc, scale]);
 
-  // Re-render canvases when currentPage, scale, or viewMode changes
+  // Re-render canvases when currentPage, scale, viewMode, or mobile breakpoint changes
   useEffect(() => {
     if (!pdfDoc) return;
 
@@ -452,10 +549,10 @@ const BookReader = ({ book, onClose }) => {
       renderPage(currentPage, 'left', canvasLeftRef.current);
     }
 
-    if (viewMode === 'spread' && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
+    if (viewMode === 'spread' && !isMobile && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
       renderPage(currentPage + 1, 'right', canvasRightRef.current);
     }
-  }, [pdfDoc, currentPage, scale, viewMode, renderPage]);
+  }, [pdfDoc, currentPage, scale, viewMode, isMobile, renderPage]);
 
   // Page Flip Navigation
   const handlePageChange = useCallback((targetPage, direction = null) => {
@@ -738,246 +835,330 @@ const BookReader = ({ book, onClose }) => {
       ) : (
         <>
           {/* ══════════════════════════════════════════════════════════
-              MINIMALIST, DISTRACTION-FREE TOP CONTROLS
+              RESPONSIVE CONTROLS: MOBILE COMPACT HEADER VS DESKTOP BAR
               ══════════════════════════════════════════════════════════ */}
-          <div className="reader-minimal-bar">
-            {/* Left: Back & Branch */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {isMobile ? (
+            <div className="reader-mobile-header">
               <button
                 onClick={onClose}
                 className="btn btn-secondary"
-                style={{ padding: '7px 12px', fontSize: '0.82rem', gap: '6px' }}
+                style={{ padding: '6px 10px', fontSize: '0.78rem', gap: '4px' }}
                 title="Close Reader"
               >
-                <ArrowLeft size={15} /> Close
+                <ArrowLeft size={14} /> Back
               </button>
-              <span className="badge badge-primary hide-mobile" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
-                {book.branch_name || 'Engineering'}
-              </span>
-            </div>
 
-            {/* Center: Book Title & Active Page Navigator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 auto', justifyContent: 'center' }}>
-              <div className="hide-mobile" style={{ textAlign: 'right', maxWidth: '300px' }}>
+              <div style={{
+                flex: 1,
+                textAlign: 'center',
+                padding: '0 8px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
                 <div style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
                   color: 'var(--text-primary)',
-                  whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
                 }}>
                   {book.title}
                 </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  By {book.author}
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                  Page {currentPage} of {totalPages}
                 </div>
               </div>
 
-              {/* Central Dynamic Page Stepper */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                padding: '4px 8px',
-                borderRadius: '10px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
-                  onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
-                  disabled={currentPage <= 1}
+                  onClick={toggleSound}
                   className="btn btn-secondary"
-                  style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
-                  title="Previous Page (Left Arrow)"
+                  style={{ padding: '6px 8px', fontSize: '0.78rem' }}
+                  title={soundEnabled ? 'Audio: ON (Click to Mute)' : 'Audio: MUTED (Click to Enable)'}
                 >
-                  <ChevronLeft size={14} />
+                  {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Pg</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={totalPages}
-                    value={currentPage}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      if (!isNaN(val) && val >= 1) {
-                        handlePageChange(Math.min(val, totalPages));
-                      }
-                    }}
-                    className="glass-input"
-                    style={{ width: '48px', padding: '2px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
-                    title={`Jump to page (1 - ${totalPages})`}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
-                  <span style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    color: 'var(--primary)',
-                    background: 'rgba(59, 130, 246, 0.15)',
-                    padding: '2px 5px',
-                    borderRadius: '5px'
+                <button
+                  onClick={() => setShowDrawer(prev => !prev)}
+                  className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '6px 8px', fontSize: '0.78rem', position: 'relative' }}
+                  title="Notes & Bookmarks"
+                >
+                  <StickyNote size={14} />
+                  {(notes.length > 0 || bookmarks.length > 0) && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-3px',
+                      right: '-3px',
+                      background: 'var(--primary)',
+                      color: '#fff',
+                      fontSize: '0.58rem',
+                      width: '14px',
+                      height: '14px',
+                      borderRadius: '50%',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {notes.length + bookmarks.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={toggleFullscreen}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 8px', fontSize: '0.78rem' }}
+                  title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+                >
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="reader-minimal-bar">
+              {/* Left: Back & Branch */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={onClose}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 12px', fontSize: '0.82rem', gap: '6px' }}
+                  title="Close Reader"
+                >
+                  <ArrowLeft size={15} /> Close
+                </button>
+                <span className="badge badge-primary hide-mobile" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
+                  {book.branch_name || 'Engineering'}
+                </span>
+              </div>
+
+              {/* Center: Book Title & Active Page Navigator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 auto', justifyContent: 'center' }}>
+                <div className="hide-mobile" style={{ textAlign: 'right', maxWidth: '300px' }}>
+                  <div style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}>
-                    {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
-                  </span>
+                    {book.title}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    By {book.author}
+                  </div>
                 </div>
 
-                <button
-                  onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
-                  disabled={currentPage >= totalPages}
-                  className="btn btn-secondary"
-                  style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
-                  title="Next Page (Right Arrow)"
-                >
-                  <ChevronRight size={14} />
-                </button>
-
-                <span style={{
-                  display: 'inline-flex',
+                {/* Central Dynamic Page Stepper */}
+                <div style={{
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '0.7rem',
-                  color: saving ? '#f59e0b' : '#10b981',
-                  marginLeft: '4px',
-                  fontWeight: 600
-                }}>
-                  <span style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: saving ? '#f59e0b' : '#10b981',
-                    boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
-                  }} />
-                  {saving ? 'Saving...' : 'Live'}
-                </span>
-              </div>
-            </div>
-
-            {/* Right: Interactive Reading Tools */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              {/* Quick Bookmark Toggle with Ribbon State */}
-              <button
-                onClick={() => handleToggleBookmark()}
-                className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'}`}
-                style={{
-                  padding: '7px 11px',
-                  fontSize: '0.8rem',
                   gap: '5px',
-                  background: isCurrentPageBookmarked ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : undefined,
-                  borderColor: isCurrentPageBookmarked ? '#ef4444' : undefined,
-                  color: isCurrentPageBookmarked ? '#fef08a' : undefined
-                }}
-                title={isCurrentPageBookmarked ? 'Remove Bookmark for this Page' : 'Bookmark this Page'}
-              >
-                <Bookmark size={14} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
-                <span className="hide-mobile">{isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
-              </button>
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '4px 8px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
+                }}>
+                  <button
+                    onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
+                    disabled={currentPage <= 1}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
+                    title="Previous Page (Left Arrow)"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
 
-              {/* View Mode Toggle: Single Page vs 2-Page Open Book */}
-              <button
-                onClick={() => setViewMode(prev => prev === 'single' ? 'spread' : 'single')}
-                className="btn btn-secondary hide-mobile"
-                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
-                title={viewMode === 'single' ? 'Switch to 2-Page Open Book Spread' : 'Switch to Single Page Focused View'}
-              >
-                {viewMode === 'single' ? <BookOpen size={14} /> : <Book size={14} />}
-                <span>{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
-              </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Pg</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalPages}
+                      value={currentPage}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1) {
+                          handlePageChange(Math.min(val, totalPages));
+                        }
+                      }}
+                      className="glass-input"
+                      style={{ width: '48px', padding: '2px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
+                      title={`Jump to page (1 - ${totalPages})`}
+                    />
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      color: 'var(--primary)',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      padding: '2px 5px',
+                      borderRadius: '5px'
+                    }}>
+                      {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
+                    </span>
+                  </div>
 
-              {/* Zoom Controls */}
-              <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
-                <button
-                  onClick={() => setScale(s => Math.max(0.75, Number((s - 0.15).toFixed(2))))}
-                  className="btn btn-ghost"
-                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                  title="Zoom Out"
-                >
-                  <ZoomOut size={13} />
-                </button>
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center' }}>
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  onClick={() => setScale(s => Math.min(1.8, Number((s + 0.15).toFixed(2))))}
-                  className="btn btn-ghost"
-                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                  title="Zoom In"
-                >
-                  <ZoomIn size={13} />
-                </button>
+                  <button
+                    onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
+                    disabled={currentPage >= totalPages}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
+                    title="Next Page (Right Arrow)"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.7rem',
+                    color: saving ? '#f59e0b' : '#10b981',
+                    marginLeft: '4px',
+                    fontWeight: 600
+                  }}>
+                    <span style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: saving ? '#f59e0b' : '#10b981',
+                      boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
+                    }} />
+                    {saving ? 'Saving...' : 'Live'}
+                  </span>
+                </div>
               </div>
 
-              {/* Study Notes & Bookmarks Drawer Toggle */}
-              <button
-                onClick={() => setShowDrawer(prev => !prev)}
-                className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '6px' }}
-                title="Open Study Notes & Bookmarks Drawer"
-              >
-                <StickyNote size={14} />
-                <span>Notes</span>
-                {(notes.length > 0 || bookmarks.length > 0) && (
-                  <span style={{
-                    background: 'var(--primary)',
-                    color: '#fff',
-                    fontSize: '0.68rem',
-                    padding: '1px 5px',
-                    borderRadius: '10px',
-                    fontWeight: 700
-                  }}>
-                    {notes.length + bookmarks.length}
+              {/* Right: Interactive Reading Tools */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {/* Quick Bookmark Toggle with Ribbon State */}
+                <button
+                  onClick={() => handleToggleBookmark()}
+                  className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    padding: '7px 11px',
+                    fontSize: '0.8rem',
+                    gap: '5px',
+                    background: isCurrentPageBookmarked ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : undefined,
+                    borderColor: isCurrentPageBookmarked ? '#ef4444' : undefined,
+                    color: isCurrentPageBookmarked ? '#fef08a' : undefined
+                  }}
+                  title={isCurrentPageBookmarked ? 'Remove Bookmark for this Page' : 'Bookmark this Page'}
+                >
+                  <Bookmark size={14} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
+                  <span className="hide-mobile">{isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                </button>
+
+                {/* View Mode Toggle: Single Page vs 2-Page Open Book */}
+                <button
+                  onClick={() => setViewMode(prev => prev === 'single' ? 'spread' : 'single')}
+                  className="btn btn-secondary hide-mobile"
+                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  title={viewMode === 'single' ? 'Switch to 2-Page Open Book Spread' : 'Switch to Single Page Focused View'}
+                >
+                  {viewMode === 'single' ? <BookOpen size={14} /> : <Book size={14} />}
+                  <span>{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
+                </button>
+
+                {/* Zoom Controls */}
+                <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
+                  <button
+                    onClick={() => setScale(s => Math.max(0.75, Number((s - 0.15).toFixed(2))))}
+                    className="btn btn-ghost"
+                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                    title="Zoom Out"
+                  >
+                    <ZoomOut size={13} />
+                  </button>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '34px', textAlign: 'center' }}>
+                    {Math.round(scale * 100)}%
                   </span>
-                )}
-              </button>
+                  <button
+                    onClick={() => setScale(s => Math.min(1.8, Number((s + 0.15).toFixed(2))))}
+                    className="btn btn-ghost"
+                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                    title="Zoom In"
+                  >
+                    <ZoomIn size={13} />
+                  </button>
+                </div>
 
-              {/* Quick PDF Download */}
-              <button
-                onClick={handleDownloadPdf}
-                disabled={downloadingPdf}
-                className="btn btn-secondary"
-                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
-                title="Download PDF Document"
-              >
-                <Download size={14} />
-                <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
-              </button>
+                {/* Study Notes & Bookmarks Drawer Toggle */}
+                <button
+                  onClick={() => setShowDrawer(prev => !prev)}
+                  className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '6px' }}
+                  title="Open Study Notes & Bookmarks Drawer"
+                >
+                  <StickyNote size={14} />
+                  <span>Notes</span>
+                  {(notes.length > 0 || bookmarks.length > 0) && (
+                    <span style={{
+                      background: 'var(--primary)',
+                      color: '#fff',
+                      fontSize: '0.68rem',
+                      padding: '1px 5px',
+                      borderRadius: '10px',
+                      fontWeight: 700
+                    }}>
+                      {notes.length + bookmarks.length}
+                    </span>
+                  )}
+                </button>
 
-              {/* Sound Effect Toggle */}
-              <button
-                onClick={toggleSound}
-                className="btn btn-secondary"
-                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
-                title={soundEnabled ? 'Page Flip Sound: ON (Click to Mute)' : 'Page Flip Sound: MUTED (Click to Enable)'}
-              >
-                {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
-                <span className="hide-mobile">{soundEnabled ? 'Audio' : 'Mute'}</span>
-              </button>
+                {/* Quick PDF Download */}
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  title="Download PDF Document"
+                >
+                  <Download size={14} />
+                  <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
+                </button>
 
-              {/* Fullscreen Reading Mode Toggle */}
-              <button
-                onClick={toggleFullscreen}
-                className="btn btn-secondary"
-                style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
-                title={isFullscreen ? 'Exit Full Screen' : 'Full Screen Reading Mode'}
-              >
-                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                <span className="hide-mobile">{isFullscreen ? 'Exit' : 'Full'}</span>
-              </button>
+                {/* Sound Effect Toggle */}
+                <button
+                  onClick={toggleSound}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  title={soundEnabled ? 'Page Flip Sound: ON (Click to Mute)' : 'Page Flip Sound: MUTED (Click to Enable)'}
+                >
+                  {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} color="var(--text-muted)" />}
+                  <span className="hide-mobile">{soundEnabled ? 'Audio' : 'Mute'}</span>
+                </button>
 
-              {/* Fallback to Native Viewer if student desires browser PDF UI */}
-              <button
-                onClick={() => setUseNativeViewer(prev => !prev)}
-                className="btn btn-secondary"
-                style={{ padding: '7px 9px', fontSize: '0.76rem' }}
-                title={useNativeViewer ? 'Switch to 3D Book Mode' : 'Switch to Native Browser Viewer'}
-              >
-                <Layers size={13} />
-              </button>
+                {/* Fullscreen Reading Mode Toggle */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  title={isFullscreen ? 'Exit Full Screen' : 'Full Screen Reading Mode'}
+                >
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  <span className="hide-mobile">{isFullscreen ? 'Exit' : 'Full'}</span>
+                </button>
+
+                {/* Fallback to Native Viewer if student desires browser PDF UI */}
+                <button
+                  onClick={() => setUseNativeViewer(prev => !prev)}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 9px', fontSize: '0.76rem' }}
+                  title={useNativeViewer ? 'Switch to 3D Book Mode' : 'Switch to Native Browser Viewer'}
+                >
+                  <Layers size={13} />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════
               MAIN READING STAGE: REALISTIC 3D BOOK ENGINE
@@ -991,8 +1172,8 @@ const BookReader = ({ book, onClose }) => {
               /* Native / External Drive Embed View */
               <div className="glass-panel" style={{
                 width: '100%',
-                height: '76vh',
-                borderRadius: '16px',
+                height: isMobile ? 'calc(100dvh - 70px)' : '76vh',
+                borderRadius: isMobile ? '8px' : '16px',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1101,20 +1282,22 @@ const BookReader = ({ book, onClose }) => {
                  AUTHENTIC 3D PHYSICAL BOOK CASING & PAGES
                  ══════════════════════════════════════════════════════════ */
               <div className="book-hardcover-casing">
-                {/* Left Stacked Paper Edges */}
-                <div className="book-edge-stacked book-edge-left" />
+                {/* Left Stacked Paper Edges (Desktop only) */}
+                {!isMobile && <div className="book-edge-stacked book-edge-left" />}
 
                 {/* The Open Book Spread */}
                 <div
                   className="book-open-spread"
                   style={{
-                    flexDirection: viewMode === 'spread' ? 'row' : 'column',
-                    minWidth: viewMode === 'spread' ? 'min(92vw, 1100px)' : 'min(90vw, 680px)',
-                    minHeight: '70vh'
+                    flexDirection: viewMode === 'spread' && !isMobile ? 'row' : 'column',
+                    minWidth: isMobile ? '100%' : (viewMode === 'spread' ? 'min(92vw, 1100px)' : 'min(90vw, 680px)'),
+                    width: isMobile ? '100%' : undefined,
+                    maxWidth: isMobile ? '100%' : undefined,
+                    minHeight: isMobile ? 'auto' : '70vh'
                   }}
                 >
                   {/* Center Spine Binding Groove (Two-Page Mode) */}
-                  {viewMode === 'spread' && <div className="book-center-spine" />}
+                  {viewMode === 'spread' && !isMobile && <div className="book-center-spine" />}
 
                   {/* Silk Ribbon Bookmark hanging from active page */}
                   {isCurrentPageBookmarked && (
@@ -1132,8 +1315,9 @@ const BookReader = ({ book, onClose }) => {
                     className={`book-page-leaf ${isFlipping ? `flipping-${isFlipping}` : ''}`}
                     style={{
                       flex: 1,
-                      borderRight: viewMode === 'spread' ? '1px solid rgba(0,0,0,0.06)' : 'none',
-                      minHeight: '70vh'
+                      borderRight: viewMode === 'spread' && !isMobile ? '1px solid rgba(0,0,0,0.06)' : 'none',
+                      minHeight: isMobile ? 'auto' : '70vh',
+                      width: isMobile ? '100%' : undefined
                     }}
                   >
                     <div className="book-canvas-holder">
@@ -1143,7 +1327,7 @@ const BookReader = ({ book, onClose }) => {
                     {/* Left Interactive Page Turn Zone */}
                     <div
                       className="page-turn-trigger page-turn-trigger-left"
-                      onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
+                      onClick={() => handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1), 'prev')}
                       title="Click to Turn Back (or use Left Arrow key)"
                     >
                       <div className="page-turn-arrow-badge">
@@ -1153,7 +1337,7 @@ const BookReader = ({ book, onClose }) => {
                   </div>
 
                   {/* RIGHT PAGE (in Two-Page Spread Mode) */}
-                  {viewMode === 'spread' && (
+                  {viewMode === 'spread' && !isMobile && (
                     <div
                       className="book-page-leaf"
                       style={{
@@ -1184,7 +1368,7 @@ const BookReader = ({ book, onClose }) => {
                       {/* Right Interactive Page Turn Zone */}
                       <div
                         className="page-turn-trigger page-turn-trigger-right"
-                        onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
+                        onClick={() => handlePageChange(currentPage + 2, 'next')}
                         title="Click to Turn Forward (or use Right Arrow key)"
                       >
                         <div className="page-turn-arrow-badge">
@@ -1198,7 +1382,7 @@ const BookReader = ({ book, onClose }) => {
                   {isFlipping && (
                     <div
                       className={`page-turning-sheet ${
-                        viewMode === 'single' ? 'page-turning-sheet-single' : 'page-turning-sheet-spread'
+                        viewMode === 'single' || isMobile ? 'page-turning-sheet-single' : 'page-turning-sheet-spread'
                       } ${isFlipping === 'next' ? 'page-turning-sheet-next' : 'page-turning-sheet-prev'}`}
                     >
                       <div className="page-turning-sheet-inner" />
@@ -1206,11 +1390,101 @@ const BookReader = ({ book, onClose }) => {
                   )}
                 </div>
 
-                {/* Right Stacked Paper Edges */}
-                <div className="book-edge-stacked book-edge-right" />
+                {/* Right Stacked Paper Edges (Desktop only) */}
+                {!isMobile && <div className="book-edge-stacked book-edge-right" />}
               </div>
             )}
           </div>
+
+          {/* Mobile Bottom Thumb-friendly Navigation Floating Bar */}
+          {isMobile && !useNativeViewer && !pdfLoading && !pdfLoadError && (
+            <div className="reader-mobile-bottom-bar">
+              <button
+                onClick={() => handlePageChange(currentPage - 1, 'prev')}
+                disabled={currentPage <= 1}
+                className="btn btn-secondary"
+                style={{
+                  padding: '7px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  opacity: currentPage <= 1 ? 0.35 : 1,
+                  gap: '4px'
+                }}
+                title="Previous Page"
+              >
+                <ChevronLeft size={15} /> Prev
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Pg</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={currentPage}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1) {
+                      handlePageChange(Math.min(val, totalPages));
+                    }
+                  }}
+                  className="glass-input"
+                  style={{
+                    width: '44px',
+                    padding: '3px 4px',
+                    textAlign: 'center',
+                    fontSize: '0.82rem',
+                    fontWeight: 700
+                  }}
+                  title={`Jump to page (1 - ${totalPages})`}
+                />
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>/ {totalPages}</span>
+                <span style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: 'var(--primary)',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  padding: '2px 5px',
+                  borderRadius: '5px'
+                }}>
+                  {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() => handleToggleBookmark()}
+                  className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    padding: '7px 9px',
+                    fontSize: '0.8rem',
+                    background: isCurrentPageBookmarked ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : undefined,
+                    borderColor: isCurrentPageBookmarked ? '#ef4444' : undefined,
+                    color: isCurrentPageBookmarked ? '#fef08a' : undefined
+                  }}
+                  title={isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark Page'}
+                >
+                  <Bookmark size={14} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
+                </button>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1, 'next')}
+                  disabled={currentPage >= totalPages}
+                  className="btn btn-primary btn-shine"
+                  style={{
+                    padding: '7px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    opacity: currentPage >= totalPages ? 0.35 : 1,
+                    gap: '4px'
+                  }}
+                  title="Next Page"
+                >
+                  Next <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════
               DISTRACTION-FREE SLIDE-OVER STUDY NOTES & BOOKMARKS DRAWER
