@@ -10,7 +10,6 @@ import { supabase } from '../supabaseClient';
     ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
     Sun, Moon, PanelLeftClose, PanelLeftOpen
   } from 'lucide-react';
-import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import SettingsView from '../components/SettingsView';
@@ -1089,7 +1088,6 @@ const AdminDashboard = () => {
               >
                 {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
               </button>
-              <NotificationBell />
               <button
                 onClick={toggleSidebar}
                 className="sidebar-collapse-btn"
@@ -1228,7 +1226,6 @@ const AdminDashboard = () => {
                 {isDark ? <Sun size={15} color="#fbbf24" /> : <Moon size={15} color="var(--primary)" />}
                 {isDark ? 'Light' : 'Dark'}
               </button>
-              <NotificationBell />
             </div>
           </div>
         )}
@@ -4553,7 +4550,14 @@ const AdminDashboard = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <NotificationBell />
+          <button
+            onClick={toggleMode}
+            className="btn btn-secondary"
+            style={{ padding: '6px', borderRadius: '8px' }}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDark ? <Sun size={16} color="#fbbf24" /> : <Moon size={16} color="var(--primary)" />}
+          </button>
         </div>
       </header>
 

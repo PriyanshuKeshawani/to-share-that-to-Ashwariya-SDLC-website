@@ -9,7 +9,6 @@ import {
   Activity, X, Settings, RefreshCw, Printer, FileText,
   Share2, Info, Sun, Moon
 } from 'lucide-react';
-import NotificationBell from '../components/NotificationBell';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
 import BottomNav from '../components/BottomNav';
@@ -525,7 +524,6 @@ const StudentDashboard = ({ onSelectBook }) => {
           >
             {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
           </button>
-          <NotificationBell />
         </div>
       </header>
 
@@ -568,7 +566,6 @@ const StudentDashboard = ({ onSelectBook }) => {
               >
                 {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
               </button>
-              <NotificationBell />
             </div>
           </div>
 
