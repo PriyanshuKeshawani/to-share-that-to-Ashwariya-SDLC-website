@@ -1,14 +1,40 @@
-import { useState, useEffect, useCallback, Component } from 'react';
+import { useState, useEffect, useCallback, Component, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { supabase } from './supabaseClient';
 import Login from './pages/Login';
-import Register from './pages/Register';
-import StudentDashboard from './pages/StudentDashboard';
-import BookReader from './pages/BookReader';
-import AdminDashboard from './pages/AdminDashboard';
-import GoogleProfileCompletion from './components/GoogleProfileCompletion';
 import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
+
+// Route-level Dynamic Code Splitting for Ultra-Fast Initial Load (<85kB)
+const Register = lazy(() => import('./pages/Register'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+const BookReader = lazy(() => import('./pages/BookReader'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const GoogleProfileCompletion = lazy(() => import('./components/GoogleProfileCompletion'));
+
+const LoadingFallback = ({ label = 'Loading SISTEC Portal...' }) => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '75vh',
+    gap: '14px',
+    color: 'var(--text-secondary)'
+  }}>
+    <div style={{
+      width: '40px',
+      height: '40px',
+      border: '3px solid rgba(239, 68, 68, 0.18)',
+      borderTopColor: 'var(--primary, #ef4444)',
+      borderRadius: '50%',
+      animation: 'spin 0.8s linear infinite'
+    }} />
+    <span style={{ fontSize: '0.88rem', fontWeight: 500, letterSpacing: '0.02em', color: 'var(--text-muted)' }}>
+      {label}
+    </span>
+  </div>
+);
 
 class ReaderErrorBoundary extends Component {
   constructor(props) {
@@ -189,13 +215,19 @@ const AppContent = () => {
 
   // Google first-time user - needs to complete profile
   if (needsProfile) {
-    return <GoogleProfileCompletion />;
+    return (
+      <Suspense fallback={<LoadingFallback label="Loading profile setup..." />}>
+        <GoogleProfileCompletion />
+      </Suspense>
+    );
   }
 
   // Not Logged In
   if (!user) {
     return isRegistering ? (
-      <Register onToggleView={() => setIsRegistering(false)} />
+      <Suspense fallback={<LoadingFallback label="Loading registration portal..." />}>
+        <Register onToggleView={() => setIsRegistering(false)} />
+      </Suspense>
     ) : (
       <Login onToggleView={() => setIsRegistering(true)} />
     );
@@ -203,7 +235,11 @@ const AppContent = () => {
 
   // Admin View
   if (user.role === 'admin') {
-    return <AdminDashboard />;
+    return (
+      <Suspense fallback={<LoadingFallback label="Loading Admin Console..." />}>
+        <AdminDashboard />
+      </Suspense>
+    );
   }
 
   // Student Account Pending or Rejected Access Blocker
@@ -334,19 +370,23 @@ const AppContent = () => {
     return (
       <div className="reader-page-wrapper">
         <ReaderErrorBoundary onClose={handleCloseBook}>
-          <BookReader
-            book={selectedBook}
-            onClose={handleCloseBook}
-          />
+          <Suspense fallback={<LoadingFallback label="Opening eBook Reader..." />}>
+            <BookReader
+              book={selectedBook}
+              onClose={handleCloseBook}
+            />
+          </Suspense>
         </ReaderErrorBoundary>
       </div>
     );
   }
 
   return (
-    <StudentDashboard
-      onSelectBook={handleOpenBook}
-    />
+    <Suspense fallback={<LoadingFallback label="Loading Student Portal..." />}>
+      <StudentDashboard
+        onSelectBook={handleOpenBook}
+      />
+    </Suspense>
   );
 };
 
@@ -354,7 +394,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppContent />
+        <Suspense fallback={<LoadingFallback />}>
+          <AppContent />
+        </Suspense>
       </AuthProvider>
     </ThemeProvider>
   );
