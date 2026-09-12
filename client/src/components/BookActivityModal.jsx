@@ -36,14 +36,19 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
   const [readerSearch, setReaderSearch] = useState('');
   const isMountedRef = useRef(true);
 
+  const targetBookId = Number(book?.id || book?.book_id);
+
   useEffect(() => {
     isMountedRef.current = true;
+    if (!targetBookId) {
+      setLoading(false);
+      return;
+    }
 
     const loadActivity = async (isSilent = false) => {
-      if (!book?.id) return;
       try {
         if (!isSilent) setLoading(true);
-        const result = await apiCall(`/books/${book.id}/activity`);
+        const result = await apiCall(`/books/${targetBookId}/activity`);
         if (isMountedRef.current && result) setData(result);
       } catch (err) {
         if (isMountedRef.current) console.error('Failed to load book activity:', err);
@@ -56,14 +61,14 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
 
     // Supabase Real-time Channel for book reading activity
     const channel = supabase
-      .channel(`live-book-progress-${book.id}-${Date.now()}`)
+      .channel(`live-book-progress-${targetBookId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'user_book_progress',
-          filter: `book_id=eq.${book.id}`
+          filter: `book_id=eq.${targetBookId}`
         },
         () => {
           loadActivity(true);
@@ -75,7 +80,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           event: 'INSERT',
           schema: 'public',
           table: 'activity_logs',
-          filter: `book_id=eq.${book.id}`
+          filter: `book_id=eq.${targetBookId}`
         },
         () => {
           loadActivity(true);
@@ -93,7 +98,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
       supabase.removeChannel(channel);
       clearInterval(heartbeat);
     };
-  }, [apiCall, book?.id]);
+  }, [apiCall, targetBookId]);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -417,8 +422,12 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
                 <h2 className="bam-book-title">{bookInfo?.title || 'Book Activity'}</h2>
                 <div className="bam-book-meta">
                   <span>{bookInfo?.author || 'Unknown Author'}</span>
-                  {bookInfo?.branch?.name && <><span>•</span><span>{bookInfo.branch.name}</span></>}
-                  {bookInfo?.category?.name && <><span>•</span><span>{bookInfo.category.name}</span></>}
+                  {(bookInfo?.branch?.name || bookInfo?.branch_name) && (
+                    <><span>•</span><span>{bookInfo.branch?.name || bookInfo.branch_name}</span></>
+                  )}
+                  {(bookInfo?.category?.name || bookInfo?.category_name) && (
+                    <><span>•</span><span>{bookInfo.category?.name || bookInfo.category_name}</span></>
+                  )}
                 </div>
               </div>
               <button className="bam-close-btn" onClick={onClose}>

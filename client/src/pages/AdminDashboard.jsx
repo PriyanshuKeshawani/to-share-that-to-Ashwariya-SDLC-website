@@ -1324,7 +1324,7 @@ const AdminDashboard = () => {
                                 </div>
                                 {branchTopBook && branchTopBook.has_activity ? (
                                   <div
-                                    onClick={() => setSelectedBookForActivity(books.find(b => b.id === branchTopBook.book_id) || branchTopBook)}
+                                    onClick={() => setSelectedBookForActivity(books.find(b => b.id === (branchTopBook.id || branchTopBook.book_id)) || { ...branchTopBook, id: branchTopBook.id || branchTopBook.book_id })}
                                     style={{ cursor: 'pointer', display: 'flex', gap: '14px', alignItems: 'flex-start' }}
                                     title="Click to view complete book records and reader history"
                                   >
@@ -1354,7 +1354,7 @@ const AdminDashboard = () => {
                               </div>
                               {branchTopBook && branchTopBook.has_activity && (
                                 <button
-                                  onClick={() => setSelectedBookForActivity(books.find(b => b.id === branchTopBook.book_id) || branchTopBook)}
+                                  onClick={() => setSelectedBookForActivity(books.find(b => b.id === (branchTopBook.id || branchTopBook.book_id)) || { ...branchTopBook, id: branchTopBook.id || branchTopBook.book_id })}
                                   className="btn btn-outline"
                                   style={{ marginTop: '16px', width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '6px 12px' }}
                                 >
@@ -2061,7 +2061,7 @@ const AdminDashboard = () => {
                                       </td>
                                       <td style={{ padding: '14px', textAlign: 'right' }}>
                                         <button
-                                          onClick={() => setSelectedBookForActivity(books.find(b => b.id === record.book_id) || record)}
+                                          onClick={() => setSelectedBookForActivity(books.find(b => b.id === (record.id || record.book_id)) || { ...record, id: record.id || record.book_id })}
                                           className="btn btn-secondary"
                                           style={{ padding: '4px 10px', fontSize: '0.78rem' }}
                                         >

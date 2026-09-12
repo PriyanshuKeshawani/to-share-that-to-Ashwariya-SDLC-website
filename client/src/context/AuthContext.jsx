@@ -596,27 +596,70 @@ export const AuthProvider = ({ children }) => {
           .eq('book_id', bookId)
           .order('last_accessed_at', { ascending: false });
 
-        if (progData) readers = progData;
+        if (progData) readers = [...progData];
       } catch (e) {
         console.warn('Notice fetching progress for book:', e);
       }
 
       let logs = [];
+      let totalViewLogs = 0;
+      let totalDownloadLogs = 0;
       try {
-        const { data: logsData } = await supabase
-          .from('activity_logs')
-          .select('*, user:user_id(id, full_name, roll_number, branch_name)')
-          .eq('book_id', bookId)
-          .order('created_at', { ascending: false })
-          .limit(50);
+        const [
+          { data: logsData },
+          { count: viewCount },
+          { count: dwnCount }
+        ] = await Promise.all([
+          supabase
+            .from('activity_logs')
+            .select('*, user:user_id(id, full_name, roll_number, branch_name)')
+            .eq('book_id', bookId)
+            .order('created_at', { ascending: false })
+            .limit(100),
+          supabase
+            .from('activity_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('book_id', bookId)
+            .eq('action_type', 'view'),
+          supabase
+            .from('activity_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('book_id', bookId)
+            .eq('action_type', 'download')
+        ]);
         if (logsData) logs = logsData;
-      } catch {
-        // ignore logs fetch error
+        totalViewLogs = viewCount || 0;
+        totalDownloadLogs = dwnCount || 0;
+      } catch (logErr) {
+        console.warn('Notice fetching logs for book:', logErr);
       }
 
+      // Merge any users from logs who might not have a progress row yet
+      const existingUserIds = new Set(readers.map(r => r.user_id));
+      logs.forEach(l => {
+        if (l.user_id && !existingUserIds.has(l.user_id) && l.user) {
+          existingUserIds.add(l.user_id);
+          readers.push({
+            id: `log-${l.id}`,
+            user_id: l.user_id,
+            book_id: bookId,
+            last_page_read: 1,
+            total_pages: bookData?.total_pages || 100,
+            progress_percentage: 1,
+            accessed_count: 1,
+            downloaded_count: l.action_type === 'download' ? 1 : 0,
+            is_downloaded: l.action_type === 'download' ? 1 : 0,
+            last_accessed_at: l.created_at,
+            user: l.user
+          });
+        }
+      });
+
       const totalUniqueReaders = readers.length;
-      const totalReadSessions = readers.reduce((acc, r) => acc + (Number(r.accessed_count) || 1), 0);
-      const totalDownloads = readers.reduce((acc, r) => acc + (Number(r.downloaded_count) || (r.is_downloaded ? 1 : 0)), 0);
+      const progSessions = readers.reduce((acc, r) => acc + (Number(r.accessed_count) || 1), 0);
+      const totalReadSessions = Math.max(progSessions, totalViewLogs, logs.length);
+      const progDownloads = readers.reduce((acc, r) => acc + (Number(r.downloaded_count) || (r.is_downloaded ? 1 : 0)), 0);
+      const totalDownloads = Math.max(progDownloads, totalDownloadLogs);
       const maxPageRead = readers.reduce((max, r) => Math.max(max, Number(r.last_page_read) || 1), 1);
       const avgPageRead = totalUniqueReaders > 0
         ? Math.round(readers.reduce((acc, r) => acc + (Number(r.last_page_read) || 1), 0) / totalUniqueReaders)
@@ -1532,10 +1575,11 @@ export const AuthProvider = ({ children }) => {
 
         if (topBrBook && topBrBook.total_activity > 0) {
           return {
+            id: topBrBook.id,
+            book_id: topBrBook.id,
             branch_id: br.id,
             branch_name: br.name,
             has_activity: true,
-            book_id: topBrBook.id,
             title: topBrBook.title,
             author: topBrBook.author,
             cover_url: topBrBook.cover_url,
