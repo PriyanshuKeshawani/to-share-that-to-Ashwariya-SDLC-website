@@ -336,16 +336,30 @@ const Dashboard = ({ onSelectBook }) => {
           <>
             {/* Search & Filters Panel */}
             <div className="glass-panel" style={{ padding: '20px', marginBottom: '32px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
-              <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
-                <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  className="glass-input"
-                  placeholder="Search by book title or author..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ paddingLeft: '48px' }}
-                />
+              <div style={{ flex: 1, minWidth: '240px' }}>
+                <div className="search-input-wrapper">
+                  <span className="search-icon">
+                    <Search size={18} />
+                  </span>
+                  <input
+                    type="text"
+                    className="glass-input has-search-icon"
+                    placeholder="Search by book title or author..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ height: '42px', fontSize: '0.88rem' }}
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => setSearch('')}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div style={{ width: 'var(--filter-width, 200px)' }}>

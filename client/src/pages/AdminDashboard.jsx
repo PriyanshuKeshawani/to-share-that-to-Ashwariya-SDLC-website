@@ -1326,16 +1326,28 @@ const AdminDashboard = () => {
                             <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                               Students Enrolled in {selectedBranchForDrilldown.branch_name} ({branchStudents.length})
                             </h4>
-                            <div style={{ position: 'relative', width: '260px' }}>
-                              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <span className="search-icon">
+                                <Search size={15} />
+                              </span>
                               <input
                                 type="text"
                                 placeholder="Search by name, roll, email..."
                                 value={departmentSearch}
                                 onChange={(e) => setDepartmentSearch(e.target.value)}
-                                className="input-field"
-                                style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
+                                className="glass-input has-search-icon"
+                                style={{ height: '38px', fontSize: '0.82rem' }}
                               />
+                              {departmentSearch && (
+                                <button
+                                  type="button"
+                                  className="search-clear-btn"
+                                  onClick={() => setDepartmentSearch('')}
+                                  title="Clear search"
+                                >
+                                  <X size={13} />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -1406,16 +1418,28 @@ const AdminDashboard = () => {
                             <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                               Books Allocated to {selectedBranchForDrilldown.branch_name} ({branchBooks.length})
                             </h4>
-                            <div style={{ position: 'relative', width: '260px' }}>
-                              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <span className="search-icon">
+                                <Search size={15} />
+                              </span>
                               <input
                                 type="text"
                                 placeholder="Search by title or author..."
                                 value={departmentSearch}
                                 onChange={(e) => setDepartmentSearch(e.target.value)}
-                                className="input-field"
-                                style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
+                                className="glass-input has-search-icon"
+                                style={{ height: '38px', fontSize: '0.82rem' }}
                               />
+                              {departmentSearch && (
+                                <button
+                                  type="button"
+                                  className="search-clear-btn"
+                                  onClick={() => setDepartmentSearch('')}
+                                  title="Clear search"
+                                >
+                                  <X size={13} />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -4237,18 +4261,36 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Search Filter */}
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.01)' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.015)' }}>
+              <div className="search-input-wrapper">
+                <span className="search-icon">
+                  <Search size={16} />
+                </span>
                 <input
                   type="text"
-                  placeholder={`Search ${activeAnalyticsDrilldown}...`}
+                  placeholder={
+                    activeAnalyticsDrilldown === 'students'
+                      ? 'Search active students by name, roll number, department...'
+                      : activeAnalyticsDrilldown === 'books'
+                      ? 'Search books by title, author, branch...'
+                      : `Search ${activeAnalyticsDrilldown} logs by student, roll, or book...`
+                  }
                   value={drilldownSearch}
                   onChange={(e) => setDrilldownSearch(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', paddingLeft: '38px', fontSize: '0.85rem' }}
+                  className="glass-input has-search-icon"
+                  style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
                   autoFocus
                 />
+                {drilldownSearch && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => setDrilldownSearch('')}
+                    title="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -4257,8 +4299,17 @@ const AdminDashboard = () => {
               {/* 1. Books Drilldown */}
               {activeAnalyticsDrilldown === 'books' && (() => {
                 const list = (dashboardData.drilldowns?.books || []).filter(b => {
-                  const q = drilldownSearch.toLowerCase();
-                  return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q) || b.branch_name?.toLowerCase().includes(q);
+                  const q = drilldownSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  const haystack = [
+                    b.title || '',
+                    b.author || '',
+                    b.branch_name || '',
+                    b.category_name || '',
+                    b.priority || ''
+                  ].join(' ').toLowerCase();
+                  const words = q.split(/\s+/).filter(Boolean);
+                  return words.every(w => haystack.includes(w));
                 });
 
                 if (list.length === 0) {
@@ -4315,8 +4366,18 @@ const AdminDashboard = () => {
                 const list = (dashboardData.drilldowns?.students || [])
                   .filter(s => s.status === 'approved')
                   .filter(s => {
-                    const q = drilldownSearch.toLowerCase();
-                    return !q || s.full_name?.toLowerCase().includes(q) || s.roll_number?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) || s.branch_name?.toLowerCase().includes(q);
+                    const q = drilldownSearch.toLowerCase().trim();
+                    if (!q) return true;
+                    const haystack = [
+                      s.full_name || '',
+                      s.roll_number || '',
+                      s.email || '',
+                      s.branch_name || '',
+                      s.username || '',
+                      s.bt_number || ''
+                    ].join(' ').toLowerCase();
+                    const words = q.split(/\s+/).filter(Boolean);
+                    return words.every(w => haystack.includes(w));
                   });
 
                 if (list.length === 0) {
@@ -4346,9 +4407,9 @@ const AdminDashboard = () => {
                     <div style={{
                       width: '44px',
                       height: '44px',
-                      borderRadius: '50%',
-                      background: 'rgba(6, 182, 212, 0.15)',
-                      color: 'var(--secondary)',
+                      borderRadius: '12px',
+                      background: 'rgba(59, 130, 246, 0.12)',
+                      color: 'var(--primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -4356,21 +4417,25 @@ const AdminDashboard = () => {
                       fontSize: '1rem',
                       flexShrink: 0
                     }}>
-                      {st.full_name ? st.full_name.charAt(0).toUpperCase() : 'S'}
+                      {(st.full_name || st.username || 'S')[0].toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                          {st.full_name}
+                          {st.full_name || st.username}
                         </h4>
                         <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Approved</span>
                       </div>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        Roll: {st.roll_number || 'N/A'} · {st.branch_name || 'General'}
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 6px 0' }}>
+                        Roll: {st.roll_number || 'N/A'} • {st.branch_name || 'Engineering'}
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>{st.total_accesses || 0} page reviews</span>
-                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>{st.unique_books_accessed || 0} unique books</span>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
+                          {st.total_reviews || 0} page reviews
+                        </span>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
+                          {st.unique_books_read || 0} unique books
+                        </span>
                       </div>
                     </div>
                     <ChevronRight size={16} color="var(--text-muted)" />
@@ -4381,8 +4446,16 @@ const AdminDashboard = () => {
               {/* 3. Views Drilldown */}
               {activeAnalyticsDrilldown === 'views' && (() => {
                 const list = (dashboardData.drilldowns?.views || []).filter(v => {
-                  const q = drilldownSearch.toLowerCase();
-                  return !q || v.user_name?.toLowerCase().includes(q) || v.roll_number?.toLowerCase().includes(q) || v.book_title?.toLowerCase().includes(q) || v.branch_name?.toLowerCase().includes(q);
+                  const q = drilldownSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  const haystack = [
+                    v.user_name || '',
+                    v.roll_number || '',
+                    v.book_title || '',
+                    v.branch_name || ''
+                  ].join(' ').toLowerCase();
+                  const words = q.split(/\s+/).filter(Boolean);
+                  return words.every(w => haystack.includes(w));
                 });
 
                 if (list.length === 0) {
@@ -4442,8 +4515,16 @@ const AdminDashboard = () => {
               {/* 4. Downloads Drilldown */}
               {activeAnalyticsDrilldown === 'downloads' && (() => {
                 const list = (dashboardData.drilldowns?.downloads || []).filter(d => {
-                  const q = drilldownSearch.toLowerCase();
-                  return !q || d.user_name?.toLowerCase().includes(q) || d.roll_number?.toLowerCase().includes(q) || d.book_title?.toLowerCase().includes(q) || d.branch_name?.toLowerCase().includes(q);
+                  const q = drilldownSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  const haystack = [
+                    d.user_name || '',
+                    d.roll_number || '',
+                    d.book_title || '',
+                    d.branch_name || ''
+                  ].join(' ').toLowerCase();
+                  const words = q.split(/\s+/).filter(Boolean);
+                  return words.every(w => haystack.includes(w));
                 });
 
                 if (list.length === 0) {
