@@ -2203,15 +2203,24 @@ export const AuthProvider = ({ children }) => {
       avatarUrl: data.avatar_url
     };
 
+    localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+    setUser(formattedUser);
+    setNeedsProfile(false);
+    setPendingGoogleUser(null);
+
+    // Clean up query param if view=complete-profile exists
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'complete-profile') {
+        params.delete('view');
+        const newSearch = params.toString() ? `?${params.toString()}` : window.location.pathname;
+        window.history.replaceState(null, '', newSearch);
+      }
+    }
+
     if (initialStatus === 'approved') {
-      localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
-      setUser(formattedUser);
-      setNeedsProfile(false);
-      setPendingGoogleUser(null);
       return { message: 'Profile completed and approved! Welcome to SISTEC Library.', status: 'approved' };
     } else {
-      await supabase.auth.signOut();
-      clearSession();
       return {
         message: 'Your account has been registered successfully. Please connect with the administrator for approval. You will be able to access SISTECH-LIB after your account is approved.',
         status: initialStatus

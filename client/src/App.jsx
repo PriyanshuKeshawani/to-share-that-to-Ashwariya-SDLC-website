@@ -216,6 +216,13 @@ const AppContent = () => {
       const params = new URLSearchParams(window.location.search);
       params.set('view', 'complete-profile');
       window.history.replaceState(null, '', `?${params.toString()}`);
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'complete-profile') {
+        params.delete('view');
+        const newSearch = params.toString() ? `?${params.toString()}` : window.location.pathname;
+        window.history.replaceState(null, '', newSearch);
+      }
     }
   }, [needsProfile]);
 
