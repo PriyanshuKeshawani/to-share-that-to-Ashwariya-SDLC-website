@@ -1974,15 +1974,33 @@ p { color: var(--text-secondary); line-height: 1.65; }
     margin: 0 auto !important;
   }
 
+  .book-stage-viewport.is-zoomed {
+    touch-action: none !important;
+    overflow: hidden !important;
+  }
+
+  .book-stage-viewport.is-zoomed .book-hardcover-casing,
+  .book-stage-viewport.is-zoomed .book-open-spread,
+  .book-stage-viewport.is-zoomed .book-page-leaf {
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+
   .book-canvas-holder.is-zoomed {
-    align-items: flex-start !important;
-    justify-content: flex-start !important;
+    overflow: visible !important;
+    align-items: center !important;
+    justify-content: center !important;
+    touch-action: none !important;
   }
 
   .book-canvas-holder.is-zoomed canvas {
     max-width: none !important;
     max-height: none !important;
     width: auto !important;
+    display: block !important;
+    margin: auto !important;
+    touch-action: none !important;
   }
 
   .book-edge-stacked {

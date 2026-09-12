@@ -127,6 +127,8 @@ const applySmartDarkModeToCanvas = (ctx, width, height) => {
   }
 };
 
+const MOBILE_ZOOM_STEPS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0, 2.5];
+
 const BookReader = ({ book, onClose }) => {
   const { apiCall, user, extractDriveFileId } = useAuth();
   const { mode, toggleMode } = useTheme();
@@ -134,6 +136,12 @@ const BookReader = ({ book, onClose }) => {
   const [totalPages, setTotalPages] = useState(book?.total_pages && book.total_pages > 0 ? book.total_pages : 100);
   const [scale, setScale] = useState(1.15);
   const [mobileZoom, setMobileZoom] = useState(1.0); // Mobile zoom multiplier (1.0 = Fit to Screen, up to 2.5x)
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const panOffsetRef = useRef({ x: 0, y: 0 });
+  const lastPanTouchRef = useRef(null);
+  const isPanningRef = useRef(false);
+  const holderLeftRef = useRef(null);
+  const holderRightRef = useRef(null);
   const [viewMode, setViewMode] = useState('single'); // 'single' (focused) or 'spread' (open 2-page book)
   const [useNativeViewer, setUseNativeViewer] = useState(false);
   const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
@@ -184,19 +192,62 @@ const BookReader = ({ book, onClose }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Touchscreen swipe & pinch-to-zoom support for mobile
+  // Touchscreen swipe, 4-direction pan, & pinch-to-zoom support for mobile
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
   const pinchStartDistRef = useRef(null);
   const initialPinchZoomRef = useRef(1.0);
 
+  // Zoom control steps helper functions (10% clean steps: 100% -> 110% -> 120% -> ...)
+  const handleMobileZoomIn = useCallback(() => {
+    const current = Number(mobileZoom.toFixed(2));
+    const next = MOBILE_ZOOM_STEPS.find(s => s > current + 0.01) || 2.5;
+    setMobileZoom(next);
+  }, [mobileZoom]);
+
+  const handleMobileZoomOut = useCallback(() => {
+    const current = Number(mobileZoom.toFixed(2));
+    const prev = [...MOBILE_ZOOM_STEPS].reverse().find(s => s < current - 0.01) || 0.8;
+    setMobileZoom(prev);
+    if (prev <= 1.05) {
+      setPanOffset({ x: 0, y: 0 });
+      panOffsetRef.current = { x: 0, y: 0 };
+      if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+      if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+    }
+  }, [mobileZoom]);
+
+  const handleMobileZoomReset = useCallback(() => {
+    setMobileZoom(1.0);
+    setPanOffset({ x: 0, y: 0 });
+    panOffsetRef.current = { x: 0, y: 0 };
+    if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+    if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+  }, []);
+
   const handleTouchStart = (e) => {
-    if (e.touches && e.touches.length === 1) {
+    if (!e.touches) return;
+
+    if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
       pinchStartDistRef.current = null;
-    } else if (e.touches && e.touches.length === 2) {
+
+      // When zoomed in on mobile, initiate 4-direction pan dragging
+      if (mobileZoom > 1.05) {
+        isPanningRef.current = true;
+        lastPanTouchRef.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY
+        };
+      } else {
+        isPanningRef.current = false;
+        lastPanTouchRef.current = null;
+      }
+    } else if (e.touches.length === 2) {
       // Two-finger pinch gesture start
+      isPanningRef.current = false;
+      lastPanTouchRef.current = null;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       pinchStartDistRef.current = Math.hypot(dx, dy);
@@ -207,28 +258,78 @@ const BookReader = ({ book, onClose }) => {
   };
 
   const handleTouchMove = (e) => {
-    if (e.touches && e.touches.length === 2 && pinchStartDistRef.current) {
+    if (!e.touches) return;
+
+    // 1. Two-finger pinch gesture
+    if (e.touches.length === 2 && pinchStartDistRef.current) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const currentDist = Math.hypot(dx, dy);
       const ratio = currentDist / pinchStartDistRef.current;
       const targetZoom = Math.min(2.5, Math.max(0.8, Number((initialPinchZoomRef.current * ratio).toFixed(2))));
       setMobileZoom(targetZoom);
+      if (targetZoom <= 1.05) {
+        setPanOffset({ x: 0, y: 0 });
+        panOffsetRef.current = { x: 0, y: 0 };
+        if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+        if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+      }
+      return;
+    }
+
+    // 2. Single-finger 4-direction panning when zoomed in
+    if (e.touches.length === 1 && isPanningRef.current && mobileZoom > 1.05 && lastPanTouchRef.current) {
+      const curX = e.touches[0].clientX;
+      const curY = e.touches[0].clientY;
+      const deltaX = curX - lastPanTouchRef.current.x;
+      const deltaY = curY - lastPanTouchRef.current.y;
+      lastPanTouchRef.current = { x: curX, y: curY };
+
+      // Dynamic bounds based on rendered canvas size vs screen viewport
+      const canvasEl = canvasLeftRef.current;
+      const canvasW = canvasEl?.offsetWidth || (window.innerWidth * mobileZoom);
+      const canvasH = canvasEl?.offsetHeight || ((window.innerHeight || 640) * mobileZoom);
+      const viewW = window.innerWidth;
+      const viewH = Math.max(300, (window.innerHeight || 640) - 110);
+
+      const maxPanX = Math.max(50, (canvasW - viewW) / 2 + 70);
+      const maxPanY = Math.max(50, (canvasH - viewH) / 2 + 90);
+
+      const nextX = Math.min(maxPanX, Math.max(-maxPanX, panOffsetRef.current.x + deltaX));
+      const nextY = Math.min(maxPanY, Math.max(-maxPanY, panOffsetRef.current.y + deltaY));
+
+      panOffsetRef.current = { x: nextX, y: nextY };
+
+      // 60fps hardware-accelerated movement
+      if (holderLeftRef.current) {
+        holderLeftRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
+      }
+      if (holderRightRef.current) {
+        holderRightRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
+      }
     }
   };
 
   const handleTouchEnd = (e) => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      lastPanTouchRef.current = null;
+      // Sync final pan position to React state
+      setPanOffset({ ...panOffsetRef.current });
+    }
+
     if (e.touches && e.touches.length < 2) {
       pinchStartDistRef.current = null;
     }
+
     if (touchStartXRef.current === null || !e.changedTouches || e.changedTouches.length === 0) return;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
-    // Only allow swipe page flip when not significantly zoomed in (to avoid accidental flips while panning)
-    if (mobileZoom <= 1.15 && Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+    // Only allow swipe page flip when NOT zoomed in (prevents accidental flips while panning)
+    if (mobileZoom <= 1.05 && Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
       const step = viewMode === 'spread' ? 2 : 1;
       if (deltaX < 0) {
         if (currentPage < totalPages) {
@@ -547,6 +648,12 @@ const BookReader = ({ book, onClose }) => {
   const handlePageChange = useCallback((targetPage, direction = null) => {
     const pageNum = Math.max(1, Math.min(targetPage, totalPages));
     if (pageNum === currentPage) return;
+
+    // Reset pan position on page change so new page is neatly centered
+    setPanOffset({ x: 0, y: 0 });
+    panOffsetRef.current = { x: 0, y: 0 };
+    if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+    if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
 
     const dir = direction || (pageNum > currentPage ? 'next' : 'prev');
     setIsFlipping(dir);
@@ -1162,10 +1269,11 @@ const BookReader = ({ book, onClose }) => {
               MAIN READING STAGE: REALISTIC 3D BOOK ENGINE
               ══════════════════════════════════════════════════════════ */}
           <div
-            className="book-stage-viewport"
+            className={`book-stage-viewport ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
           >
             {useNativeViewer || (!pdfSource && driveEmbed) ? (
               /* Native / External Drive Embed View */
@@ -1324,20 +1432,29 @@ const BookReader = ({ book, onClose }) => {
                       width: isMobile ? '100%' : undefined
                     }}
                   >
-                    <div className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}>
+                    <div
+                      ref={holderLeftRef}
+                      className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}
+                      style={isMobile && mobileZoom > 1.05 ? {
+                        transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
+                        willChange: 'transform'
+                      } : undefined}
+                    >
                       <canvas ref={canvasLeftRef} />
                     </div>
 
-                    {/* Left Interactive Page Turn Zone */}
-                    <div
-                      className="page-turn-trigger page-turn-trigger-left"
-                      onClick={() => handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1), 'prev')}
-                      title="Click to Turn Back (or use Left Arrow key)"
-                    >
-                      <div className="page-turn-arrow-badge">
-                        <ChevronLeft size={20} />
+                    {/* Left Interactive Page Turn Zone (hidden while zoomed to prevent accidental flips) */}
+                    {(!isMobile || mobileZoom <= 1.05) && (
+                      <div
+                        className="page-turn-trigger page-turn-trigger-left"
+                        onClick={() => handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1), 'prev')}
+                        title="Click to Turn Back (or use Left Arrow key)"
+                      >
+                        <div className="page-turn-arrow-badge">
+                          <ChevronLeft size={20} />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* RIGHT PAGE (in Two-Page Spread Mode) */}
@@ -1350,7 +1467,14 @@ const BookReader = ({ book, onClose }) => {
                         minHeight: '70vh'
                       }}
                     >
-                      <div className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}>
+                      <div
+                        ref={holderRightRef}
+                        className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''}`}
+                        style={isMobile && mobileZoom > 1.05 ? {
+                          transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
+                          willChange: 'transform'
+                        } : undefined}
+                      >
                         {currentPage + 1 <= totalPages ? (
                           <canvas ref={canvasRightRef} />
                         ) : (
@@ -1369,16 +1493,18 @@ const BookReader = ({ book, onClose }) => {
                         )}
                       </div>
 
-                      {/* Right Interactive Page Turn Zone */}
-                      <div
-                        className="page-turn-trigger page-turn-trigger-right"
-                        onClick={() => handlePageChange(currentPage + 2, 'next')}
-                        title="Click to Turn Forward (or use Right Arrow key)"
-                      >
-                        <div className="page-turn-arrow-badge">
-                          <ChevronRight size={20} />
+                      {/* Right Interactive Page Turn Zone (hidden while zoomed) */}
+                      {(!isMobile || mobileZoom <= 1.05) && (
+                        <div
+                          className="page-turn-trigger page-turn-trigger-right"
+                          onClick={() => handlePageChange(currentPage + 2, 'next')}
+                          title="Click to Turn Forward (or use Right Arrow key)"
+                        >
+                          <div className="page-turn-arrow-badge">
+                            <ChevronRight size={20} />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -1405,19 +1531,19 @@ const BookReader = ({ book, onClose }) => {
             <div className="mobile-zoom-pill">
               <button
                 type="button"
-                onClick={() => setMobileZoom(z => Math.max(0.8, Number((z - 0.15).toFixed(2))))}
+                onClick={handleMobileZoomOut}
                 className="btn btn-ghost"
                 style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '6px' }}
-                title="Zoom Out"
+                title="Zoom Out (10% step)"
               >
                 <ZoomOut size={13} />
               </button>
               <span
-                onClick={() => setMobileZoom(1.0)}
+                onClick={handleMobileZoomReset}
                 style={{
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  minWidth: '36px',
+                  minWidth: '38px',
                   textAlign: 'center',
                   cursor: 'pointer',
                   color: mobileZoom !== 1.0 ? 'var(--primary)' : 'var(--text-primary)'
@@ -1428,17 +1554,17 @@ const BookReader = ({ book, onClose }) => {
               </span>
               <button
                 type="button"
-                onClick={() => setMobileZoom(z => Math.min(2.5, Number((z + 0.15).toFixed(2))))}
+                onClick={handleMobileZoomIn}
                 className="btn btn-ghost"
                 style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '6px' }}
-                title="Zoom In"
+                title="Zoom In (10% step)"
               >
                 <ZoomIn size={13} />
               </button>
               {mobileZoom !== 1.0 && (
                 <button
                   type="button"
-                  onClick={() => setMobileZoom(1.0)}
+                  onClick={handleMobileZoomReset}
                   className="btn btn-primary"
                   style={{
                     padding: '2px 7px',
