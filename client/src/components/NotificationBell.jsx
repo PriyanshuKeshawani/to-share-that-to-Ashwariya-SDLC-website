@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -108,8 +108,9 @@ const NotificationBell = () => {
     // 1. Instant Realtime WebSocket subscription for this user's notifications
     let channel = null;
     try {
+      const channelId = `bell-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       channel = supabase
-        .channel(`realtime-bell-notifs-${user.id}-${Date.now()}`)
+        .channel(channelId)
         .on(
           'postgres_changes',
           {
@@ -158,7 +159,11 @@ const NotificationBell = () => {
     const interval = setInterval(fetchNotifications, 10000);
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      }
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
@@ -657,4 +662,33 @@ const NotificationBell = () => {
   );
 };
 
-export default NotificationBell;
+class NotificationBellErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err) {
+    console.warn('NotificationBell caught non-fatal exception:', err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <button className="btn-icon" style={{ opacity: 0.6 }} title="Notifications">
+          <Bell size={20} />
+        </button>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function SafeNotificationBell(props) {
+  return (
+    <NotificationBellErrorBoundary>
+      <NotificationBell {...props} />
+    </NotificationBellErrorBoundary>
+  );
+}
