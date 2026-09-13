@@ -236,36 +236,44 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           display: none;
           gap: 8px;
         }
-        .sam-close-btn { padding: 7px 7px !important; }
+        .sam-close-btn {
+          min-width: 44px;
+          min-height: 44px;
+          padding: 0 !important;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          border-radius: 12px !important;
+          cursor: pointer;
+        }
         .sam-kpi-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 10px;
         }
         .sam-kpi-card {
-          background: var(--modal-card-bg, var(--input-bg));
-          border: 1px solid var(--modal-card-border, var(--border-glass));
-          border-radius: 12px;
           padding: 12px 14px;
+          border-radius: 12px;
+          background: var(--modal-card-bg, rgba(255,255,255,0.03));
+          border: 1px solid var(--modal-card-border, var(--border-glass));
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 12px;
         }
         .sam-kpi-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 9px;
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
         }
-        .sam-kpi-value {
-          font-size: 1.1rem;
+        .sam-kpi-val {
+          font-size: 1.25rem;
           font-weight: 800;
-          color: var(--text-primary);
           line-height: 1.1;
-          margin-bottom: 2px;
         }
         .sam-kpi-label {
           font-size: 0.65rem;
@@ -321,17 +329,24 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           flex-shrink: 0;
         }
         @media (max-width: 768px) {
+          .sam-modal-backdrop { padding: 0 !important; }
+          .sam-modal-container {
+            border-radius: 0 !important;
+            max-height: 100dvh !important;
+            height: 100dvh !important;
+            border: none !important;
+          }
           .sam-actions-desktop { display: none; }
-          .sam-actions-mobile { display: flex; padding: 0 24px 12px; }
-          .sam-header { padding: 16px; gap: 12px; }
-          .sam-tabs-bar { padding: 0 16px; }
-          .sam-tab-body { padding: 16px; }
-          .sam-footer { padding: 10px 16px; }
+          .sam-actions-mobile { display: flex; padding: 0 16px 12px; gap: 8px; }
+          .sam-header { padding: max(14px, env(safe-area-inset-top, 14px)) 14px 12px; gap: 12px; }
+          .sam-tabs-bar { padding: 0 14px; }
+          .sam-tab-body { padding: 14px; }
+          .sam-footer { padding: 10px 14px max(14px, env(safe-area-inset-bottom, 14px)); }
           .sam-kpi-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 480px) {
           .sam-student-name { font-size: 1rem; }
-          .sam-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+          .sam-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .sam-tab-btn { padding: 10px 10px; font-size: 0.75rem; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -384,7 +399,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
               </div>
             </div>
 
-            {/* Desktop Action buttons & Close */}
+            {/* Desktop Action buttons */}
             <div className="sam-actions-desktop">
               <button
                 onClick={handlePrintReport}
@@ -414,11 +429,17 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                   )}
                 </button>
               )}
-
-              <button onClick={onClose} className="btn btn-secondary sam-close-btn" title="Close">
-                <X size={18} />
-              </button>
             </div>
+
+            {/* Top-Right Always Visible 44px Close Button */}
+            <button 
+              onClick={onClose} 
+              className="btn btn-secondary sam-close-btn" 
+              title="Close"
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
           </div>
 
           {/* Mobile Action Buttons Row */}
@@ -426,7 +447,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
             <button
               onClick={handlePrintReport}
               className="btn btn-secondary"
-              style={{ flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px' }}
+              style={{ flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px', minHeight: '40px' }}
             >
               <Printer size={14} /> Print Transcript
             </button>
@@ -435,7 +456,7 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                 onClick={() => onToggleBlock(student.id, student.is_blocked !== 1)}
                 className="btn btn-secondary"
                 style={{
-                  flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px',
+                  flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px', minHeight: '40px',
                   color: student.is_blocked === 1 ? 'var(--success)' : 'var(--warning)'
                 }}
               >
@@ -446,9 +467,6 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                 )}
               </button>
             )}
-            <button onClick={onClose} className="btn btn-secondary sam-close-btn" title="Close">
-              <X size={18} />
-            </button>
           </div>
 
           {/* ── KPI Stat Cards (E-Book Monitoring) ── */}

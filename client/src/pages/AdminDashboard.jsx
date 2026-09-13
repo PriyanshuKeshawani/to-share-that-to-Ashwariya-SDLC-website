@@ -1573,7 +1573,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Students Enrolled in {branchName} ({branchStudents.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -1664,7 +1664,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Books Allocated to {branchName} ({branchBooks.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -1762,7 +1762,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Activity Logs for {branchName} ({branchLogs.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -1846,12 +1846,7 @@ const AdminDashboard = () => {
                   /* ═══ MAIN SYSTEM ANALYTICS VIEW ═══ */
                   <>
                     {/* Top Stat Cards (All Clickable with Underlying Supabase Records) */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: '20px',
-                      marginBottom: '32px'
-                    }}>
+                    <div className="admin-stat-cards-grid">
                       {/* 1. Total Books */}
                       <div
                         onClick={() => {
@@ -1859,7 +1854,7 @@ const AdminDashboard = () => {
                           setDrilldownSearch('');
                         }}
                         className="glass-panel glass-panel-hover motion-stat-card animate-stagger-in stagger-1"
-                        style={{ padding: '22px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', position: 'relative' }}
+                        style={{ padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5vw, 16px)', cursor: 'pointer', position: 'relative' }}
                         title="Click to view all verified books in Supabase"
                       >
                         <div className="motion-card-icon" style={{ padding: '14px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>
@@ -1867,7 +1862,7 @@ const AdminDashboard = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Books</span>
-                          <h3 style={{ fontSize: '1.65rem', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.books}</h3>
+                          <h3 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.65rem)', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.books}</h3>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
                             <span>View Records</span>
                             <ChevronRight size={12} />
@@ -1882,7 +1877,7 @@ const AdminDashboard = () => {
                           setDrilldownSearch('');
                         }}
                         className="glass-panel glass-panel-hover motion-stat-card animate-stagger-in stagger-2"
-                        style={{ padding: '22px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', position: 'relative' }}
+                        style={{ padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5vw, 16px)', cursor: 'pointer', position: 'relative' }}
                         title="Click to view all approved students in Supabase"
                       >
                         <div className="motion-card-icon" style={{ padding: '14px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--secondary)' }}>
@@ -1890,7 +1885,7 @@ const AdminDashboard = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Students</span>
-                          <h3 style={{ fontSize: '1.65rem', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.students}</h3>
+                          <h3 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.65rem)', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.students}</h3>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--secondary)', fontWeight: 600 }}>
                             <span>View Records</span>
                             <ChevronRight size={12} />
@@ -1905,7 +1900,7 @@ const AdminDashboard = () => {
                           setDrilldownSearch('');
                         }}
                         className="glass-panel glass-panel-hover motion-stat-card animate-stagger-in stagger-3"
-                        style={{ padding: '22px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', position: 'relative' }}
+                        style={{ padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5vw, 16px)', cursor: 'pointer', position: 'relative' }}
                         title="Click to view all book access activity logs"
                       >
                         <div className="motion-card-icon" style={{ padding: '14px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
@@ -1913,7 +1908,7 @@ const AdminDashboard = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Views</span>
-                          <h3 style={{ fontSize: '1.65rem', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.views}</h3>
+                          <h3 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.65rem)', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.views}</h3>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--success)', fontWeight: 600 }}>
                             <span>View Activity</span>
                             <ChevronRight size={12} />
@@ -1928,7 +1923,7 @@ const AdminDashboard = () => {
                           setDrilldownSearch('');
                         }}
                         className="glass-panel glass-panel-hover motion-stat-card animate-stagger-in stagger-4"
-                        style={{ padding: '22px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', position: 'relative' }}
+                        style={{ padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5vw, 16px)', cursor: 'pointer', position: 'relative' }}
                         title="Click to view all book download activity logs"
                       >
                         <div className="motion-card-icon" style={{ padding: '14px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
@@ -1936,7 +1931,7 @@ const AdminDashboard = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Downloads</span>
-                          <h3 style={{ fontSize: '1.65rem', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.downloads}</h3>
+                          <h3 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.65rem)', fontWeight: 700, marginTop: '2px' }}>{dashboardData.stats.downloads}</h3>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--warning)', fontWeight: 600 }}>
                             <span>View Activity</span>
                             <ChevronRight size={12} />
@@ -1946,7 +1941,7 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Champion Records (Best Book, Top Reader) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }} className="responsive-grid-1col champion-cards-grid">
+                    <div className="champion-cards-grid">
                       {/* Best Book Overall */}
                       <div
                         className="glass-panel glass-panel-hover animate-stagger-in stagger-3"
@@ -2099,13 +2094,9 @@ const AdminDashboard = () => {
                                   setDepartmentActiveTab('overview');
                                   setDepartmentSearch('');
                                 }}
-                                className="glass-panel-hover"
+                                className="glass-panel-hover admin-branch-chart-row"
                                 style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: '200px 1fr 140px',
                                   alignItems: 'center',
-                                  gap: '16px',
-                                  padding: '12px 16px',
                                   borderRadius: '10px',
                                   cursor: 'pointer',
                                   background: 'rgba(255,255,255,0.015)',
@@ -2372,16 +2363,18 @@ const AdminDashboard = () => {
                           key={u.id}
                           className="glass-panel"
                           style={{
-                            padding: '20px 24px',
+                            padding: 'clamp(14px, 3vw, 20px)',
                             display: 'flex',
                             flexWrap: 'wrap',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             gap: '16px',
-                            borderLeft: '4px solid #f59e0b'
+                            borderLeft: '4px solid #f59e0b',
+                            boxSizing: 'border-box',
+                            width: '100%'
                           }}
                         >
-                          <div style={{ flex: '1 1 320px' }}>
+                          <div style={{ flex: '1 1 min(100%, 280px)', minWidth: 0, wordBreak: 'break-word' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
                               <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                                 {u.full_name}
@@ -2774,8 +2767,8 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Filter and Search */}
-                <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div className="search-input-wrapper" style={{ flex: 1, minWidth: 'clamp(180px, 100%, 260px)' }}>
+                <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div className="search-input-wrapper" style={{ flex: 1 }}>
                     <span className="search-icon"><Search size={18} /></span>
                     <input
                       type="text"
@@ -3019,7 +3012,7 @@ const AdminDashboard = () => {
 
                   {/* Search & Filter Bar */}
                   <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div className="search-input-wrapper" style={{ flex: 1, minWidth: 'clamp(180px, 100%, 220px)' }}>
+                    <div className="search-input-wrapper" style={{ flex: 1, minWidth: '220px' }}>
                       <span className="search-icon"><Search size={16} /></span>
                       <input
                         type="text"
@@ -5020,11 +5013,11 @@ const AdminDashboard = () => {
       {/* Slide-Over Drilldown Drawer for Clickable Stat Cards */}
       {activeAnalyticsDrilldown && dashboardData && (
         <div
-          className="drilldown-modal-backdrop"
+          className="admin-drilldown-backdrop"
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(3, 7, 18, 0.8)',
+            background: 'rgba(3, 7, 18, 0.78)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             zIndex: 9999,
@@ -5038,10 +5031,10 @@ const AdminDashboard = () => {
           }}
         >
           <div
-            className="drilldown-modal-panel"
+            className="admin-drilldown-drawer"
             style={{
               width: '100%',
-              maxWidth: 'min(94vw, 960px)',
+              maxWidth: '680px',
               height: '100%',
               maxHeight: '100dvh',
               background: 'var(--modal-bg, var(--bg-card-solid))',
@@ -5050,31 +5043,35 @@ const AdminDashboard = () => {
               display: 'flex',
               flexDirection: 'column',
               zIndex: 10000,
-              animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+              animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div style={{
-              padding: 'clamp(14px, 3.5vw, 24px)',
-              paddingTop: 'max(clamp(14px, 3.5vw, 24px), env(safe-area-inset-top, 14px))',
-              borderBottom: '1px solid var(--border-glass)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              gap: '12px',
-              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))',
-              flexShrink: 0
-            }}>
+            <div
+              className="admin-drilldown-header"
+              style={{
+                padding: 'clamp(14px, 3vw, 22px)',
+                paddingTop: 'max(16px, env(safe-area-inset-top, 16px))',
+                borderBottom: '1px solid var(--border-glass)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '12px',
+                background: 'var(--modal-card-bg, rgba(255,255,255,0.02))',
+                flexShrink: 0
+              }}
+            >
               <div style={{ flex: 1, minWidth: 0, paddingRight: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                  <span className="badge badge-primary" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'normal' }}>
                     Authoritative Supabase Dataset
                   </span>
                 </div>
                 <h3 style={{
-                  fontSize: 'clamp(1.05rem, 3.5vw, 1.35rem)',
+                  fontSize: 'clamp(1.15rem, 3.5vw, 1.45rem)',
                   fontWeight: 700,
                   margin: 0,
                   lineHeight: 1.3,
@@ -5087,10 +5084,10 @@ const AdminDashboard = () => {
                   {activeAnalyticsDrilldown === 'downloads' && `Total Downloads (${dashboardData.stats.downloads})`}
                 </h3>
                 <p style={{
-                  fontSize: 'clamp(0.74rem, 2vw, 0.82rem)',
+                  fontSize: 'clamp(0.78rem, 2vw, 0.84rem)',
                   color: 'var(--text-secondary)',
                   marginTop: '6px',
-                  margin: '6px 0 0 0',
+                  marginBottom: 0,
                   lineHeight: 1.4,
                   wordBreak: 'break-word'
                 }}>
@@ -5109,14 +5106,13 @@ const AdminDashboard = () => {
                   minWidth: '44px',
                   minHeight: '44px',
                   padding: 0,
-                  borderRadius: '50%',
+                  borderRadius: '12px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                   cursor: 'pointer',
-                  border: '1px solid var(--border-glass)',
-                  background: 'rgba(255,255,255,0.06)'
+                  zIndex: 20
                 }}
                 title="Close Drawer"
                 aria-label="Close Drawer"
@@ -5126,31 +5122,24 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Search Filter */}
-            <div style={{
-              padding: '12px clamp(14px, 3.5vw, 24px)',
-              borderBottom: '1px solid var(--border-glass)',
-              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))',
-              flexShrink: 0
-            }}>
-              <div className="search-input-wrapper" style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
-                <span className="search-icon" style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: 'var(--text-muted)',
-                  pointerEvents: 'none',
-                  zIndex: 2
-                }}>
+            <div
+              className="admin-drilldown-search"
+              style={{
+                padding: 'clamp(10px, 2.5vw, 14px) clamp(14px, 3vw, 22px)',
+                borderBottom: '1px solid var(--border-glass)',
+                background: 'var(--modal-card-bg, rgba(255,255,255,0.015))',
+                flexShrink: 0
+              }}
+            >
+              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', position: 'relative' }}>
+                <span className="search-icon" style={{ left: '14px', pointerEvents: 'none' }}>
                   <Search size={16} />
                 </span>
                 <input
                   type="text"
                   placeholder={
                     activeAnalyticsDrilldown === 'students'
-                      ? 'Search active students by name, roll, branch...'
+                      ? 'Search active students by name, roll number...'
                       : activeAnalyticsDrilldown === 'books'
                       ? 'Search books by title, author, branch...'
                       : `Search ${activeAnalyticsDrilldown} logs by student, roll, or book...`
@@ -5160,10 +5149,10 @@ const AdminDashboard = () => {
                   className="glass-input has-search-icon"
                   style={{
                     width: '100%',
-                    height: '42px',
-                    fontSize: 'clamp(0.8rem, 2.2vw, 0.86rem)',
-                    paddingLeft: '38px',
-                    paddingRight: drilldownSearch ? '36px' : '14px',
+                    height: '44px',
+                    fontSize: '0.86rem',
+                    paddingLeft: '42px',
+                    paddingRight: drilldownSearch ? '38px' : '14px',
                     boxSizing: 'border-box'
                   }}
                   autoFocus
@@ -5175,21 +5164,15 @@ const AdminDashboard = () => {
                     onClick={() => setDrilldownSearch('')}
                     title="Clear search"
                     style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: '28px',
-                      height: '28px',
+                      width: '32px',
+                      height: '32px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderRadius: '50%',
-                      background: 'rgba(255,255,255,0.08)',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      zIndex: 2
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)'
                     }}
                   >
                     <X size={14} />
@@ -5199,15 +5182,19 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Records Body */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: 'clamp(14px, 3.5vw, 24px)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              WebkitOverflowScrolling: 'touch'
-            }}>
+            <div
+              className="admin-drilldown-body"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                padding: 'clamp(12px, 2.5vw, 18px) clamp(14px, 3vw, 22px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                boxSizing: 'border-box'
+              }}
+            >
               {/* 1. Books Drilldown */}
               {activeAnalyticsDrilldown === 'books' && (() => {
                 const list = (dashboardData.drilldowns?.books || []).filter(b => {
@@ -5237,22 +5224,24 @@ const AdminDashboard = () => {
                   <div
                     key={bk.id}
                     onClick={() => setSelectedBookForActivity(books.find(b => b.id === bk.id) || bk)}
-                    className="glass-panel glass-panel-hover"
+                    className="glass-panel glass-panel-hover drilldown-card-item"
                     style={{
-                      padding: 'clamp(12px, 3vw, 16px)',
+                      padding: 'clamp(12px, 2.5vw, 16px)',
                       display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'clamp(10px, 3vw, 16px)',
+                      alignItems: 'center',
+                      gap: 'clamp(10px, 2.5vw, 16px)',
                       cursor: 'pointer',
                       borderRadius: '12px',
-                      minHeight: 'auto',
-                      position: 'relative'
+                      flexShrink: 0,
+                      minHeight: 'fit-content',
+                      width: '100%',
+                      boxSizing: 'border-box'
                     }}
                     title="Click to inspect reader history and activity"
                   >
                     <div style={{
-                      width: '48px',
-                      height: '68px',
+                      width: '46px',
+                      height: '64px',
                       borderRadius: '6px',
                       background: 'rgba(255,255,255,0.05)',
                       overflow: 'hidden',
@@ -5265,7 +5254,7 @@ const AdminDashboard = () => {
                       {bk.cover_url ? (
                         <img src={bk.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <BookOpen size={22} color="var(--text-muted)" />
+                        <BookOpen size={20} color="var(--text-muted)" />
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -5276,28 +5265,32 @@ const AdminDashboard = () => {
                         marginBottom: '4px',
                         lineHeight: 1.35,
                         wordBreak: 'break-word',
-                        overflowWrap: 'anywhere'
+                        whiteSpace: 'normal'
                       }}>
                         "{bk.title}"
                       </h4>
                       <p style={{
-                        fontSize: 'clamp(0.76rem, 2.2vw, 0.82rem)',
+                        fontSize: '0.8rem',
                         color: 'var(--text-secondary)',
-                        marginBottom: '8px',
-                        lineHeight: 1.35,
+                        marginBottom: '6px',
+                        lineHeight: 1.3,
                         wordBreak: 'break-word'
                       }}>
-                        By {bk.author}
+                        By {bk.author || 'Unknown Author'}
                       </p>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.branch_name || 'General'}</span>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.total_accesses || 0} accesses</span>
-                        <span className="badge badge-warning" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.total_downloads || 0} downloads</span>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                          {bk.branch_name || 'General'}
+                        </span>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
+                          {bk.total_accesses || 0} accesses
+                        </span>
+                        <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>
+                          {bk.total_downloads || 0} downloads
+                        </span>
                       </div>
                     </div>
-                    <div style={{ flexShrink: 0, alignSelf: 'center', paddingLeft: '4px' }}>
-                      <ChevronRight size={18} color="var(--text-muted)" />
-                    </div>
+                    <ChevronRight size={18} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                   </div>
                 ));
               })()}
@@ -5334,15 +5327,18 @@ const AdminDashboard = () => {
                   <div
                     key={st.id}
                     onClick={() => setSelectedStudentForActivity(students.find(s => s.id === st.id) || st)}
-                    className="glass-panel glass-panel-hover"
+                    className="glass-panel glass-panel-hover drilldown-card-item"
                     style={{
-                      padding: 'clamp(12px, 3vw, 16px)',
+                      padding: 'clamp(12px, 2.5vw, 16px)',
                       display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'clamp(10px, 3vw, 16px)',
+                      alignItems: 'center',
+                      gap: 'clamp(10px, 2.5vw, 16px)',
                       cursor: 'pointer',
                       borderRadius: '12px',
-                      minHeight: 'auto'
+                      flexShrink: 0,
+                      minHeight: 'fit-content',
+                      width: '100%',
+                      boxSizing: 'border-box'
                     }}
                     title="Click to inspect student profile and reading logs"
                   >
@@ -5368,35 +5364,33 @@ const AdminDashboard = () => {
                           fontWeight: 600,
                           color: 'var(--text-primary)',
                           margin: 0,
+                          lineHeight: 1.3,
                           wordBreak: 'break-word',
-                          lineHeight: 1.3
+                          whiteSpace: 'normal'
                         }}>
                           {st.full_name || st.username}
                         </h4>
-                        <span className="badge badge-success" style={{ fontSize: '0.65rem', flexShrink: 0 }}>Approved</span>
+                        <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Approved</span>
                       </div>
                       <p style={{
-                        fontSize: 'clamp(0.76rem, 2.2vw, 0.82rem)',
+                        fontSize: '0.8rem',
                         color: 'var(--text-secondary)',
                         margin: '0 0 6px 0',
-                        lineHeight: 1.4,
-                        wordBreak: 'break-word',
-                        overflowWrap: 'anywhere'
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word'
                       }}>
-                        Roll: {st.roll_number || 'N/A'} • {st.branch_name || 'Engineering'}
+                        Roll: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{st.roll_number || 'N/A'}</span> • {st.branch_name || 'Engineering'}
                       </p>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
                           {st.total_reviews || 0} page reviews
                         </span>
-                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
                           {st.unique_books_read || 0} unique books
                         </span>
                       </div>
                     </div>
-                    <div style={{ flexShrink: 0, alignSelf: 'center', paddingLeft: '4px' }}>
-                      <ChevronRight size={18} color="var(--text-muted)" />
-                    </div>
+                    <ChevronRight size={18} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                   </div>
                 ));
               })()}
@@ -5428,42 +5422,35 @@ const AdminDashboard = () => {
                 return list.map(v => (
                   <div
                     key={v.id}
-                    className="glass-panel"
+                    className="glass-panel drilldown-card-item"
                     style={{
-                      padding: 'clamp(12px, 3vw, 16px)',
+                      padding: 'clamp(12px, 2vw, 16px)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '10px',
-                      borderRadius: '12px'
+                      borderRadius: '12px',
+                      flexShrink: 0,
+                      minHeight: 'fit-content',
+                      width: '100%',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    {/* Top Row: Timestamp & Status Badge */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: 'clamp(0.72rem, 2vw, 0.78rem)',
-                      color: 'var(--text-muted)',
-                      gap: '8px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                        <Clock size={13} style={{ flexShrink: 0 }} />
-                        <span style={{ wordBreak: 'break-word' }}>{new Date(v.created_at).toLocaleString()}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={13} />
+                        <span>{new Date(v.created_at).toLocaleString()}</span>
                       </div>
-                      <span className="badge badge-primary" style={{ fontSize: '0.68rem', flexShrink: 0 }}>View / Read</span>
+                      <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>View / Read</span>
                     </div>
 
-                    {/* Details: Stack on Mobile, 2-col on Tablet/Desktop */}
                     <div style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                       gap: '10px',
-                      paddingTop: '8px',
-                      borderTop: '1px solid rgba(255,255,255,0.06)'
+                      alignItems: 'start'
                     }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Reader:</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>Reader:</div>
                         <button
                           onClick={() => setSelectedStudentForActivity(students.find(s => s.id === v.user_id) || { id: v.user_id, full_name: v.user_name, roll_number: v.roll_number, branch_name: v.branch_name })}
                           style={{
@@ -5472,12 +5459,11 @@ const AdminDashboard = () => {
                             color: 'var(--secondary)',
                             cursor: 'pointer',
                             fontWeight: 600,
-                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            fontSize: '0.88rem',
                             padding: 0,
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            lineHeight: 1.35,
-                            display: 'inline'
+                            lineHeight: 1.3
                           }}
                         >
                           {v.user_name} ({v.roll_number})
@@ -5485,7 +5471,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Book Accessed:</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>Book Accessed:</div>
                         <button
                           onClick={() => setSelectedBookForActivity(books.find(b => b.id === v.book_id) || { id: v.book_id, title: v.book_title, author: v.book_author, cover_url: v.cover_url })}
                           style={{
@@ -5494,12 +5480,11 @@ const AdminDashboard = () => {
                             color: 'var(--text-primary)',
                             cursor: 'pointer',
                             fontWeight: 600,
-                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            fontSize: '0.88rem',
                             padding: 0,
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            lineHeight: 1.35,
-                            display: 'inline'
+                            lineHeight: 1.3
                           }}
                         >
                           "{v.book_title}"
@@ -5537,42 +5522,35 @@ const AdminDashboard = () => {
                 return list.map(d => (
                   <div
                     key={d.id}
-                    className="glass-panel"
+                    className="glass-panel drilldown-card-item"
                     style={{
-                      padding: 'clamp(12px, 3vw, 16px)',
+                      padding: 'clamp(12px, 2vw, 16px)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '10px',
-                      borderRadius: '12px'
+                      borderRadius: '12px',
+                      flexShrink: 0,
+                      minHeight: 'fit-content',
+                      width: '100%',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    {/* Top Row: Timestamp & Status Badge */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: 'clamp(0.72rem, 2vw, 0.78rem)',
-                      color: 'var(--text-muted)',
-                      gap: '8px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                        <Clock size={13} style={{ flexShrink: 0 }} />
-                        <span style={{ wordBreak: 'break-word' }}>{new Date(d.created_at).toLocaleString()}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={13} />
+                        <span>{new Date(d.created_at).toLocaleString()}</span>
                       </div>
-                      <span className="badge badge-warning" style={{ fontSize: '0.68rem', flexShrink: 0 }}>Download</span>
+                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Download</span>
                     </div>
 
-                    {/* Details: Stack on Mobile, 2-col on Tablet/Desktop */}
                     <div style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                       gap: '10px',
-                      paddingTop: '8px',
-                      borderTop: '1px solid rgba(255,255,255,0.06)'
+                      alignItems: 'start'
                     }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Downloaded By:</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>Downloaded By:</div>
                         <button
                           onClick={() => setSelectedStudentForActivity(students.find(s => s.id === d.user_id) || { id: d.user_id, full_name: d.user_name, roll_number: d.roll_number, branch_name: d.branch_name })}
                           style={{
@@ -5581,12 +5559,11 @@ const AdminDashboard = () => {
                             color: 'var(--secondary)',
                             cursor: 'pointer',
                             fontWeight: 600,
-                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            fontSize: '0.88rem',
                             padding: 0,
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            lineHeight: 1.35,
-                            display: 'inline'
+                            lineHeight: 1.3
                           }}
                         >
                           {d.user_name} ({d.roll_number})
@@ -5594,7 +5571,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Book Downloaded:</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>Book Downloaded:</div>
                         <button
                           onClick={() => setSelectedBookForActivity(books.find(b => b.id === d.book_id) || { id: d.book_id, title: d.book_title, author: d.book_author, cover_url: d.cover_url })}
                           style={{
@@ -5603,12 +5580,11 @@ const AdminDashboard = () => {
                             color: 'var(--text-primary)',
                             cursor: 'pointer',
                             fontWeight: 600,
-                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            fontSize: '0.88rem',
                             padding: 0,
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            lineHeight: 1.35,
-                            display: 'inline'
+                            lineHeight: 1.3
                           }}
                         >
                           "{d.book_title}"
@@ -5621,20 +5597,25 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Footer */}
-            <div style={{
-              padding: 'clamp(12px, 3vw, 16px) clamp(14px, 3.5vw, 24px)',
-              paddingBottom: 'max(clamp(12px, 3vw, 16px), env(safe-area-inset-bottom, 12px))',
-              borderTop: '1px solid var(--border-glass)',
-              background: 'var(--modal-card-bg, rgba(255,255,255,0.02))',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: 'clamp(0.74rem, 2vw, 0.82rem)',
-              color: 'var(--text-muted)',
-              flexShrink: 0,
-              gap: '12px'
-            }}>
-              <span style={{ wordBreak: 'break-word', lineHeight: 1.3 }}>100% Authoritative Supabase Records</span>
+            <div
+              className="admin-drilldown-footer"
+              style={{
+                padding: 'clamp(12px, 2.5vw, 16px) clamp(14px, 3vw, 22px)',
+                paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom, 16px) + 8px))',
+                borderTop: '1px solid var(--border-glass)',
+                background: 'var(--modal-card-bg, rgba(255,255,255,0.02))',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                flexShrink: 0
+              }}
+            >
+              <span style={{ fontSize: 'clamp(0.72rem, 2vw, 0.82rem)', wordBreak: 'break-word' }}>
+                100% Authoritative Supabase Records
+              </span>
               <button
                 onClick={() => {
                   setActiveAnalyticsDrilldown(null);
@@ -5643,10 +5624,9 @@ const AdminDashboard = () => {
                 className="btn btn-secondary"
                 style={{
                   padding: '8px 20px',
-                  fontSize: '0.82rem',
+                  fontSize: '0.84rem',
                   minHeight: '40px',
-                  minWidth: '80px',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0

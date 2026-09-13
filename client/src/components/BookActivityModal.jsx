@@ -138,7 +138,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           background: var(--modal-backdrop, rgba(0,0,0,0.7));
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
-          z-index: 2000;
+          z-index: 9999;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -184,13 +184,14 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           margin-bottom: 4px;
         }
         .bam-book-title {
-          font-size: 1.3rem;
+          font-size: clamp(1.1rem, 3.5vw, 1.35rem);
           font-weight: 800;
           color: var(--text-primary) !important;
           -webkit-text-fill-color: initial !important;
           background: none !important;
           margin: 0 0 4px 0;
-          line-height: 1.2;
+          line-height: 1.25;
+          word-break: break-word;
         }
         .bam-book-meta {
           font-size: 0.8rem;
@@ -204,8 +205,13 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
           background: var(--modal-card-bg, var(--input-bg));
           border: 1px solid var(--modal-card-border, var(--border-glass));
           color: var(--text-muted);
-          border-radius: 10px;
-          padding: 8px;
+          border-radius: 12px;
+          min-width: 44px;
+          min-height: 44px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
           flex-shrink: 0;
           transition: all 0.15s;
@@ -405,12 +411,18 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
         }
         .bam-empty h4 { margin: 12px 0 6px; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
         .bam-empty p { font-size: 0.8rem; margin: 0; }
-        @media (max-width: 640px) {
-          .bam-modal { border-radius: 16px; max-height: 95vh; }
-          .bam-header { padding: 16px 16px 0; }
-          .bam-body { padding: 16px; }
+        @media (max-width: 768px) {
+          .bam-overlay { padding: 0 !important; }
+          .bam-modal {
+            border-radius: 0 !important;
+            max-height: 100dvh !important;
+            height: 100dvh !important;
+            border: none !important;
+          }
+          .bam-header { padding: max(14px, env(safe-area-inset-top, 14px)) 14px 0; }
+          .bam-body { padding: 14px 14px max(16px, env(safe-area-inset-bottom, 16px)); }
           .bam-book-title { font-size: 1.1rem; }
-          .bam-stats-row { grid-template-columns: repeat(2, 1fr); }
+          .bam-stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .bam-tab-btn { padding: 10px 12px; font-size: 0.76rem; }
         }
       `}</style>
