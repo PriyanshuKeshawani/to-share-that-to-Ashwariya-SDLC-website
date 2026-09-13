@@ -6,7 +6,7 @@ import {
   Megaphone, AlertTriangle, AlertCircle, Info,
   UserPlus, KeyRound, Download
 } from 'lucide-react';
-import { requestNotificationPermission } from '../firebase';
+import { requestNotificationPermission, resolveUserUuid } from '../firebase';
 import { supabase } from '../supabaseClient';
 
 const isValidUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || '').trim());
@@ -152,20 +152,23 @@ const NotificationBell = ({ variant = 'icon' }) => {
   useEffect(() => {
     if (!user) return;
 
-    let effectiveUserId = user?.id;
-    if (user?.role === 'admin') {
-      effectiveUserId = (effectiveUserId && isValidUuid(effectiveUserId) && !String(effectiveUserId).includes('branch-'))
-        ? effectiveUserId 
-        : '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
-    } else if (effectiveUserId && !isValidUuid(effectiveUserId)) {
-      effectiveUserId = toDeterministicUuid(effectiveUserId);
-    }
-
-    fetchNotifications();
-
-    // 1. Instant Supabase Realtime WebSocket subscription
+    let isCancelled = false;
     let channel = null;
-    if (effectiveUserId) {
+
+    const setupLiveAlerts = async () => {
+      let effectiveUserId = user?.id;
+      if (user?.role === 'admin') {
+        effectiveUserId = (effectiveUserId && isValidUuid(effectiveUserId) && !String(effectiveUserId).includes('branch-'))
+          ? effectiveUserId 
+          : '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
+      } else if (!isValidUuid(effectiveUserId)) {
+        const resolved = await resolveUserUuid(user);
+        effectiveUserId = resolved || (effectiveUserId ? toDeterministicUuid(effectiveUserId) : null);
+      }
+
+      if (isCancelled || !effectiveUserId) return;
+
+      // 1. Instant Supabase Realtime WebSocket subscription
       try {
         const channelId = `bell-${effectiveUserId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         channel = supabase
@@ -184,6 +187,36 @@ const NotificationBell = ({ variant = 'icon' }) => {
                   setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
                   setUnreadCount(prev => prev + 1);
                   playChime();
+
+                  // Display native desktop / mobile browser notification banner if permission granted
+                  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                    try {
+                      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.ready.then(reg => {
+                          reg.showNotification(payload.new.title || 'SISTec Central Library', {
+                            body: payload.new.message || 'New library notification',
+                            icon: '/logo.png',
+                            badge: '/favicon.png',
+                            tag: `notif-${payload.new.id}`,
+                            renotify: true,
+                            data: { url: '/' }
+                          });
+                        }).catch(() => {
+                          new Notification(payload.new.title || 'SISTec Central Library', {
+                            body: payload.new.message || 'New library notification',
+                            icon: '/logo.png'
+                          });
+                        });
+                      } else {
+                        new Notification(payload.new.title || 'SISTec Central Library', {
+                          body: payload.new.message || 'New library notification',
+                          icon: '/logo.png'
+                        });
+                      }
+                    } catch (bannerErr) {
+                      console.warn('Native notification banner notice:', bannerErr);
+                    }
+                  }
                 }
               } else {
                 fetchNotifications();
@@ -194,7 +227,10 @@ const NotificationBell = ({ variant = 'icon' }) => {
       } catch (e) {
         console.warn('Realtime notifications subscribe notice:', e?.message);
       }
-    }
+    };
+
+    fetchNotifications();
+    setupLiveAlerts();
 
     // 2. Custom event listener for instant local test / broadcast events
     const handleLocalRefresh = () => {
@@ -211,6 +247,7 @@ const NotificationBell = ({ variant = 'icon' }) => {
     const interval = setInterval(fetchNotifications, 15000);
 
     return () => {
+      isCancelled = true;
       if (channel) {
         try {
           supabase.removeChannel(channel);

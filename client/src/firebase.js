@@ -40,6 +40,31 @@ export const getMessagingInstance = async () => {
   return messagingInstance;
 };
 
+const isValidUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || '').trim());
+
+export const resolveUserUuid = async (user) => {
+  if (!user) return null;
+  const rawId = String(user.id || user.user_id || '').trim();
+  if (isValidUuid(rawId)) return rawId;
+
+  try {
+    const ident = (user.roll_number || user.rollNumber || user.enrollment_no || user.username || rawId).trim();
+    if (ident) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .or(`username.eq.${ident},roll_number.eq.${ident}`)
+        .limit(1);
+      if (!error && data && data.length > 0 && data[0]?.id && isValidUuid(data[0].id)) {
+        return data[0].id;
+      }
+    }
+  } catch (err) {
+    console.warn('Notice resolving user UUID for FCM push token:', err);
+  }
+  return null;
+};
+
 /**
  * Request notification permission and register FCM token into Supabase user_fcm_tokens
  * @param {Object} user - Currently logged-in user object
@@ -109,15 +134,19 @@ export const requestNotificationPermission = async (user) => {
       }
     }
 
+
     if (!token) {
       return { success: false, error: 'Failed to retrieve FCM push token from Firebase.' };
     }
 
+    // Resolve valid UUID for user_fcm_tokens (prevents Postgres 22P02 error if user.id is an enrollment number)
+    const resolvedUserId = await resolveUserUuid(user);
+
     // Save token in Supabase user_fcm_tokens
     const { error: dbError } = await supabase.from('user_fcm_tokens').upsert({
-      user_id: user?.id || null,
+      user_id: resolvedUserId,
       fcm_token: token,
-      branch_name: user?.branch_name || 'General',
+      branch_name: user?.branch_name || user?.branchName || 'General',
       device_info: `${navigator.platform || ''} • ${navigator.userAgent || ''}`.substring(0, 180),
       updated_at: new Date().toISOString()
     }, { onConflict: 'fcm_token' });
