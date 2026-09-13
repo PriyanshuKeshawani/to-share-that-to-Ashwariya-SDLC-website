@@ -27,7 +27,7 @@ const toDeterministicUuid = (str) => {
   return `${rawHex.slice(0, 8)}-${rawHex.slice(8, 12)}-4${rawHex.slice(13, 16)}-a${rawHex.slice(17, 20)}-${rawHex.slice(20, 32)}`;
 };
 
-const NotificationBell = () => {
+const NotificationBell = ({ variant = 'icon' }) => {
   const { user, apiCall } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -59,20 +59,33 @@ const NotificationBell = () => {
   const updatePosition = useCallback(() => {
     if (buttonRef.current && window.innerWidth >= 768) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const isNearBottom = rect.bottom > window.innerHeight - 240;
       const isNearRight = rect.left > window.innerWidth / 2;
-      const top = Math.min(window.innerHeight - 520, Math.max(10, rect.bottom + 8));
-      
-      if (isNearRight) {
+
+      if (isNearBottom) {
+        // Pop upward from bottom sidebar button
+        setDropdownCoords({
+          top: 'auto',
+          bottom: Math.max(16, window.innerHeight - rect.top + 8),
+          left: Math.max(16, rect.left),
+          right: 'auto',
+          transformOrigin: 'bottom left'
+        });
+      } else if (isNearRight) {
+        const top = Math.min(window.innerHeight - 520, Math.max(10, rect.bottom + 8));
         setDropdownCoords({
           top,
+          bottom: 'auto',
           right: Math.max(12, window.innerWidth - rect.right),
           left: 'auto',
           transformOrigin: 'top right'
         });
       } else {
+        const top = Math.min(window.innerHeight - 520, Math.max(10, rect.bottom + 8));
         const left = Math.min(window.innerWidth - 380, Math.max(12, rect.left));
         setDropdownCoords({
           top,
+          bottom: 'auto',
           left,
           right: 'auto',
           transformOrigin: 'top left'
@@ -360,67 +373,124 @@ const NotificationBell = () => {
     : notifications;
 
   return (
-    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-      {/* ── Bell Trigger Button ── */}
-      <button
-        ref={buttonRef}
-        onClick={toggleOpen}
-        className="btn btn-secondary notification-bell-trigger"
-        style={{
-          position: 'relative',
-          padding: '7px',
-          borderRadius: '10px',
-          width: '36px',
-          height: '36px',
-          minWidth: '36px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          background: isOpen ? 'var(--primary-glow, rgba(99, 102, 241, 0.15))' : undefined,
-          borderColor: isOpen ? 'var(--primary, #6366f1)' : undefined,
-          cursor: 'pointer',
-          flexShrink: 0
-        }}
-        title="Notifications"
-        aria-label={`Notifications (${unreadCount} unread)`}
-        aria-expanded={isOpen}
-      >
-        <Bell 
-          size={18} 
-          strokeWidth={2.2} 
-          className={unreadCount > 0 ? 'animate-bell-wiggle' : ''} 
-          style={{ color: unreadCount > 0 ? 'var(--primary, #6366f1)' : 'var(--text-secondary)' }}
-        />
-        {unreadCount > 0 && (
-          <span 
-            className="notification-bell-badge"
-            style={{
-              position: 'absolute',
-              top: '-3px',
-              right: '-3px',
-              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-              color: '#ffffff',
-              fontSize: '0.62rem',
-              fontWeight: 800,
-              borderRadius: '999px',
-              minWidth: '17px',
-              height: '17px',
-              padding: '0 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid var(--bg-surface, #0f172a)',
-              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.55)',
-              animation: 'pulseGlow 2s infinite',
-              lineHeight: 1,
-              pointerEvents: 'none'
-            }}
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+    <div style={{ position: 'relative', display: variant === 'sidebar' ? 'block' : 'inline-flex', width: variant === 'sidebar' ? '100%' : 'auto', alignItems: 'center' }}>
+      {/* ── Bell Trigger Button (Sidebar variant vs Compact Icon variant) ── */}
+      {variant === 'sidebar' ? (
+        <button
+          ref={buttonRef}
+          onClick={toggleOpen}
+          className={`btn ${isOpen ? 'btn-primary' : 'btn-secondary'} notification-bell-sidebar-trigger`}
+          style={{
+            position: 'relative',
+            width: '100%',
+            padding: '9px 14px',
+            fontSize: '0.84rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderRadius: '10px',
+            transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            background: isOpen ? 'var(--primary-glow, rgba(99, 102, 241, 0.15))' : undefined,
+            borderColor: isOpen ? 'var(--primary, #6366f1)' : undefined,
+            cursor: 'pointer'
+          }}
+          title="Open Notifications"
+          aria-label={`Notifications (${unreadCount} unread)`}
+          aria-expanded={isOpen}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Bell 
+              size={16} 
+              strokeWidth={2.2} 
+              className={unreadCount > 0 ? 'animate-bell-wiggle' : ''} 
+              style={{ color: unreadCount > 0 ? 'var(--primary, #6366f1)' : undefined }}
+            />
+            <span style={{ fontWeight: 600 }}>Notifications</span>
+          </div>
+          {unreadCount > 0 ? (
+            <span 
+              style={{
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                color: '#ffffff',
+                fontSize: '0.64rem',
+                fontWeight: 800,
+                borderRadius: '999px',
+                minWidth: '18px',
+                height: '18px',
+                padding: '0 5px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+              }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>0</span>
+          )}
+        </button>
+      ) : (
+        <button
+          ref={buttonRef}
+          onClick={toggleOpen}
+          className="btn btn-secondary notification-bell-trigger"
+          style={{
+            position: 'relative',
+            padding: '7px',
+            borderRadius: '10px',
+            width: '36px',
+            height: '36px',
+            minWidth: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            background: isOpen ? 'var(--primary-glow, rgba(99, 102, 241, 0.15))' : undefined,
+            borderColor: isOpen ? 'var(--primary, #6366f1)' : undefined,
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+          title="Notifications"
+          aria-label={`Notifications (${unreadCount} unread)`}
+          aria-expanded={isOpen}
+        >
+          <Bell 
+            size={18} 
+            strokeWidth={2.2} 
+            className={unreadCount > 0 ? 'animate-bell-wiggle' : ''} 
+            style={{ color: unreadCount > 0 ? 'var(--primary, #6366f1)' : 'var(--text-secondary)' }}
+          />
+          {unreadCount > 0 && (
+            <span 
+              className="notification-bell-badge"
+              style={{
+                position: 'absolute',
+                top: '-3px',
+                right: '-3px',
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                color: '#ffffff',
+                fontSize: '0.62rem',
+                fontWeight: 800,
+                borderRadius: '999px',
+                minWidth: '17px',
+                height: '17px',
+                padding: '0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid var(--bg-surface, #0f172a)',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.55)',
+                animation: 'pulseGlow 2s infinite',
+                lineHeight: 1,
+                pointerEvents: 'none'
+              }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* ── Modal / Drawer via Portal ── */}
       {isOpen && typeof document !== 'undefined' && createPortal(
@@ -467,9 +537,10 @@ const NotificationBell = () => {
               paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))'
             } : {
               position: 'fixed',
-              top: dropdownCoords.top,
-              left: dropdownCoords.left,
-              right: dropdownCoords.right,
+              top: dropdownCoords.top !== 'auto' ? dropdownCoords.top : undefined,
+              bottom: dropdownCoords.bottom !== 'auto' ? dropdownCoords.bottom : undefined,
+              left: dropdownCoords.left !== 'auto' ? dropdownCoords.left : undefined,
+              right: dropdownCoords.right !== 'auto' ? dropdownCoords.right : undefined,
               width: 'min(380px, calc(100vw - 32px))',
               maxHeight: '520px',
               zIndex: 99999,

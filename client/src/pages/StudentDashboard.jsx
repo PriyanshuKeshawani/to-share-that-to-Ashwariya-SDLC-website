@@ -662,14 +662,7 @@ const StudentDashboard = ({ onSelectBook }) => {
         </div>
 
         <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '10px' }}>
-          <button
-            onClick={() => { setActiveTab('settings'); setSelectedBranch(''); }}
-            className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'center', width: '100%', fontSize: '0.82rem', gap: '8px' }}
-            title="Open Settings and Logout"
-          >
-            <Settings size={15} /> Settings & Logout
-          </button>
+          <NotificationBell variant="sidebar" />
         </div>
       </aside>
 
@@ -710,6 +703,7 @@ const StudentDashboard = ({ onSelectBook }) => {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <NotificationBell />
               <button
                 onClick={toggleMode}
                 className="btn btn-secondary"
