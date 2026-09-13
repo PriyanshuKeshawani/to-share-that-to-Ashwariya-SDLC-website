@@ -28,7 +28,8 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Share2
+  Share2,
+  RefreshCw
 } from 'lucide-react';
 import ShareBookModal from '../components/ShareBookModal';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -361,6 +362,8 @@ const BookReader = ({ book, onClose }) => {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(() => Boolean(book?.pdf_url));
   const [pdfLoadError, setPdfLoadError] = useState(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Canvases refs
   const canvasLeftRef = useRef(null);
@@ -538,34 +541,64 @@ const BookReader = ({ book, onClose }) => {
     }, 350);
   }, [apiCall, book.id, book.title, totalPages]);
 
-  // Load PDF document into memory via PDF.js
+  // Load PDF document into memory via PDF.js with progressive chunk streaming & activity watchdog
   useEffect(() => {
     if (!pdfSource || useNativeViewer) return;
 
     let isMounted = true;
+    let loadingTask = null;
+    let activityTimer = null;
+    let lastActivityTime = Date.now();
     setPdfLoading(true);
     setPdfLoadError(null);
+    setDownloadProgress(0);
 
     const loadPdf = async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument({
+        // Enable progressive byte-range streaming for instant page readiness on large PDFs
+        loadingTask = pdfjsLib.getDocument({
           url: pdfSource,
-          withCredentials: false
+          withCredentials: false,
+          disableAutoFetch: true, // Stream pages on-demand without buffering full 24MB+ first
+          disableStream: false,
+          rangeChunkSize: 65536   // 64KB initial chunk size for fast metadata & first page
         });
 
-        // 15-second safety race to avoid hanging on slow network or worker stalls
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('PDF loading timed out')), 15000)
-        );
+        // Real-time progressive streaming monitor
+        loadingTask.onProgress = ({ loaded, total }) => {
+          lastActivityTime = Date.now();
+          if (total > 0 && isMounted) {
+            const pct = Math.min(99, Math.round((loaded / total) * 100));
+            setDownloadProgress(pct);
+          }
+        };
 
-        const doc = await Promise.race([loadingTask.promise, timeoutPromise]);
+        // Resilient activity-based watchdog: only timeout if ZERO bytes received for 45 seconds.
+        // As long as data chunks keep arriving, the stream is never killed.
+        const watchdogPromise = new Promise((_, reject) => {
+          activityTimer = setInterval(() => {
+            const now = Date.now();
+            if (now - lastActivityTime > 45000) {
+              clearInterval(activityTimer);
+              reject(new Error('Network connection stalled while streaming book data'));
+            }
+          }, 3000);
+        });
+
+        const doc = await Promise.race([loadingTask.promise, watchdogPromise]);
+        if (activityTimer) clearInterval(activityTimer);
         if (!isMounted) return;
 
         setPdfDoc(doc);
+        setDownloadProgress(100);
         if (doc.numPages && doc.numPages > 0) {
           setTotalPages(doc.numPages);
         }
       } catch (err) {
+        if (activityTimer) clearInterval(activityTimer);
+        if (loadingTask && loadingTask.destroy) {
+          try { loadingTask.destroy(); } catch {}
+        }
         console.warn('PDF.js loading notice (switching to graceful fallback if needed):', err);
         if (isMounted) {
           setPdfLoadError(err.message || 'Failed to render PDF in book engine');
@@ -577,10 +610,22 @@ const BookReader = ({ book, onClose }) => {
 
     loadPdf();
 
+    // Auto-retry when mobile device reconnects to internet
+    const handleOnline = () => {
+      if (!isMounted) return;
+      setReloadTrigger(prev => prev + 1);
+    };
+    window.addEventListener('online', handleOnline);
+
     return () => {
       isMounted = false;
+      if (activityTimer) clearInterval(activityTimer);
+      if (loadingTask && loadingTask.destroy) {
+        try { loadingTask.destroy(); } catch {}
+      }
+      window.removeEventListener('online', handleOnline);
     };
-  }, [pdfSource, useNativeViewer]);
+  }, [pdfSource, useNativeViewer, reloadTrigger]);
 
   // Function to render a page cleanly to a target canvas
   const renderPage = useCallback(async (pageNum, canvasKey, canvasElement) => {
@@ -1372,14 +1417,15 @@ const BookReader = ({ book, onClose }) => {
                 />
               </div>
             ) : pdfLoading ? (
-              /* Smooth Book Loading State */
+              /* Smooth Book Loading State with Real-Time Progressive Streaming Indicator */
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '65vh',
-                gap: '16px'
+                gap: '16px',
+                padding: '20px'
               }}>
                 <div style={{
                   width: '56px',
@@ -1389,17 +1435,40 @@ const BookReader = ({ book, onClose }) => {
                   borderRadius: '50%',
                   animation: 'spin 0.8s linear infinite'
                 }} />
-                <div style={{ textAlign: 'center' }}>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                <div style={{ textAlign: 'center', maxWidth: '380px' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
                     Preparing 3D Book Experience...
                   </h4>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    Loading high-resolution pages for "{book.title}"
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                    Streaming pages for "{book.title}"
                   </p>
+                  {downloadProgress > 0 && (
+                    <div style={{ width: '100%', maxWidth: '240px', margin: '0 auto' }}>
+                      <div style={{
+                        width: '100%',
+                        height: '6px',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '999px',
+                        overflow: 'hidden',
+                        marginBottom: '6px'
+                      }}>
+                        <div style={{
+                          width: `${downloadProgress}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                          borderRadius: '999px',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {downloadProgress}% streamed
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : pdfLoadError ? (
-              /* Graceful Error Fallback */
+              /* Resilient Fallback with 3D Book Retry */
               <div className="glass-panel" style={{
                 padding: '36px',
                 borderRadius: '16px',
@@ -1408,18 +1477,30 @@ const BookReader = ({ book, onClose }) => {
               }}>
                 <BookOpen size={40} color="#f59e0b" style={{ margin: '0 auto 12px' }} />
                 <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px' }}>
-                  Standard Book Engine Ready
+                  3D Book Engine Paused
                 </h4>
-                <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                  This book can be read seamlessly in the digital viewer or downloaded directly.
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
+                  {pdfLoadError && (pdfLoadError.includes('Network') || pdfLoadError.includes('stalled'))
+                    ? 'Connection was too slow or interrupted while streaming high-resolution pages.'
+                    : 'The book engine encountered a loading pause. You can retry the 3D book or switch to the digital viewer.'}
                 </p>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      setPdfLoadError(null);
+                      setReloadTrigger(prev => prev + 1);
+                    }}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <RefreshCw size={14} /> Retry 3D Book
+                  </button>
                   <button
                     onClick={() => setUseNativeViewer(true)}
-                    className="btn btn-primary"
+                    className="btn btn-secondary"
                     style={{ fontSize: '0.84rem' }}
                   >
-                    Open in Digital Viewer
+                    Digital Viewer
                   </button>
                   <button
                     onClick={handleDownloadPdf}
