@@ -2232,6 +2232,28 @@ export const AuthProvider = ({ children }) => {
           unverifiedErr.isUnverified = true;
           unverifiedErr.email = targetEmail;
           throw unverifiedErr;
+        } else {
+          // If institutional student account hit email_not_confirmed and their profile is pending:
+          if (userRecord && userRecord.status === 'pending') {
+            const formattedUser = {
+              id: userRecord.id,
+              username: userRecord.username,
+              fullName: userRecord.full_name,
+              role: userRecord.role || 'student',
+              status: 'pending',
+              branchName: userRecord.branch_name || '',
+              branch_name: userRecord.branch_name || '',
+              rollNumber: userRecord.roll_number,
+              year: userRecord.year,
+              semester: userRecord.semester,
+              btNumber: userRecord.bt_number,
+              authProvider: userRecord.auth_provider,
+              avatarUrl: userRecord.avatar_url
+            };
+            localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+            setUser(formattedUser);
+            return formattedUser;
+          }
         }
       }
       throw new Error('Invalid email/username or password. Please verify your credentials.');
