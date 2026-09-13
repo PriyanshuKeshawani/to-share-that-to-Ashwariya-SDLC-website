@@ -2147,16 +2147,35 @@ export const AuthProvider = ({ children }) => {
     let userRecord = null;
     let matchedUsers = [];
     try {
-      const cleanSearch = trimmedId.replace(/[,()]/g, '');
+      const cleanSearch = trimmedId.replace(/[,()]/g, '').trim();
+      const prefixSearch = cleanSearch.includes('@') ? cleanSearch.split('@')[0] : cleanSearch;
+      
+      const filterConditions = [
+        `username.ilike.${cleanSearch}`,
+        `roll_number.ilike.${cleanSearch}`,
+        `bt_number.ilike.${cleanSearch}`
+      ];
+      if (cleanSearch !== prefixSearch) {
+        filterConditions.push(`username.ilike.${prefixSearch}`);
+        filterConditions.push(`roll_number.ilike.${prefixSearch}`);
+      }
+
       const { data: foundUsers, error: matchErr } = await supabase
         .from('users')
         .select('*')
-        .or(`username.ilike.${cleanSearch},roll_number.ilike.${cleanSearch},bt_number.ilike.${cleanSearch}`)
+        .or(filterConditions.join(','))
         .order('created_at', { ascending: false });
 
       if (!matchErr && foundUsers && foundUsers.length > 0) {
         matchedUsers = foundUsers;
-        userRecord = foundUsers[0];
+        // Prioritize exact match if available
+        const exactMatch = foundUsers.find(u => 
+          (u.username && u.username.toLowerCase() === cleanSearch.toLowerCase()) ||
+          (u.roll_number && u.roll_number.toLowerCase() === cleanSearch.toLowerCase()) ||
+          (u.bt_number && u.bt_number.toLowerCase() === cleanSearch.toLowerCase()) ||
+          (u.username && u.username.toLowerCase() === prefixSearch.toLowerCase())
+        );
+        userRecord = exactMatch || foundUsers[0];
       }
     } catch (lookupErr) {
       console.warn('[Auth] Identifier lookup notice:', lookupErr?.message);
@@ -2219,6 +2238,39 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
+    // 5. CRITICAL CHECK: If this student's account is PENDING approval in institutional database:
+    // Never show 'Invalid credentials' error! Immediately transition to the Approval Pending screen.
+    if (userRecord && userRecord.role === 'student' && userRecord.status === 'pending') {
+      const formattedPendingUser = {
+        id: userRecord.id,
+        username: userRecord.username,
+        fullName: userRecord.full_name,
+        role: 'student',
+        status: 'pending',
+        branchName: userRecord.branch_name || '',
+        branch_name: userRecord.branch_name || '',
+        rollNumber: userRecord.roll_number,
+        year: userRecord.year,
+        semester: userRecord.semester,
+        btNumber: userRecord.bt_number,
+        authProvider: userRecord.auth_provider || 'password',
+        avatarUrl: userRecord.avatar_url
+      };
+
+      localStorage.setItem('lib_custom_user', JSON.stringify(formattedPendingUser));
+      setUser(formattedPendingUser);
+      if (authData?.session) {
+        setSession(authData.session);
+      }
+      return formattedPendingUser;
+    }
+
+    // 6. If user's registration was rejected by administrator:
+    if (userRecord && userRecord.role === 'student' && userRecord.status === 'rejected') {
+      await supabase.auth.signOut();
+      throw new Error('Your registration was rejected by the library administrator. Please connect with your department library in-charge.');
+    }
+
     if (authError || !authData?.user) {
       const errMsg = (authError?.message || '').toLowerCase();
       if (errMsg.includes('email not confirmed') || errMsg.includes('not confirmed') || authError?.code === 'email_not_confirmed') {
@@ -2232,28 +2284,6 @@ export const AuthProvider = ({ children }) => {
           unverifiedErr.isUnverified = true;
           unverifiedErr.email = targetEmail;
           throw unverifiedErr;
-        } else {
-          // If institutional student account hit email_not_confirmed and their profile is pending:
-          if (userRecord && userRecord.status === 'pending') {
-            const formattedUser = {
-              id: userRecord.id,
-              username: userRecord.username,
-              fullName: userRecord.full_name,
-              role: userRecord.role || 'student',
-              status: 'pending',
-              branchName: userRecord.branch_name || '',
-              branch_name: userRecord.branch_name || '',
-              rollNumber: userRecord.roll_number,
-              year: userRecord.year,
-              semester: userRecord.semester,
-              btNumber: userRecord.bt_number,
-              authProvider: userRecord.auth_provider,
-              avatarUrl: userRecord.avatar_url
-            };
-            localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
-            setUser(formattedUser);
-            return formattedUser;
-          }
         }
       }
       throw new Error('Invalid email/username or password. Please verify your credentials.');
