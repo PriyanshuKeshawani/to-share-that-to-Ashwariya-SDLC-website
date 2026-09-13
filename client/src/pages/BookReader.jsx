@@ -34,6 +34,30 @@ import {
 import ShareBookModal from '../components/ShareBookModal';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
+// Polyfills for modern TC39 proposals required by modern pdfjs-dist workers and range chunkers
+if (typeof Map !== 'undefined') {
+  if (!Map.prototype.getOrInsertComputed) {
+    Map.prototype.getOrInsertComputed = function (key, callbackFn) {
+      if (this.has(key)) return this.get(key);
+      const val = callbackFn(key);
+      this.set(key, val);
+      return val;
+    };
+  }
+  if (!Map.prototype.getOrInsert) {
+    Map.prototype.getOrInsert = function (key, defaultValue) {
+      if (this.has(key)) return this.get(key);
+      this.set(key, defaultValue);
+      return defaultValue;
+    };
+  }
+}
+if (typeof Uint8Array !== 'undefined' && !Uint8Array.prototype.toHex) {
+  Uint8Array.prototype.toHex = function () {
+    return Array.from(this, b => b.toString(16).padStart(2, '0')).join('');
+  };
+}
+
 // Configure PDF.js worker reliably for Vite dev server and production bundle
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
   try {
@@ -374,6 +398,8 @@ const BookReader = ({ book, onClose }) => {
   const failedPagesRef = useRef(new Set());
   const loadingModeRef = useRef('stream'); // 'stream' (Tier 1 fast path) | 'buffer' (Tier 2 in-memory fallback)
   const fallbackLoadingRef = useRef(false);
+  const bufferDocRef = useRef(null);
+  const bufferDocPromiseRef = useRef(null);
 
   // Slide-over drawer state (showNotes closed by default for distraction-free reading!)
   const [showDrawer, setShowDrawer] = useState(false);
@@ -546,6 +572,73 @@ const BookReader = ({ book, onClose }) => {
     }, 350);
   }, [apiCall, book.id, book.title, totalPages]);
 
+  // Resilient In-Memory Buffer Provider: caches ArrayBuffer and Document instance
+  const getOrFetchBufferDoc = useCallback(async () => {
+    if (bufferDocRef.current) return bufferDocRef.current;
+    if (bufferDocPromiseRef.current) return bufferDocPromiseRef.current;
+
+    bufferDocPromiseRef.current = (async () => {
+      try {
+        console.info('[3D Book Engine] Ingesting in-memory book buffer in background...');
+        const response = await fetch(pdfSource);
+        if (!response.ok) {
+          throw new Error(`Failed to download book buffer: HTTP ${response.status}`);
+        }
+
+        const contentLength = response.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        let buffer;
+
+        if (response.body && total > 0) {
+          const reader = response.body.getReader();
+          let receivedLength = 0;
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            receivedLength += value.length;
+            const pct = Math.min(99, Math.round((receivedLength / total) * 100));
+            setDownloadProgress(pct);
+          }
+          const fullArray = new Uint8Array(receivedLength);
+          let position = 0;
+          for (const chunk of chunks) {
+            fullArray.set(chunk, position);
+            position += chunk.length;
+          }
+          buffer = fullArray.buffer;
+        } else {
+          buffer = await response.arrayBuffer();
+        }
+
+        setDownloadProgress(100);
+
+        const cMapUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`;
+        const standardFontDataUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`;
+        const wasmUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/wasm/`;
+        const bufferTask = pdfjsLib.getDocument({
+          data: new Uint8Array(buffer),
+          cMapUrl,
+          cMapPacked: true,
+          standardFontDataUrl,
+          wasmUrl
+        });
+
+        const doc = await bufferTask.promise;
+        bufferDocRef.current = doc;
+        console.info(`[3D Book Engine] In-memory buffer ready with ${doc.numPages} pages.`);
+        return doc;
+      } catch (err) {
+        console.warn('[3D Book Engine] Background buffer ingestion error:', err);
+        bufferDocPromiseRef.current = null;
+        throw err;
+      }
+    })();
+
+    return bufferDocPromiseRef.current;
+  }, [pdfSource]);
+
   // Two-Tier PDF Document Loading: Fast Progressive Streaming (Tier 1) & In-Memory Buffer Fallback (Tier 2)
   const loadFullDocumentFallback = useCallback(async (reason) => {
     if (fallbackLoadingRef.current || !pdfSource) return;
@@ -554,49 +647,9 @@ const BookReader = ({ book, onClose }) => {
     console.info(`[3D Book Engine] Activating Full-Document In-Memory Buffer: ${reason}`);
 
     try {
-      setDownloadProgress(5);
-      const response = await fetch(pdfSource);
-      if (!response.ok) {
-        throw new Error(`Failed to download book buffer: HTTP ${response.status}`);
-      }
-
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      let buffer;
-
-      if (response.body && total > 0) {
-        const reader = response.body.getReader();
-        let receivedLength = 0;
-        const chunks = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          receivedLength += value.length;
-          const pct = Math.min(99, Math.round((receivedLength / total) * 100));
-          setDownloadProgress(pct);
-        }
-        const fullArray = new Uint8Array(receivedLength);
-        let position = 0;
-        for (const chunk of chunks) {
-          fullArray.set(chunk, position);
-          position += chunk.length;
-        }
-        buffer = fullArray.buffer;
-      } else {
-        buffer = await response.arrayBuffer();
-      }
-
+      setDownloadProgress(20);
+      const fullDoc = await getOrFetchBufferDoc();
       setDownloadProgress(100);
-
-      const cMapUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`;
-      const bufferTask = pdfjsLib.getDocument({
-        data: new Uint8Array(buffer),
-        cMapUrl,
-        cMapPacked: true
-      });
-
-      const fullDoc = await bufferTask.promise;
       pageCacheRef.current.clear();
       failedPagesRef.current.clear();
       setPdfDoc(fullDoc);
@@ -612,7 +665,7 @@ const BookReader = ({ book, onClose }) => {
       fallbackLoadingRef.current = false;
       setPdfLoading(false);
     }
-  }, [pdfSource]);
+  }, [pdfSource, getOrFetchBufferDoc]);
 
   // Load PDF document: Tier 1 Fast Path with automatic watchdog and completeness probe
   useEffect(() => {
@@ -627,9 +680,14 @@ const BookReader = ({ book, onClose }) => {
     setDownloadProgress(0);
     loadingModeRef.current = 'stream';
 
+    // Proactively start background buffer pre-buffering so subsequent pages never stall
+    getOrFetchBufferDoc().catch(() => {});
+
     const loadPdf = async () => {
       try {
         const cMapUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`;
+        const standardFontDataUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`;
+        const wasmUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/wasm/`;
         // Progressive streaming with auto-fetch enabled so background prebuffering prevents range starvation
         loadingTask = pdfjsLib.getDocument({
           url: pdfSource,
@@ -637,7 +695,9 @@ const BookReader = ({ book, onClose }) => {
           disableAutoFetch: false,
           disableStream: false,
           cMapUrl,
-          cMapPacked: true
+          cMapPacked: true,
+          standardFontDataUrl,
+          wasmUrl
         });
 
         // Real-time streaming progress monitor
@@ -670,7 +730,7 @@ const BookReader = ({ book, onClose }) => {
           setTotalPages(doc.numPages);
         }
 
-        // Diagnostic Completeness Probe (Step 4): Non-blocking test of middle and last page access
+        // Diagnostic Completeness Probe: Non-blocking test of middle and last page access
         if (doc.numPages > 1) {
           const probePages = [
             Math.ceil(doc.numPages / 2),
@@ -681,7 +741,7 @@ const BookReader = ({ book, onClose }) => {
               try {
                 await doc.getPage(p);
               } catch (probeErr) {
-                console.warn(`[3D Book Engine Diagnostic] Stream probe failed on page ${p}:`, probeErr?.message);
+                console.warn(`[3D Book Engine Diagnostic] Stream probe notice on page ${p}:`, probeErr?.message);
                 if (isMounted && loadingModeRef.current === 'stream') {
                   loadFullDocumentFallback(`Stream probe failed on page ${p}`);
                 }
@@ -722,7 +782,7 @@ const BookReader = ({ book, onClose }) => {
       }
       window.removeEventListener('online', handleOnline);
     };
-  }, [pdfSource, useNativeViewer, reloadTrigger, loadFullDocumentFallback]);
+  }, [pdfSource, useNativeViewer, reloadTrigger, loadFullDocumentFallback, getOrFetchBufferDoc]);
 
   // Render an informative, non-blank error notification directly on the canvas
   const renderErrorOnCanvas = useCallback((canvas, pageNum, message) => {
@@ -786,22 +846,36 @@ const BookReader = ({ book, onClose }) => {
       }
     }
 
-    // 4. Fetch Page Object from PDF.js
+    // 4. Fetch Page Object from PDF.js (Fast streaming with instant in-memory buffer recovery)
     let page;
+    let effectiveDoc = pdfDoc;
     try {
-      page = await pdfDoc.getPage(pageNum);
+      page = await effectiveDoc.getPage(pageNum);
     } catch (pageErr) {
-      console.warn(`[3D Book Engine] getPage(${pageNum}) failed:`, pageErr);
-      // If streaming range request failed on this page, trigger seamless full-document fallback
-      if (loadingModeRef.current === 'stream') {
-        loadFullDocumentFallback(`getPage(${pageNum}) stream error`);
+      console.warn(`[3D Book Engine] Stream getPage(${pageNum}) failed; recovering via in-memory buffer:`, pageErr?.message || pageErr);
+      try {
+        const bufferDoc = await getOrFetchBufferDoc();
+        if (bufferDoc) {
+          effectiveDoc = bufferDoc;
+          if (pdfDoc !== bufferDoc) {
+            setPdfDoc(bufferDoc);
+            if (bufferDoc.numPages && bufferDoc.numPages > 0) {
+              setTotalPages(bufferDoc.numPages);
+            }
+          }
+          page = await bufferDoc.getPage(pageNum);
+        }
+      } catch (bufErr) {
+        console.error(`[3D Book Engine] Failed to obtain page ${pageNum} from buffer:`, bufErr);
       }
 
-      if (renderSeqRef.current[canvasKey] === ticket) {
-        renderErrorOnCanvas(canvasElement, pageNum, pageErr?.message || 'Page data missing');
-        failedPagesRef.current.add(pageNum);
+      if (!page) {
+        if (renderSeqRef.current[canvasKey] === ticket) {
+          renderErrorOnCanvas(canvasElement, pageNum, pageErr?.message || 'Page data missing');
+          failedPagesRef.current.add(pageNum);
+        }
+        return;
       }
-      return;
     }
 
     // If another page turn superseded this ticket during getPage, exit cleanly
@@ -831,6 +905,10 @@ const BookReader = ({ book, onClose }) => {
       offscreen.width = viewport.width;
       offscreen.height = viewport.height;
       const offscreenCtx = offscreen.getContext('2d', { alpha: false });
+      // Ensure canvas background is filled with opaque white before page rendering
+      // Canvas with alpha:false initializes to black (#000000), which renders transparent/scanned pages completely black!
+      offscreenCtx.fillStyle = '#ffffff';
+      offscreenCtx.fillRect(0, 0, viewport.width, viewport.height);
 
       const renderTask = page.render({
         canvasContext: offscreenCtx,
@@ -880,7 +958,7 @@ const BookReader = ({ book, onClose }) => {
         }
       }
     }
-  }, [pdfDoc, scale, mobileZoom, mode, loadFullDocumentFallback, getCacheKey, renderErrorOnCanvas]);
+  }, [pdfDoc, scale, mobileZoom, mode, loadFullDocumentFallback, getOrFetchBufferDoc, getCacheKey, renderErrorOnCanvas]);
 
   // Idle preloader for adjacent pages (currentPage + 1, currentPage + 2, currentPage - 1)
   useEffect(() => {
@@ -899,7 +977,15 @@ const BookReader = ({ book, onClose }) => {
         if (pageCacheRef.current.has(key)) continue;
 
         try {
-          const page = await pdfDoc.getPage(p);
+          let page;
+          try {
+            page = await pdfDoc.getPage(p);
+          } catch {
+            if (bufferDocRef.current) {
+              page = await bufferDocRef.current.getPage(p);
+            }
+          }
+          if (!page) continue;
           const unscaledViewport = page.getViewport({ scale: 1.0 });
           let effectiveScale = scale;
           if (isMobileView) {
@@ -913,6 +999,8 @@ const BookReader = ({ book, onClose }) => {
           offscreen.width = viewport.width;
           offscreen.height = viewport.height;
           const offCtx = offscreen.getContext('2d', { alpha: false });
+          offCtx.fillStyle = '#ffffff';
+          offCtx.fillRect(0, 0, viewport.width, viewport.height);
           await page.render({ canvasContext: offCtx, viewport }).promise;
 
           if (mode === 'dark') {

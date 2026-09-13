@@ -5336,13 +5336,34 @@ const AdminDashboard = () => {
                     }}
                     title="Click to inspect student profile and reading logs"
                   >
+                    {st.avatar_url ? (
+                      <img
+                        src={st.avatar_url}
+                        alt={st.full_name || st.username || 'Student'}
+                        referrerPolicy="no-referrer"
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '12px',
+                          objectFit: 'cover',
+                          border: '1px solid var(--border-glass)',
+                          flexShrink: 0
+                        }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextElementSibling) {
+                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                          }
+                        }}
+                      />
+                    ) : null}
                     <div style={{
                       width: '44px',
                       height: '44px',
                       borderRadius: '12px',
                       background: 'rgba(59, 130, 246, 0.12)',
                       color: 'var(--primary)',
-                      display: 'flex',
+                      display: st.avatar_url ? 'none' : 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { UserPlus, ArrowLeft, Sun, Moon, CheckCircle2, Clock, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
+import { UserPlus, ArrowLeft, Sun, Moon, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
 
 const FALLBACK_BRANCHES = [
   { id: 1, name: 'CSE (Computer Science & Engineering)' },
@@ -36,10 +36,10 @@ const Register = ({ onToggleView }) => {
     password: '',
     fullName: '',
     rollNumber: '',
+    btNumber: '',
     branchName: FALLBACK_BRANCHES[0].name,
     year: '1st Year',
-    semester: '1st Semester',
-    btNumber: ''
+    semester: '1st Semester'
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -88,15 +88,20 @@ const Register = ({ onToggleView }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { username, password, fullName, rollNumber, branchName, year, semester, btNumber } = formData;
+    const { username, password, fullName, rollNumber, btNumber, branchName, year, semester } = formData;
 
     const trimmedUsername = (username || '').trim();
     const trimmedFullName = (fullName || '').trim();
     const trimmedRoll = (rollNumber || '').trim();
     const trimmedBt = (btNumber || '').trim();
 
-    if (!trimmedUsername || !password || !trimmedFullName || !trimmedRoll || !branchName || !year || !semester || !trimmedBt) {
-      setError('Please fill in all required registration fields with valid institutional information.');
+    if (!trimmedUsername || !password || !trimmedFullName || !trimmedRoll || !trimmedBt || !branchName || !year || !semester) {
+      setError('Please fill in all registration fields with valid institutional information.');
+      return;
+    }
+
+    if (trimmedUsername.length < 3) {
+      setError('Username must be at least 3 characters long.');
       return;
     }
 
@@ -110,11 +115,14 @@ const Register = ({ onToggleView }) => {
       setSuccess('');
       setLoading(true);
       const cleanPayload = {
-        ...formData,
         username: trimmedUsername,
+        password,
         fullName: trimmedFullName,
         rollNumber: trimmedRoll,
-        btNumber: trimmedBt
+        btNumber: trimmedBt,
+        branchName,
+        year,
+        semester
       };
       const res = await register(cleanPayload);
       setSubmittedData(cleanPayload);
@@ -140,46 +148,35 @@ const Register = ({ onToggleView }) => {
       <div style={{
         position: 'absolute',
         top: '20px',
-        right: '24px',
-        zIndex: 20
+        right: '20px',
+        zIndex: 10
       }}>
         <button
           onClick={toggleMode}
           className="btn btn-secondary"
           style={{
-            padding: '8px 16px',
-            borderRadius: '999px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
+            padding: '8px 12px',
+            borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            background: 'var(--bg-glass)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid var(--border-glass)',
-            color: 'var(--text-primary)',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+            gap: '6px',
+            fontSize: '0.85rem'
           }}
-          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle Theme"
         >
-          {isDark ? <Sun size={15} color="#fbbf24" /> : <Moon size={15} color="var(--primary)" />}
-          <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          <span>{isDark ? 'Light' : 'Dark'}</span>
         </button>
       </div>
 
-      <div className="glass-panel animate-fade-in register-card" style={{
+      <div className="glass-panel animate-fade-in" style={{
         width: '100%',
-        maxWidth: '580px',
-        padding: '40px 36px',
-        position: 'relative',
-        borderRadius: '20px',
-        boxShadow: 'var(--shadow-elevated)'
+        maxWidth: '560px',
+        padding: '36px 32px',
+        position: 'relative'
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
             width: '64px',
             height: '64px',
@@ -190,7 +187,7 @@ const Register = ({ onToggleView }) => {
             justifyContent: 'center',
             padding: '6px',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.25)',
-            margin: '0 auto 16px'
+            margin: '0 auto 14px'
           }}>
             <img
               src="/logo.png"
@@ -199,7 +196,7 @@ const Register = ({ onToggleView }) => {
             />
           </div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '6px' }}>Student Registration</h2>
-          <p style={{ marginTop: '4px', fontSize: '0.88rem' }}>Create your library account for approval</p>
+          <p style={{ marginTop: '4px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Create your library account for approval</p>
         </div>
 
         {error && (
@@ -219,7 +216,7 @@ const Register = ({ onToggleView }) => {
           </div>
         )}
 
-        {success && (
+        {success && !submittedData && (
           <div className="badge-success" style={{
             padding: '12px 14px',
             borderRadius: '10px',
@@ -244,55 +241,43 @@ const Register = ({ onToggleView }) => {
               borderRadius: '50%',
               background: registrationResult.status === 'approved'
                 ? 'rgba(16, 185, 129, 0.15)'
-                : registrationResult.status === 'rejected'
-                ? 'rgba(239, 68, 68, 0.15)'
                 : 'rgba(245, 158, 11, 0.15)',
               border: `2px solid ${
                 registrationResult.status === 'approved'
                   ? 'var(--success)'
-                  : registrationResult.status === 'rejected'
-                  ? 'var(--danger)'
                   : 'var(--warning)'
               }`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 20px',
+              margin: '0 auto 18px',
               color: registrationResult.status === 'approved'
                 ? 'var(--success)'
-                : registrationResult.status === 'rejected'
-                ? 'var(--danger)'
                 : 'var(--warning)'
             }}>
               {registrationResult.status === 'approved' ? (
                 <CheckCircle2 size={36} />
-              ) : registrationResult.status === 'rejected' ? (
-                <ShieldCheck size={36} />
               ) : (
                 <Clock size={36} />
               )}
             </div>
 
-            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: '10px' }}>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: '8px' }}>
               {registrationResult.status === 'approved'
                 ? 'Registration Approved!'
-                : registrationResult.status === 'rejected'
-                ? 'Registration Logged'
                 : 'Registration Submitted'}
             </h2>
 
             <p style={{
               color: 'var(--text-secondary)',
-              fontSize: '0.94rem',
+              fontSize: '0.92rem',
               lineHeight: 1.6,
-              marginBottom: '24px',
+              marginBottom: '20px',
               padding: '0 8px'
             }}>
               {registrationResult.status === 'approved'
                 ? 'Your institutional library account has been approved! You can now sign in to access SISTECH-LIB ebooks and resources.'
-                : registrationResult.status === 'rejected'
-                ? 'Your registration has been received but could not be automatically approved per current policy. Please contact the library administrator.'
-                : 'Your account has been registered successfully. Please connect with the administrator for approval. You will be able to access SISTECH-LIB after your account is approved.'}
+                : 'Your account has been registered successfully! Please wait for the library administrator to approve your account. Once approved, you can sign in with your Username/Roll Number and Password.'}
             </p>
 
             <div style={{
@@ -300,7 +285,7 @@ const Register = ({ onToggleView }) => {
               border: '1px solid var(--border-glass)',
               borderRadius: '14px',
               padding: '18px 20px',
-              marginBottom: '26px',
+              marginBottom: '24px',
               textAlign: 'left',
               fontSize: '0.86rem'
             }}>
@@ -308,6 +293,10 @@ const Register = ({ onToggleView }) => {
                 Candidate Registration Receipt
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 16px' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Username:</span>
+                  <div style={{ fontWeight: 600 }}>{submittedData.username}</div>
+                </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Full Name:</span>
                   <div style={{ fontWeight: 600 }}>{submittedData.fullName}</div>
@@ -317,8 +306,8 @@ const Register = ({ onToggleView }) => {
                   <div style={{ fontWeight: 600 }}>{submittedData.rollNumber}</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Username:</span>
-                  <div style={{ fontWeight: 600 }}>{submittedData.username}</div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>BT Number:</span>
+                  <div style={{ fontWeight: 600 }}>{submittedData.btNumber || 'N/A'}</div>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Department / Branch:</span>
@@ -327,10 +316,6 @@ const Register = ({ onToggleView }) => {
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Year &amp; Semester:</span>
                   <div style={{ fontWeight: 600 }}>{submittedData.year} • {submittedData.semester}</div>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>BT Code:</span>
-                  <div style={{ fontWeight: 600 }}>{submittedData.btNumber || 'N/A'}</div>
                 </div>
               </div>
               <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -341,27 +326,19 @@ const Register = ({ onToggleView }) => {
                   fontWeight: 700,
                   fontSize: '0.76rem',
                   textTransform: 'uppercase',
-                  background: registrationResult.status === 'approved'
-                    ? 'rgba(16, 185, 129, 0.2)'
-                    : registrationResult.status === 'rejected'
-                    ? 'rgba(239, 68, 68, 0.2)'
-                    : 'rgba(245, 158, 11, 0.2)',
-                  color: registrationResult.status === 'approved'
-                    ? '#34d399'
-                    : registrationResult.status === 'rejected'
-                    ? '#f87171'
-                    : '#fbbf24'
+                  background: registrationResult.status === 'approved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  color: registrationResult.status === 'approved' ? '#34d399' : '#fbbf24'
                 }}>
-                  {registrationResult.status === 'approved' ? 'Approved' : registrationResult.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
+                  {registrationResult.status === 'approved' ? 'Approved' : 'Pending Admin Approval'}
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
                 onClick={onToggleView}
                 className="btn btn-primary"
-                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 700, borderRadius: '10px', gap: '8px' }}
+                style={{ width: '100%', padding: '12px', fontSize: '0.9rem', fontWeight: 700, borderRadius: '10px', gap: '8px' }}
               >
                 Proceed to Sign In <ArrowRight size={16} />
               </button>
@@ -369,17 +346,27 @@ const Register = ({ onToggleView }) => {
                 onClick={() => {
                   setSubmittedData(null);
                   setRegistrationResult(null);
+                  setFormData({
+                    username: '',
+                    password: '',
+                    fullName: '',
+                    rollNumber: '',
+                    btNumber: '',
+                    branchName: branches[0]?.name || FALLBACK_BRANCHES[0].name,
+                    year: '1st Year',
+                    semester: '1st Semester'
+                  });
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '12px 18px', fontSize: '0.85rem', borderRadius: '10px' }}
+                style={{ width: '100%', padding: '11px', fontSize: '0.85rem', borderRadius: '10px' }}
               >
-                Register Another
+                Register Another Student
               </button>
             </div>
           </div>
         ) : (
           <>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               <div className="grid-responsive-2col">
                 <div>

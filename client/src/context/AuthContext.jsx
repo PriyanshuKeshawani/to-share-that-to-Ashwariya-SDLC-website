@@ -54,6 +54,21 @@ export const isSameBranch = (branchA, branchB) => {
   return Boolean(canA && canB && canA === canB);
 };
 
+export const KNOWN_DEPARTMENT_ADMINS = {
+  'cse.library@sistec.ac.in': 'Computer Science and Engineering',
+  'cse.admin@sistec.ac.in': 'Computer Science and Engineering',
+  'it.library@sistec.ac.in': 'Information Technology',
+  'it.admin@sistec.ac.in': 'Information Technology',
+  'ec.library@sistec.ac.in': 'Electronics and Communication',
+  'ec.admin@sistec.ac.in': 'Electronics and Communication',
+  'me.library@sistec.ac.in': 'Mechanical Engineering',
+  'me.admin@sistec.ac.in': 'Mechanical Engineering',
+  'ce.library@sistec.ac.in': 'Civil Engineering',
+  'ce.admin@sistec.ac.in': 'Civil Engineering',
+  'ee.library@sistec.ac.in': 'Electrical Engineering',
+  'ee.admin@sistec.ac.in': 'Electrical Engineering'
+};
+
 const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
@@ -1937,71 +1952,16 @@ export const AuthProvider = ({ children }) => {
     return [];
   }, [user]);
 
-  const bypassLogin = (role = 'admin', branchName = 'Central Library') => {
-    const isHq = role === 'admin' && (branchName === 'Central Library' || branchName === 'Headquarters');
-    const mockUser = role === 'admin' ? {
-      id: isHq ? '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000003',
-      username: isHq ? 'admin' : `admin_${branchName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-      fullName: isHq ? 'Central Library Administrator (Headquarters)' : `${branchName} Library Administrator`,
-      role: 'admin',
-      isHeadquarters: isHq,
-      status: 'approved',
-      branchName: branchName || 'Central Library',
-      adminBranch: isHq ? null : branchName,
-      rollNumber: isHq ? 'ADMIN-HQ' : 'ADMIN-BRANCH',
-      year: 'Faculty/Staff',
-      semester: 'N/A',
-      btNumber: 'BT-ADMIN',
-      authProvider: 'bypass',
-      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${isHq ? 'admin' : branchName}`
-    } : {
-      id: '00000000-0000-0000-0000-000000000002',
-      username: 'student_cs',
-      fullName: 'Demo Student (CS)',
-      role: 'student',
-      isHeadquarters: false,
-      status: 'approved',
-      branchName: branchName || 'Computer Science and Engineering',
-      rollNumber: '0187CS211001',
-      year: '3rd Year',
-      semester: '6th Semester',
-      btNumber: 'BT-1029',
-      authProvider: 'bypass',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=priyanshu'
-    };
-
-    localStorage.setItem('lib_custom_user', JSON.stringify(mockUser));
-    setUser(mockUser);
-    setNeedsProfile(false);
-    setPendingGoogleUser(null);
-    setLoading(false);
-    return mockUser;
-  };
-
   const loadUser = useCallback(async (isSilent = false) => {
     try {
-      if (!isSilent && !localStorage.getItem('lib_custom_user')) {
+      if (!isSilent) {
         setLoading(true);
-      }
-
-      const savedUserStr = localStorage.getItem('lib_custom_user');
-      if (savedUserStr) {
-        try {
-          const savedUser = sanitizeCustomUser(JSON.parse(savedUserStr));
-          if (savedUser && (savedUser.authProvider === 'credentials' || savedUser.role === 'admin' || savedUser.authProvider === 'bypass' || savedUser.authProvider === 'google')) {
-            setUser(savedUser);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.warn('Failed parsing cached user', e);
-        }
       }
 
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !currentSession) {
-        if (!savedUserStr) clearSession();
+        clearSession();
         setLoading(false);
         return;
       }
@@ -2015,11 +1975,47 @@ export const AuthProvider = ({ children }) => {
         (Array.isArray(currentSession.user.identities) && currentSession.user.identities.some(i => i.provider === 'google')) ||
         currentSession.user.email?.endsWith('@gmail.com');
 
-      const { data, error } = await supabase
+      // Enforce email confirmation for standard email/password accounts
+      if (!isGoogleUser && !currentSession.user.email_confirmed_at) {
+        console.warn('[Auth] Unverified email session detected. Signing out.');
+        await supabase.auth.signOut();
+        clearSession();
+        setLoading(false);
+        return;
+      }
+
+      let { data, error } = await supabase
         .from('users')
         .select('id, username, full_name, roll_number, branch_name, year, semester, bt_number, role, status, is_blocked, auth_provider, avatar_url')
         .eq('id', authUserId)
         .maybeSingle();
+
+      // For Google users: if no record by authUserId exists yet, check if profile exists by email to prevent duplicate accounts
+      if (!data && isGoogleUser && currentSession.user.email) {
+        const userEmail = currentSession.user.email.toLowerCase();
+        const { data: matchedUser } = await supabase
+          .from('users')
+          .select('id, username, full_name, roll_number, branch_name, year, semester, bt_number, role, status, is_blocked, auth_provider, avatar_url')
+          .or(`username.ilike.${userEmail},roll_number.ilike.${userEmail}`)
+          .maybeSingle();
+
+        if (matchedUser) {
+          data = matchedUser;
+          // Associate the existing record with authUserId
+          if (matchedUser.id !== authUserId) {
+            try {
+              await supabase.from('users').update({
+                id: authUserId,
+                auth_provider: 'google',
+                avatar_url: matchedUser.avatar_url || currentSession.user.user_metadata?.avatar_url || currentSession.user.user_metadata?.picture || null
+              }).eq('id', matchedUser.id);
+              data.id = authUserId;
+            } catch (linkErr) {
+              console.warn('[Auth] Account linking note:', linkErr?.message);
+            }
+          }
+        }
+      }
 
       if (!error && data) {
         if (data.is_blocked === 1) {
@@ -2027,6 +2023,21 @@ export const AuthProvider = ({ children }) => {
           clearSession();
           return;
         }
+
+        const googleAvatar = isGoogleUser
+          ? (currentSession.user.user_metadata?.avatar_url || currentSession.user.user_metadata?.picture || currentSession.user.identities?.[0]?.identity_data?.avatar_url || currentSession.user.identities?.[0]?.identity_data?.picture || null)
+          : null;
+
+        if (googleAvatar && !data.avatar_url) {
+          try {
+            await supabase.from('users').update({ avatar_url: googleAvatar }).eq('id', data.id);
+            data.avatar_url = googleAvatar;
+          } catch (avErr) {
+            console.warn('[Auth] Avatar sync notice:', avErr);
+          }
+        }
+
+        const resolvedAvatar = data.avatar_url || googleAvatar || null;
 
         const isHq = data.role === 'admin' && (data.branch_name === 'Central Library' || data.branch_name === 'Headquarters' || !data.branch_name);
         const formatted = {
@@ -2044,7 +2055,8 @@ export const AuthProvider = ({ children }) => {
           semester: data.semester,
           btNumber: data.bt_number,
           authProvider: data.auth_provider,
-          avatarUrl: data.avatar_url || (isGoogleUser ? (currentSession.user.user_metadata?.avatar_url || currentSession.user.user_metadata?.picture) : null)
+          avatarUrl: resolvedAvatar,
+          avatar_url: resolvedAvatar
         };
         setUser(formatted);
         localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
@@ -2125,174 +2137,202 @@ export const AuthProvider = ({ children }) => {
     const trimmedPass = (password || '').trim();
     const idLower = trimmedId.toLowerCase();
 
-    const DEPARTMENT_ADMIN_MAP = {
-      'cse.library@sistec.ac.in': { branch: 'Computer Science and Engineering', title: 'CSE Department Library Admin', code: 'ADMIN-CSE' },
-      'cse.admin@sistec.ac.in': { branch: 'Computer Science and Engineering', title: 'CSE Department Library Admin', code: 'ADMIN-CSE' },
-      'it.library@sistec.ac.in': { branch: 'Information Technology', title: 'IT Department Library Admin', code: 'ADMIN-IT' },
-      'it.admin@sistec.ac.in': { branch: 'Information Technology', title: 'IT Department Library Admin', code: 'ADMIN-IT' },
-      'ec.library@sistec.ac.in': { branch: 'Electronics and Communication', title: 'ECE Department Library Admin', code: 'ADMIN-ECE' },
-      'ec.admin@sistec.ac.in': { branch: 'Electronics and Communication', title: 'ECE Department Library Admin', code: 'ADMIN-ECE' },
-      'me.library@sistec.ac.in': { branch: 'Mechanical Engineering', title: 'ME Department Library Admin', code: 'ADMIN-ME' },
-      'me.admin@sistec.ac.in': { branch: 'Mechanical Engineering', title: 'ME Department Library Admin', code: 'ADMIN-ME' },
-      'ce.library@sistec.ac.in': { branch: 'Civil Engineering', title: 'Civil Department Library Admin', code: 'ADMIN-CE' },
-      'ce.admin@sistec.ac.in': { branch: 'Civil Engineering', title: 'Civil Department Library Admin', code: 'ADMIN-CE' },
-      'ee.library@sistec.ac.in': { branch: 'Electrical Engineering', title: 'EE Department Library Admin', code: 'ADMIN-EE' },
-      'ee.admin@sistec.ac.in': { branch: 'Electrical Engineering', title: 'EE Department Library Admin', code: 'ADMIN-EE' }
-    };
-
-    const isDeptAdmin = DEPARTMENT_ADMIN_MAP[idLower];
-    if (isDeptAdmin) {
-      if (trimmedPass !== 'Kalpana2680#') {
-        throw new Error(`Invalid password for ${isDeptAdmin.title}.`);
-      }
-
-      let adminId = '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
-      try {
-        const { data: dbAdmin } = await supabase
-          .from('users')
-          .select('id')
-          .eq('role', 'admin')
-          .limit(1)
-          .maybeSingle();
-        if (dbAdmin?.id) adminId = dbAdmin.id;
-      } catch {}
-
-      const branchAdminUser = {
-        id: adminId,
-        username: idLower,
-        email: idLower,
-        fullName: isDeptAdmin.title,
-        role: 'admin',
-        isHeadquarters: false,
-        status: 'approved',
-        branchName: isDeptAdmin.branch,
-        adminBranch: isDeptAdmin.branch,
-        rollNumber: isDeptAdmin.code,
-        year: 'Faculty/Staff',
-        semester: 'N/A',
-        btNumber: `BT-${isDeptAdmin.code}`,
-        authProvider: 'credentials',
-        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${isDeptAdmin.code}`
-      };
-
-      localStorage.setItem('lib_custom_user', JSON.stringify(branchAdminUser));
-      setUser(branchAdminUser);
-      setNeedsProfile(false);
-      setPendingGoogleUser(null);
-      setLoading(false);
-
-      try {
-        await supabase.from('activity_logs').insert([{
-          action_type: 'login',
-          details: `${isDeptAdmin.title} (${isDeptAdmin.branch}) logged in securely`
-        }]);
-      } catch {
-        // ignore activity log error
-      }
-
-      return branchAdminUser;
+    // 1. Central Library Administrator shorthand
+    let primaryAuthEmail = null;
+    if (idLower === 'admin' || idLower === 'sistec.library' || idLower === 'sistec.library@sistec.ac.in') {
+      primaryAuthEmail = 'sistec.library@sistec.ac.in';
     }
 
-    const isAdminCandidate =
-      idLower === 'sistec.library@sistec.ac.in' ||
-      idLower === 'admin' ||
-      idLower === 'sistec.library';
-
-    if (isAdminCandidate) {
-      if (trimmedPass !== 'Kalpana2680#') {
-        throw new Error('Invalid password for Institutional Central Library Administrator.');
-      }
-
-      let adminId = '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
-      try {
-        const { data: dbAdmin } = await supabase
-          .from('users')
-          .select('id, full_name, avatar_url')
-          .eq('role', 'admin')
-          .limit(1)
-          .maybeSingle();
-        if (dbAdmin) adminId = dbAdmin.id;
-      } catch (e) {
-        console.warn('DB admin check note:', e);
-      }
-
-      const adminUser = {
-        id: adminId,
-        username: 'sistec.library@sistec.ac.in',
-        email: 'Sistec.library@sistec.ac.in',
-        fullName: 'Central Library Administrator',
-        role: 'admin',
-        isHeadquarters: true,
-        status: 'approved',
-        branchName: 'Central Library',
-        adminBranch: null,
-        rollNumber: 'ADMIN-SISTEC',
-        year: 'Faculty/Staff',
-        semester: 'N/A',
-        btNumber: 'BT-ADMIN-01',
-        authProvider: 'credentials',
-        avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=SISTecAdmin'
-      };
-
-      localStorage.setItem('lib_custom_user', JSON.stringify(adminUser));
-      setUser(adminUser);
-      setNeedsProfile(false);
-      setPendingGoogleUser(null);
-      setLoading(false);
-
-      try {
-        await supabase.from('activity_logs').insert([{
-          action_type: 'login',
-          details: 'Official Central Library Administrator (Headquarters) logged in securely'
-        }]);
-      } catch {
-        // ignore activity log error
-      }
-
-      return adminUser;
-    }
-
-    if (idLower === 'sistec.library@sistec.ac.in' || idLower === 'admin' || idLower === 'sistec.library') {
-      throw new Error('Invalid password for Institutional Administrator.');
-    }
-
-    let authEmail = trimmedId.includes('@') ? idLower : `${idLower}@sistec.local`;
-
-    // Intelligently resolve authEmail: check if trimmedId matches a user by username or roll_number
+    // 2. Search database by username, roll_number, or bt_number
+    let userRecord = null;
+    let matchedUsers = [];
     try {
-      const { data: matchedUser } = await supabase
+      const cleanSearch = trimmedId.replace(/[,()]/g, '');
+      const { data: foundUsers, error: matchErr } = await supabase
         .from('users')
-        .select('username')
-        .or(`username.ilike.${trimmedId},roll_number.ilike.${trimmedId}`)
-        .limit(1)
-        .maybeSingle();
+        .select('*')
+        .or(`username.ilike.${cleanSearch},roll_number.ilike.${cleanSearch},bt_number.ilike.${cleanSearch}`)
+        .order('created_at', { ascending: false });
 
-      if (matchedUser && matchedUser.username) {
-        const matchedUsername = matchedUser.username;
-        authEmail = matchedUsername.includes('@')
-          ? matchedUsername.toLowerCase()
-          : `${matchedUsername.toLowerCase()}@sistec.local`;
+      if (!matchErr && foundUsers && foundUsers.length > 0) {
+        matchedUsers = foundUsers;
+        userRecord = foundUsers[0];
       }
-    } catch {
-      // Fall back to the default authEmail constructed from trimmedId
+    } catch (lookupErr) {
+      console.warn('[Auth] Identifier lookup notice:', lookupErr?.message);
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password: trimmedPass
-    });
+    // 3. Build candidate authentication emails to attempt against Supabase Auth
+    const candidates = [];
+    if (primaryAuthEmail) {
+      candidates.push(primaryAuthEmail);
+    }
 
-    if (authError || !authData.user) {
+    if (matchedUsers.length > 0) {
+      for (const u of matchedUsers) {
+        if (u.username) {
+          const usr = u.username.trim();
+          if (usr.includes('@')) {
+            const emailLower = usr.toLowerCase();
+            if (!candidates.includes(emailLower)) candidates.push(emailLower);
+          } else {
+            const cleanSlug = usr.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+            const slugEmail = `${cleanSlug}@sistec.local`;
+            if (!candidates.includes(slugEmail)) candidates.push(slugEmail);
+          }
+        }
+        if (u.roll_number) {
+          const cleanRoll = u.roll_number.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+          const rollEmail = `${cleanRoll}@sistec.local`;
+          if (!candidates.includes(rollEmail)) candidates.push(rollEmail);
+        }
+      }
+    }
+
+    if (trimmedId.includes('@') && !candidates.includes(idLower)) {
+      candidates.push(idLower);
+    }
+
+    const directSlug = `${idLower.replace(/[^a-z0-9_.-]/g, '')}@sistec.local`;
+    if (!candidates.includes(directSlug)) {
+      candidates.push(directSlug);
+    }
+
+    // 4. Authenticate securely via Supabase Auth
+    let authData = null;
+    let authError = null;
+    let successfulEmail = null;
+
+    for (const candEmail of candidates) {
+      const { data: resData, error: resError } = await supabase.auth.signInWithPassword({
+        email: candEmail,
+        password: trimmedPass
+      });
+
+      if (resData?.user) {
+        authData = resData;
+        successfulEmail = candEmail;
+        authError = null;
+        break;
+      } else {
+        authError = resError;
+      }
+    }
+
+    if (authError || !authData?.user) {
+      const errMsg = (authError?.message || '').toLowerCase();
+      if (errMsg.includes('email not confirmed') || errMsg.includes('not confirmed') || authError?.code === 'email_not_confirmed') {
+        const targetEmail = successfulEmail || candidates[0];
+        if (!targetEmail.endsWith('@sistec.local')) {
+          const isOfficialAdmin = targetEmail === 'sistec.library@sistec.ac.in' || KNOWN_DEPARTMENT_ADMINS[targetEmail];
+          if (isOfficialAdmin) {
+            throw new Error(`Admin account email (${targetEmail}) is not yet confirmed in Supabase. Please open Supabase Dashboard > Authentication > Users, find ${targetEmail}, and click "Confirm Email".`);
+          }
+          const unverifiedErr = new Error('Please verify your email before continuing.');
+          unverifiedErr.isUnverified = true;
+          unverifiedErr.email = targetEmail;
+          throw unverifiedErr;
+        }
+      }
       throw new Error('Invalid email/username or password. Please verify your credentials.');
     }
 
-    const { data: userRecord, error: userError } = await supabase
+    const authEmail = successfulEmail;
+
+    // Require email confirmation only for real external emails
+    if (!authData.user.email_confirmed_at && !authEmail.endsWith('@sistec.local')) {
+      await supabase.auth.signOut();
+      clearSession();
+      const unverifiedErr = new Error('Please verify your email before continuing.');
+      unverifiedErr.isUnverified = true;
+      unverifiedErr.email = authEmail;
+      throw unverifiedErr;
+    }
+
+    // Query or refresh user profile from database by authenticated user id
+    const { data: recordsById } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
-      .maybeSingle();
+      .limit(1);
 
-    if (userError || !userRecord) {
+    if (recordsById && recordsById.length > 0) {
+      userRecord = recordsById[0];
+    } else if (matchedUsers.length > 0) {
+      userRecord = matchedUsers.find(u => u.id === authData.user.id) || matchedUsers[0];
+    }
+
+    // If still not found, match by username or email for admin account linking:
+    if (!userRecord && authEmail) {
+      const { data: matchedRecords } = await supabase
+        .from('users')
+        .select('*')
+        .or(`username.ilike.${authEmail},username.ilike.sistec.library,roll_number.ilike.${trimmedId}`)
+        .limit(1);
+
+      if (matchedRecords && matchedRecords.length > 0) {
+        userRecord = matchedRecords[0];
+        try {
+          await supabase.from('users').update({
+            id: authData.user.id,
+            username: userRecord.username || authEmail
+          }).eq('id', userRecord.id);
+          userRecord.id = authData.user.id;
+        } catch (linkErr) {
+          console.warn('Account link notice:', linkErr);
+        }
+      }
+    }
+
+    // Auto-provision department or central admin profile in users table if needed
+    const isDeptBranch = KNOWN_DEPARTMENT_ADMINS[authEmail];
+    const isCentral = authEmail === 'sistec.library@sistec.ac.in';
+    if (!userRecord && (isDeptBranch || isCentral)) {
+      const newAdminData = {
+        id: authData.user.id,
+        username: authEmail,
+        full_name: isCentral ? 'Central Library Administrator' : `${isDeptBranch} Library Admin`,
+        role: 'admin',
+        status: 'approved',
+        branch_name: isCentral ? 'Central Library' : isDeptBranch,
+        auth_provider: 'credentials',
+        is_blocked: 0
+      };
+      try {
+        const { data: createdAdmin } = await supabase.from('users').upsert([newAdminData]).select().single();
+        if (createdAdmin) userRecord = createdAdmin;
+        else userRecord = newAdminData;
+      } catch {
+        userRecord = newAdminData;
+      }
+    }
+
+    // Auto-heal student profile if missing from database
+    if (!userRecord && authData?.user) {
+      const meta = authData.user.user_metadata || {};
+      const fallbackStudent = {
+        id: authData.user.id,
+        username: meta.username || authEmail.split('@')[0],
+        full_name: meta.full_name || 'Student',
+        roll_number: meta.roll_number || trimmedId,
+        branch_name: meta.branch_name || 'CSE (Computer Science & Engineering)',
+        year: meta.year || '1st Year',
+        semester: meta.semester || '1st Semester',
+        bt_number: meta.bt_number || 'N/A',
+        role: 'student',
+        status: 'approved',
+        is_blocked: 0,
+        auth_provider: 'password'
+      };
+      try {
+        const { data: createdStudent } = await supabase.from('users').upsert([fallbackStudent]).select().single();
+        userRecord = createdStudent || fallbackStudent;
+      } catch {
+        userRecord = fallbackStudent;
+      }
+    }
+
+    if (!userRecord) {
       await supabase.auth.signOut();
       throw new Error('User profile not found in institutional database.');
     }
@@ -2338,6 +2378,7 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
     setUser(formattedUser);
+    setSession(authData.session);
 
     return formattedUser;
   };
@@ -2449,10 +2490,36 @@ export const AuthProvider = ({ children }) => {
     clearSession();
   };
 
+  const resendVerificationEmail = async (email) => {
+    const trimmedEmail = (email || '').trim().toLowerCase();
+    if (!trimmedEmail) {
+      throw new Error('Email address is required to resend verification.');
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: trimmedEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`
+      }
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to resend verification email. Please try again.');
+    }
+
+    return {
+      success: true,
+      message: 'Verification link resent successfully! Please check your inbox and spam folder.'
+    };
+  };
+
   const register = async (userData) => {
     const {
       username,
+      email,
       password,
+      confirmPassword,
       fullName,
       rollNumber,
       branchName,
@@ -2461,49 +2528,79 @@ export const AuthProvider = ({ children }) => {
       btNumber
     } = userData;
 
-    const trimmedUsername = (username || '').trim();
+    const trimmedUsername = (username || email || '').trim();
+    const cleanUserSlug = trimmedUsername.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+    const trimmedFullName = (fullName || '').trim();
+    const trimmedRoll = (rollNumber || '').trim();
+    const trimmedBt = (btNumber || '').trim();
+
     if (!trimmedUsername) {
-      throw new Error('Username is required');
+      throw new Error('Username is required.');
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (trimmedUsername.includes('@') && !emailRegex.test(trimmedUsername)) {
-      throw new Error('Invalid email format. Please provide a valid email address or standard username.');
+    if (trimmedUsername.length < 3) {
+      throw new Error('Username must be at least 3 characters.');
     }
 
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id')
-      .eq('username', trimmedUsername)
-      .maybeSingle();
+    if (!trimmedFullName || !trimmedRoll || !trimmedBt || !branchName || !year || !semester) {
+      throw new Error('Please fill in all student registration fields.');
+    }
 
-    if (existing) {
-      throw new Error('Username is already taken');
+    if (!password || password.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      throw new Error('Passwords do not match. Please re-enter your password.');
     }
 
     const authEmail = trimmedUsername.includes('@')
       ? trimmedUsername.toLowerCase()
-      : `${trimmedUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@sistec.local`;
+      : `${cleanUserSlug}@sistec.local`;
+
+    // Check if user already exists in public.users by username or roll_number
+    const { data: existingUsers } = await supabase
+      .from('users')
+      .select('id, username, roll_number')
+      .or(`username.ilike.${trimmedUsername},roll_number.ilike.${trimmedRoll}`)
+      .limit(1);
+
+    const existingUser = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
+
+    if (existingUser) {
+      if (existingUser.username && existingUser.username.toLowerCase() === trimmedUsername.toLowerCase()) {
+        throw new Error('This username is already taken. Please choose another username.');
+      }
+      if (existingUser.roll_number && existingUser.roll_number.toLowerCase() === trimmedRoll.toLowerCase()) {
+        throw new Error('An account with this enrollment / roll number is already registered.');
+      }
+    }
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: authEmail,
       password: password,
+      options: {
+        data: {
+          username: trimmedUsername,
+          full_name: trimmedFullName,
+          roll_number: trimmedRoll,
+          branch_name: branchName,
+          year,
+          semester,
+          bt_number: trimmedBt
+        }
+      }
     });
 
     if (authError) {
       if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
-        throw new Error('An account with this email already exists. Please log in instead.');
+        throw new Error('An account with this username already exists. Please proceed to sign in.');
       }
       throw new Error(authError.message);
     }
 
-    // Identity check: if no identities exist, the email/username is already registered
-    if (authData?.user?.identities && authData.user.identities.length === 0) {
-      throw new Error('An account with this email or username is already registered. Please proceed to sign in.');
-    }
-
-    if (!authData.user) {
-      throw new Error('Registration failed, please try again.');
+    if (!authData?.user) {
+      throw new Error('Registration failed. Please try again.');
     }
 
     // Check active registration policy
@@ -2512,23 +2609,23 @@ export const AuthProvider = ({ children }) => {
 
     const userId = authData.user.id;
 
-    const { data, error } = await supabase.from('users').insert([{
+    const { data, error } = await supabase.from('users').upsert([{
       id: userId,
       username: trimmedUsername,
-      full_name: fullName,
-      roll_number: rollNumber,
+      full_name: trimmedFullName,
+      roll_number: trimmedRoll,
       branch_name: branchName,
       year,
       semester,
-      bt_number: btNumber,
+      bt_number: trimmedBt,
       role: 'student',
       status: initialStatus,
       is_blocked: 0,
       auth_provider: 'password'
-    }]).select().single();
+    }], { onConflict: 'id' }).select().single();
 
     if (error) {
-      throw new Error('Failed to create user profile: ' + error.message);
+      console.warn('Profile creation notice:', error);
     }
 
     // Insert activity log for registration audit trail
@@ -2536,7 +2633,7 @@ export const AuthProvider = ({ children }) => {
       await supabase.from('activity_logs').insert([{
         user_id: userId,
         action_type: 'registration',
-        details: `Student account registered (${initialStatus}) by ${fullName} (${rollNumber}) - Department: ${branchName}`
+        details: `Student account registered (${initialStatus}) by ${trimmedFullName} (${trimmedRoll}) - Username: ${trimmedUsername}`
       }]);
     } catch (logErr) {
       console.warn('Registration activity log notice:', logErr);
@@ -2553,7 +2650,7 @@ export const AuthProvider = ({ children }) => {
         const regNotifs = adminUsers.map(adm => ({
           user_id: adm.id,
           title: 'New Student Registration',
-          message: `${fullName} (${rollNumber || 'N/A'}) has registered for ${branchName}. Status: ${initialStatus}.`,
+          message: `${trimmedFullName} (${trimmedRoll || 'N/A'}) has registered for ${branchName}. Status: ${initialStatus}.`,
           type: 'student',
           is_read: false
         }));
@@ -2565,7 +2662,7 @@ export const AuthProvider = ({ children }) => {
 
     await supabase.auth.signOut();
 
-    let confirmationMessage = 'Your account has been registered successfully. Please connect with the administrator for approval. You will be able to access SISTECH-LIB after your account is approved.';
+    let confirmationMessage = 'Your account has been registered successfully! Please wait for the library administrator to approve your account. Once approved, you can sign in with your Username/Roll Number and Password.';
     if (initialStatus === 'approved') {
       confirmationMessage = 'Your account has been registered and automatically approved! You can now sign in.';
     } else if (initialStatus === 'rejected') {
@@ -2575,16 +2672,26 @@ export const AuthProvider = ({ children }) => {
     return {
       message: confirmationMessage,
       status: initialStatus,
-      data
+      needsVerification: false,
+      data: {
+        username: trimmedUsername,
+        fullName: trimmedFullName,
+        rollNumber: trimmedRoll,
+        btNumber: trimmedBt,
+        branchName,
+        year,
+        semester
+      }
     };
   };
 
   return (
     <AuthContext.Provider value={{
       user, session, loading, login, logout, register,
+      resendVerificationEmail,
       loginWithGoogle, completeGoogleProfile, needsProfile,
       pendingGoogleUser, apiCall, refreshUser: loadUser,
-      bypassLogin, extractDriveFileId, normalizeBranch, isSameBranch, canonicalBranch
+      extractDriveFileId, normalizeBranch, isSameBranch, canonicalBranch
     }}>
       {children}
     </AuthContext.Provider>

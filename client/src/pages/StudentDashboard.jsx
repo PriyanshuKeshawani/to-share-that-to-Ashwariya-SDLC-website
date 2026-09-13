@@ -590,10 +590,31 @@ const StudentDashboard = ({ onSelectBook }) => {
 
           <div className="glass-panel" style={{ padding: '14px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              {user?.avatarUrl || user?.avatar_url ? (
+                <img
+                  src={user.avatarUrl || user.avatar_url}
+                  alt={user?.fullName || user?.username || 'Profile'}
+                  referrerPolicy="no-referrer"
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    objectFit: 'cover',
+                    border: '1px solid var(--border-glass)'
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextElementSibling) {
+                      e.currentTarget.nextElementSibling.style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
               <div style={{
                 width: '36px', height: '36px', borderRadius: '8px',
                 background: 'rgba(37, 99, 235, 0.15)', color: 'var(--primary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: user?.avatarUrl || user?.avatar_url ? 'none' : 'flex',
+                alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700, fontSize: '0.9rem'
               }}>
                 {(user?.fullName || user?.username || 'S')[0].toUpperCase()}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { AlertCircle, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Sun, Moon, Mail, RefreshCw } from 'lucide-react';
 
 const LIBRARY_WALLPAPERS = [
   {
@@ -27,12 +27,16 @@ const LIBRARY_WALLPAPERS = [
 ];
 
 const Login = ({ onToggleView }) => {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, resendVerificationEmail } = useAuth();
   const { mode, toggleMode } = useTheme();
   const isDark = mode === 'dark';
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
@@ -52,27 +56,62 @@ const Login = ({ onToggleView }) => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!identifier.trim() || !password) {
       setError('Please enter both institutional email/username and password.');
+      setUnverifiedEmail('');
       return;
     }
 
     try {
       setError('');
+      setResendSuccess('');
+      setUnverifiedEmail('');
       setLoading(true);
       await login(identifier.trim(), password);
     } catch (err) {
-      setError(err.message || 'Authentication failed. Please verify your credentials.');
+      if (err.isUnverified) {
+        setUnverifiedEmail(err.email || identifier.trim());
+        setError(err.message || 'Please verify your email before continuing.');
+      } else {
+        setUnverifiedEmail('');
+        setError(err.message || 'Authentication failed. Please verify your credentials.');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    const targetEmail = unverifiedEmail || identifier.trim();
+    if (!targetEmail || resendCooldown > 0 || resending) return;
+    try {
+      setResending(true);
+      setResendSuccess('');
+      await resendVerificationEmail(targetEmail);
+      setResendSuccess(`Verification email sent to ${targetEmail}! Please check your inbox and spam folder.`);
+      setResendCooldown(60);
+    } catch (err) {
+      setError(err.message || 'Failed to resend verification email.');
+    } finally {
+      setResending(false);
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
       setError('');
+      setUnverifiedEmail('');
+      setResendSuccess('');
       setGoogleLoading(true);
       await loginWithGoogle();
     } catch (err) {
@@ -304,8 +343,81 @@ const Login = ({ onToggleView }) => {
             </p>
           </div>
 
-          {/* Error Alert */}
-          {error && (
+          {/* Resend Success Alert */}
+          {resendSuccess && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#34d399',
+              fontSize: '0.84rem',
+              marginBottom: '16px',
+              lineHeight: 1.5,
+              animation: 'fadeIn 0.3s ease forwards'
+            }}>
+              <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>{resendSuccess}</div>
+            </div>
+          )}
+
+          {/* Unverified Account Banner */}
+          {unverifiedEmail ? (
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1.5px solid rgba(245, 158, 11, 0.35)',
+              marginBottom: '18px',
+              animation: 'fadeIn 0.3s ease forwards'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
+                <Mail size={18} color="#fbbf24" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#fbbf24', marginBottom: '2px' }}>
+                    Please verify your email before continuing
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                    Your account is registered with <strong style={{ color: 'var(--text-primary)' }}>{unverifiedEmail}</strong>, but your email has not been confirmed yet. Please check your inbox and spam folder for the verification link.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resending || resendCooldown > 0}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#fbbf24',
+                    cursor: (resending || resendCooldown > 0) ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <RefreshCw size={12} style={{ animation: resending ? 'spin 0.8s linear infinite' : 'none' }} />
+                  {resending
+                    ? 'Sending email...'
+                    : resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : 'Resend Verification Email'}
+                </button>
+              </div>
+            </div>
+          ) : error ? (
+            /* General Error Alert */
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -323,7 +435,7 @@ const Login = ({ onToggleView }) => {
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
               <div style={{ flex: 1 }}>{error}</div>
             </div>
-          )}
+          ) : null}
 
           {/* Google Sign-In */}
           <button
@@ -384,12 +496,12 @@ const Login = ({ onToggleView }) => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Institutional Email or Username
+                Enrollment / Roll No, Username, BT No, or Email
               </label>
               <input
                 type="text"
                 className="glass-input"
-                placeholder="Sistec.library@sistec.ac.in or student ID"
+                placeholder="e.g. 0187CS211045, rohan_sharma, BT-4029, or email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 disabled={loading || googleLoading}

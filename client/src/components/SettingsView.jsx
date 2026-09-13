@@ -1046,13 +1046,34 @@ const SettingsView = ({ isAdmin = false }) => {
             gap: '14px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {user?.avatarUrl || user?.avatar_url ? (
+                <img
+                  src={user.avatarUrl || user.avatar_url}
+                  alt={user?.fullName || user?.username || 'Profile'}
+                  referrerPolicy="no-referrer"
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    objectFit: 'cover',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                    flexShrink: 0
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextElementSibling) {
+                      e.currentTarget.nextElementSibling.style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
               <div style={{
                 width: '46px',
                 height: '46px',
                 borderRadius: '12px',
                 background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
                 color: '#ffffff',
-                display: 'flex',
+                display: user?.avatarUrl || user?.avatar_url ? 'none' : 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,

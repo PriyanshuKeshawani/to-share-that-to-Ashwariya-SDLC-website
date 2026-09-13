@@ -674,7 +674,35 @@ const Dashboard = ({ onSelectBook }) => {
             <div className="mobile-drawer-content">
               <div className="student-profile-info">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {user?.avatarUrl || user?.avatar_url ? (
+                    <img
+                      src={user.avatarUrl || user.avatar_url}
+                      alt={user.fullName || 'Student'}
+                      referrerPolicy="no-referrer"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '1px solid var(--border-glass)'
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: 'var(--primary-glow)',
+                    display: user?.avatarUrl || user?.avatar_url ? 'none' : 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
                     <User size={20} color="var(--primary)" />
                   </div>
                   <div>
