@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1076845729176",
+    "project_id": "sistec-library-portal",
+    "storage_bucket": "sistec-library-portal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1076845729176:android:cc4bbffd0ee9f568cb07ed",
+        "android_client_info": {
+          "package_name": "com.sistec.elibrary"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSlz_z_XENgJMQO3OzUdc6gc5QtNF-AZs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

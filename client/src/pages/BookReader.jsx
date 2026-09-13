@@ -1706,7 +1706,7 @@ const BookReader = ({ book, onClose }) => {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                background: '#0b0f19',
+                background: '#ffffff',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
               }}>
                 <div style={{
@@ -1748,7 +1748,7 @@ const BookReader = ({ book, onClose }) => {
                   }
                   width="100%"
                   height="100%"
-                  style={{ border: 'none', flex: 1, background: '#1e293b' }}
+                  style={{ border: 'none', flex: 1, background: '#ffffff' }}
                   title={book.title}
                 />
               </div>

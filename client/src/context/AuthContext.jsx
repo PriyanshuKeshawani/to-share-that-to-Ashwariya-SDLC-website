@@ -2238,43 +2238,11 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // 5. CRITICAL CHECK: If this student's account is PENDING approval in institutional database:
-    // Never show 'Invalid credentials' error! Immediately transition to the Approval Pending screen.
-    if (userRecord && userRecord.role === 'student' && userRecord.status === 'pending') {
-      const formattedPendingUser = {
-        id: userRecord.id,
-        username: userRecord.username,
-        fullName: userRecord.full_name,
-        role: 'student',
-        status: 'pending',
-        branchName: userRecord.branch_name || '',
-        branch_name: userRecord.branch_name || '',
-        rollNumber: userRecord.roll_number,
-        year: userRecord.year,
-        semester: userRecord.semester,
-        btNumber: userRecord.bt_number,
-        authProvider: userRecord.auth_provider || 'password',
-        avatarUrl: userRecord.avatar_url
-      };
-
-      localStorage.setItem('lib_custom_user', JSON.stringify(formattedPendingUser));
-      setUser(formattedPendingUser);
-      if (authData?.session) {
-        setSession(authData.session);
-      }
-      return formattedPendingUser;
-    }
-
-    // 6. If user's registration was rejected by administrator:
-    if (userRecord && userRecord.role === 'student' && userRecord.status === 'rejected') {
-      await supabase.auth.signOut();
-      throw new Error('Your registration was rejected by the library administrator. Please connect with your department library in-charge.');
-    }
-
+    // If all candidates failed or there's an auth error:
     if (authError || !authData?.user) {
       const errMsg = (authError?.message || '').toLowerCase();
       if (errMsg.includes('email not confirmed') || errMsg.includes('not confirmed') || authError?.code === 'email_not_confirmed') {
-        const targetEmail = successfulEmail || candidates[0];
+        const targetEmail = candidates[0];
         if (!targetEmail.endsWith('@sistec.local')) {
           const isOfficialAdmin = targetEmail === 'sistec.library@sistec.ac.in' || KNOWN_DEPARTMENT_ADMINS[targetEmail];
           if (isOfficialAdmin) {
@@ -2301,7 +2269,7 @@ export const AuthProvider = ({ children }) => {
       throw unverifiedErr;
     }
 
-    // Query or refresh user profile from database by authenticated user id
+    // 5. Query or refresh user profile from database by authenticated user id
     const { data: recordsById } = await supabase
       .from('users')
       .select('*')
@@ -2389,6 +2357,7 @@ export const AuthProvider = ({ children }) => {
       throw new Error('User profile not found in institutional database.');
     }
 
+    // 6. Security and Status Checks (AFTER confirming valid credentials and fetching profile)
     if (userRecord.is_blocked === 1) {
       await supabase.auth.signOut();
       throw new Error('Your library access has been restricted by the administrator.');
@@ -2396,8 +2365,11 @@ export const AuthProvider = ({ children }) => {
 
     if (userRecord.role === 'student' && userRecord.status === 'rejected') {
       await supabase.auth.signOut();
-      throw new Error('Your registration was rejected by the library administrator.');
+      throw new Error('Your registration was rejected by the library administrator. Please connect with your department library in-charge.');
     }
+
+    // NOTE: 'pending' users fall through to normal session creation! 
+    // App.jsx intercepts the 'pending' status and shows the Approval Pending screen.
 
     const isHqAdmin = userRecord.role === 'admin' && (userRecord.branch_name === 'Central Library' || userRecord.branch_name === 'Headquarters' || !userRecord.branch_name);
     const formattedUser = {
@@ -2465,7 +2437,7 @@ export const AuthProvider = ({ children }) => {
     const initialStatus = policy === 'auto_approve' ? 'approved' : policy === 'auto_reject' ? 'rejected' : 'pending';
 
     const userId = pendingGoogleUser.id;
-    const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || null;
+    const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || pendingGoogleUser.identities?.[0]?.identity_data?.avatar_url || pendingGoogleUser.identities?.[0]?.identity_data?.picture || null;
 
     const { data, error } = await supabase.from('users').upsert([{
       id: userId,
