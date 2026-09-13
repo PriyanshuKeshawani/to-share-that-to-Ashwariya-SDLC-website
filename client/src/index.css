@@ -1060,7 +1060,7 @@ th.sticky-action-col {
   .register-card { padding: 24px 16px !important; max-width: 100% !important; }
   .register-card .grid-responsive-2col { grid-template-columns: 1fr !important; }
   .grid-responsive-2col { grid-template-columns: 1fr !important; gap: 12px !important; }
-  .main-content { margin-left: 0 !important; padding: 72px 14px 80px 14px !important; overflow-x: hidden; }
+  .main-content { margin-left: 0 !important; padding: 72px 14px calc(64px + env(safe-area-inset-bottom, 0px) + 28px) 14px !important; overflow-x: hidden; }
 
   .mobile-header {
     display: flex !important;
@@ -1082,7 +1082,7 @@ th.sticky-action-col {
     display: flex !important;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 62px;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
     background: var(--sidebar-bg);
     backdrop-filter: blur(24px) saturate(1.5);
     -webkit-backdrop-filter: blur(24px) saturate(1.5);
@@ -1090,7 +1090,7 @@ th.sticky-action-col {
     justify-content: space-around;
     align-items: center;
     z-index: 1000;
-    padding: 2px 6px;
+    padding: 2px 4px max(4px, env(safe-area-inset-bottom, 4px));
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
     animation: slideUp 0.3s var(--ease-out-expo) forwards;
   }
@@ -1103,15 +1103,20 @@ th.sticky-action-col {
     background: none;
     border: none;
     color: var(--text-muted);
-    gap: 4px;
-    font-size: 0.68rem;
+    gap: 3px;
+    font-size: clamp(0.58rem, 2.2vw, 0.68rem);
     font-weight: 500;
     cursor: pointer;
     flex: 1;
     height: 100%;
-    min-height: 48px;
+    min-height: 44px;
+    padding: 2px 2px;
     transition: all 0.3s var(--ease-out-expo);
     border-radius: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .bottom-nav-item.active { color: var(--primary); font-weight: 700; }
   .bottom-nav-item.active::before { content: ''; position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 20px; height: 3px; border-radius: 2px; background: var(--primary); animation: scaleIn 0.25s var(--ease-spring) forwards; }
@@ -1160,7 +1165,7 @@ th.sticky-action-col {
     display: flex !important;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 62px;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
     background: var(--sidebar-bg);
     backdrop-filter: blur(24px) saturate(1.5);
     -webkit-backdrop-filter: blur(24px) saturate(1.5);
@@ -1168,7 +1173,7 @@ th.sticky-action-col {
     justify-content: space-around;
     align-items: center;
     z-index: 1000;
-    padding: 2px 6px;
+    padding: 2px 4px max(4px, env(safe-area-inset-bottom, 4px));
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
     animation: slideUp 0.3s var(--ease-out-expo) forwards;
   }
@@ -1247,9 +1252,9 @@ th.sticky-action-col {
    RESPONSIVE: VERY SMALL PHONES (≤ 380px)
    ═══════════════════════════════════════════ */
 @media (max-width: 380px) {
-  .main-content { padding: 64px 10px 72px 10px !important; }
+  .main-content { padding: 64px 10px calc(58px + env(safe-area-inset-bottom, 0px) + 24px) 10px !important; }
   .mobile-header { padding: 0 10px !important; height: 52px !important; }
-  .mobile-bottom-nav { height: 56px !important; }
+  .mobile-bottom-nav { height: calc(56px + env(safe-area-inset-bottom, 0px)) !important; }
   .login-split-card { border-radius: 16px !important; }
   .login-form-side { padding: 20px 16px !important; }
   .theme-studio-panel { padding: 16px !important; }
@@ -1261,6 +1266,49 @@ th.sticky-action-col {
 @media (hover: none) and (pointer: coarse) {
   .btn, button, .bottom-nav-item, input, select {
     -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ═══ ADMIN ANALYTICS DRILLDOWN MODAL RESPONSIVENESS ═══ */
+.drilldown-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.8) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999 !important;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease-out;
+  overflow: hidden;
+}
+
+.drilldown-modal-panel {
+  width: 100% !important;
+  max-width: min(94vw, 960px) !important;
+  height: 100% !important;
+  max-height: 100dvh !important;
+  background: var(--modal-bg, var(--bg-card-solid)) !important;
+  border-left: 1px solid var(--border-glass);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: relative !important;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 767px) {
+  .drilldown-modal-backdrop {
+    justify-content: center !important;
+    align-items: stretch !important;
+  }
+  .drilldown-modal-panel {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-left: none !important;
+    border-radius: 0 !important;
   }
 }
 

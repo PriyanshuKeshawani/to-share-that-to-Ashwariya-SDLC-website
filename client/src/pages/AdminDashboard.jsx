@@ -1573,7 +1573,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Students Enrolled in {branchName} ({branchStudents.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -1664,7 +1664,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Books Allocated to {branchName} ({branchBooks.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -1762,7 +1762,7 @@ const AdminDashboard = () => {
                               <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>
                                 Activity Logs for {branchName} ({branchLogs.length})
                               </h4>
-                              <div className="search-input-wrapper" style={{ width: '260px' }}>
+                              <div className="search-input-wrapper" style={{ width: '100%', maxWidth: '260px' }}>
                                 <span className="search-icon">
                                   <Search size={15} />
                                 </span>
@@ -2774,8 +2774,8 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Filter and Search */}
-                <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div className="search-input-wrapper" style={{ flex: 1 }}>
+                <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className="search-input-wrapper" style={{ flex: 1, minWidth: 'clamp(180px, 100%, 260px)' }}>
                     <span className="search-icon"><Search size={18} /></span>
                     <input
                       type="text"
@@ -3019,7 +3019,7 @@ const AdminDashboard = () => {
 
                   {/* Search & Filter Bar */}
                   <div className="glass-panel" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div className="search-input-wrapper" style={{ flex: 1, minWidth: '220px' }}>
+                    <div className="search-input-wrapper" style={{ flex: 1, minWidth: 'clamp(180px, 100%, 220px)' }}>
                       <span className="search-icon"><Search size={16} /></span>
                       <input
                         type="text"
@@ -5020,12 +5020,14 @@ const AdminDashboard = () => {
       {/* Slide-Over Drilldown Drawer for Clickable Stat Cards */}
       {activeAnalyticsDrilldown && dashboardData && (
         <div
+          className="drilldown-modal-backdrop"
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 999,
+            background: 'rgba(3, 7, 18, 0.8)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 9999,
             display: 'flex',
             justifyContent: 'flex-end',
             animation: 'fadeIn 0.2s ease-out'
@@ -5036,42 +5038,62 @@ const AdminDashboard = () => {
           }}
         >
           <div
+            className="drilldown-modal-panel"
             style={{
               width: '100%',
-              maxWidth: '620px',
+              maxWidth: 'min(94vw, 960px)',
               height: '100%',
+              maxHeight: '100dvh',
               background: 'var(--modal-bg, var(--bg-card-solid))',
               borderLeft: '1px solid var(--border-glass)',
               boxShadow: 'var(--shadow-elevated)',
               display: 'flex',
               flexDirection: 'column',
-              zIndex: 1000,
-              animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+              zIndex: 10000,
+              animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              overflow: 'hidden'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
             <div style={{
-              padding: '24px',
+              padding: 'clamp(14px, 3.5vw, 24px)',
+              paddingTop: 'max(clamp(14px, 3.5vw, 24px), env(safe-area-inset-top, 14px))',
               borderBottom: '1px solid var(--border-glass)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-start',
-              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))'
+              gap: '12px',
+              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))',
+              flexShrink: 0
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span className="badge badge-primary" style={{ fontSize: '0.72rem', textTransform: 'uppercase' }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'normal', lineHeight: 1.3 }}>
                     Authoritative Supabase Dataset
                   </span>
                 </div>
-                <h3 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0 }}>
+                <h3 style={{
+                  fontSize: 'clamp(1.05rem, 3.5vw, 1.35rem)',
+                  fontWeight: 700,
+                  margin: 0,
+                  lineHeight: 1.3,
+                  wordBreak: 'break-word',
+                  color: 'var(--text-primary)'
+                }}>
                   {activeAnalyticsDrilldown === 'books' && `Total Books (${dashboardData.stats.books})`}
                   {activeAnalyticsDrilldown === 'students' && `Active Students (${dashboardData.stats.students})`}
                   {activeAnalyticsDrilldown === 'views' && `Total Views / Accesses (${dashboardData.stats.views})`}
                   {activeAnalyticsDrilldown === 'downloads' && `Total Downloads (${dashboardData.stats.downloads})`}
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+                <p style={{
+                  fontSize: 'clamp(0.74rem, 2vw, 0.82rem)',
+                  color: 'var(--text-secondary)',
+                  marginTop: '6px',
+                  margin: '6px 0 0 0',
+                  lineHeight: 1.4,
+                  wordBreak: 'break-word'
+                }}>
                   Every record below is retrieved directly from Supabase tables and mathematically matches the dashboard card.
                 </p>
               </div>
@@ -5081,24 +5103,54 @@ const AdminDashboard = () => {
                   setDrilldownSearch('');
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '8px', borderRadius: '50%', minWidth: 'auto' }}
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  padding: 0,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-glass)',
+                  background: 'rgba(255,255,255,0.06)'
+                }}
                 title="Close Drawer"
+                aria-label="Close Drawer"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             {/* Drawer Search Filter */}
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-glass)', background: 'var(--modal-card-bg, rgba(255,255,255,0.015))' }}>
-              <div className="search-input-wrapper">
-                <span className="search-icon">
+            <div style={{
+              padding: '12px clamp(14px, 3.5vw, 24px)',
+              borderBottom: '1px solid var(--border-glass)',
+              background: 'var(--modal-card-bg, rgba(255,255,255,0.015))',
+              flexShrink: 0
+            }}>
+              <div className="search-input-wrapper" style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
+                <span className="search-icon" style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none',
+                  zIndex: 2
+                }}>
                   <Search size={16} />
                 </span>
                 <input
                   type="text"
                   placeholder={
                     activeAnalyticsDrilldown === 'students'
-                      ? 'Search active students by name, roll number, department...'
+                      ? 'Search active students by name, roll, branch...'
                       : activeAnalyticsDrilldown === 'books'
                       ? 'Search books by title, author, branch...'
                       : `Search ${activeAnalyticsDrilldown} logs by student, roll, or book...`
@@ -5106,7 +5158,14 @@ const AdminDashboard = () => {
                   value={drilldownSearch}
                   onChange={(e) => setDrilldownSearch(e.target.value)}
                   className="glass-input has-search-icon"
-                  style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    fontSize: 'clamp(0.8rem, 2.2vw, 0.86rem)',
+                    paddingLeft: '38px',
+                    paddingRight: drilldownSearch ? '36px' : '14px',
+                    boxSizing: 'border-box'
+                  }}
                   autoFocus
                 />
                 {drilldownSearch && (
@@ -5115,6 +5174,23 @@ const AdminDashboard = () => {
                     className="search-clear-btn"
                     onClick={() => setDrilldownSearch('')}
                     title="Clear search"
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.08)',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      zIndex: 2
+                    }}
                   >
                     <X size={14} />
                   </button>
@@ -5123,7 +5199,15 @@ const AdminDashboard = () => {
             </div>
 
             {/* Drawer Records Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: 'clamp(14px, 3.5vw, 24px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              WebkitOverflowScrolling: 'touch'
+            }}>
               {/* 1. Books Drilldown */}
               {activeAnalyticsDrilldown === 'books' && (() => {
                 const list = (dashboardData.drilldowns?.books || []).filter(b => {
@@ -5155,36 +5239,65 @@ const AdminDashboard = () => {
                     onClick={() => setSelectedBookForActivity(books.find(b => b.id === bk.id) || bk)}
                     className="glass-panel glass-panel-hover"
                     style={{
-                      padding: '16px',
+                      padding: 'clamp(12px, 3vw, 16px)',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px',
+                      alignItems: 'flex-start',
+                      gap: 'clamp(10px, 3vw, 16px)',
                       cursor: 'pointer',
-                      borderRadius: '12px'
+                      borderRadius: '12px',
+                      minHeight: 'auto',
+                      position: 'relative'
                     }}
                     title="Click to inspect reader history and activity"
                   >
-                    <div style={{ width: '44px', height: '60px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '68px',
+                      borderRadius: '6px',
+                      background: 'rgba(255,255,255,0.05)',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.08)'
+                    }}>
                       {bk.cover_url ? (
                         <img src={bk.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <BookOpen size={20} color="var(--text-muted)" />
+                        <BookOpen size={22} color="var(--text-muted)" />
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <h4 style={{
+                        fontSize: 'clamp(0.88rem, 2.5vw, 0.96rem)',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                        marginBottom: '4px',
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere'
+                      }}>
                         "{bk.title}"
                       </h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      <p style={{
+                        fontSize: 'clamp(0.76rem, 2.2vw, 0.82rem)',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '8px',
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word'
+                      }}>
                         By {bk.author}
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>{bk.branch_name || 'General'}</span>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>{bk.total_accesses || 0} accesses</span>
-                        <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>{bk.total_downloads || 0} downloads</span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.branch_name || 'General'}</span>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.total_accesses || 0} accesses</span>
+                        <span className="badge badge-warning" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>{bk.total_downloads || 0} downloads</span>
                       </div>
                     </div>
-                    <ChevronRight size={16} color="var(--text-muted)" />
+                    <div style={{ flexShrink: 0, alignSelf: 'center', paddingLeft: '4px' }}>
+                      <ChevronRight size={18} color="var(--text-muted)" />
+                    </div>
                   </div>
                 ));
               })()}
@@ -5223,12 +5336,13 @@ const AdminDashboard = () => {
                     onClick={() => setSelectedStudentForActivity(students.find(s => s.id === st.id) || st)}
                     className="glass-panel glass-panel-hover"
                     style={{
-                      padding: '16px',
+                      padding: 'clamp(12px, 3vw, 16px)',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px',
+                      alignItems: 'flex-start',
+                      gap: 'clamp(10px, 3vw, 16px)',
                       cursor: 'pointer',
-                      borderRadius: '12px'
+                      borderRadius: '12px',
+                      minHeight: 'auto'
                     }}
                     title="Click to inspect student profile and reading logs"
                   >
@@ -5248,25 +5362,41 @@ const AdminDashboard = () => {
                       {(st.full_name || st.username || 'S')[0].toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <h4 style={{
+                          fontSize: 'clamp(0.88rem, 2.5vw, 0.96rem)',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                          wordBreak: 'break-word',
+                          lineHeight: 1.3
+                        }}>
                           {st.full_name || st.username}
                         </h4>
-                        <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Approved</span>
+                        <span className="badge badge-success" style={{ fontSize: '0.65rem', flexShrink: 0 }}>Approved</span>
                       </div>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 6px 0' }}>
+                      <p style={{
+                        fontSize: 'clamp(0.76rem, 2.2vw, 0.82rem)',
+                        color: 'var(--text-secondary)',
+                        margin: '0 0 6px 0',
+                        lineHeight: 1.4,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere'
+                      }}>
                         Roll: {st.roll_number || 'N/A'} • {st.branch_name || 'Engineering'}
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
                           {st.total_reviews || 0} page reviews
                         </span>
-                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
                           {st.unique_books_read || 0} unique books
                         </span>
                       </div>
                     </div>
-                    <ChevronRight size={16} color="var(--text-muted)" />
+                    <div style={{ flexShrink: 0, alignSelf: 'center', paddingLeft: '4px' }}>
+                      <ChevronRight size={18} color="var(--text-muted)" />
+                    </div>
                   </div>
                 ));
               })()}
@@ -5300,37 +5430,77 @@ const AdminDashboard = () => {
                     key={v.id}
                     className="glass-panel"
                     style={{
-                      padding: '14px 16px',
+                      padding: 'clamp(12px, 3vw, 16px)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px',
-                      borderRadius: '10px'
+                      gap: '10px',
+                      borderRadius: '12px'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={13} />
-                        <span>{new Date(v.created_at).toLocaleString()}</span>
+                    {/* Top Row: Timestamp & Status Badge */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: 'clamp(0.72rem, 2vw, 0.78rem)',
+                      color: 'var(--text-muted)',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                        <Clock size={13} style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: 'break-word' }}>{new Date(v.created_at).toLocaleString()}</span>
                       </div>
-                      <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>View / Read</span>
+                      <span className="badge badge-primary" style={{ fontSize: '0.68rem', flexShrink: 0 }}>View / Read</span>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      <div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Reader:</div>
+                    {/* Details: Stack on Mobile, 2-col on Tablet/Desktop */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '10px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid rgba(255,255,255,0.06)'
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Reader:</div>
                         <button
                           onClick={() => setSelectedStudentForActivity(students.find(s => s.id === v.user_id) || { id: v.user_id, full_name: v.user_name, roll_number: v.roll_number, branch_name: v.branch_name })}
-                          style={{ background: 'none', border: 'none', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: 0, textAlign: 'left' }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--secondary)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            padding: 0,
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.35,
+                            display: 'inline'
+                          }}
                         >
                           {v.user_name} ({v.roll_number})
                         </button>
                       </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Book Accessed:</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Book Accessed:</div>
                         <button
                           onClick={() => setSelectedBookForActivity(books.find(b => b.id === v.book_id) || { id: v.book_id, title: v.book_title, author: v.book_author, cover_url: v.cover_url })}
-                          style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: 0, textAlign: 'right' }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            padding: 0,
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.35,
+                            display: 'inline'
+                          }}
                         >
                           "{v.book_title}"
                         </button>
@@ -5369,37 +5539,77 @@ const AdminDashboard = () => {
                     key={d.id}
                     className="glass-panel"
                     style={{
-                      padding: '14px 16px',
+                      padding: 'clamp(12px, 3vw, 16px)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px',
-                      borderRadius: '10px'
+                      gap: '10px',
+                      borderRadius: '12px'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={13} />
-                        <span>{new Date(d.created_at).toLocaleString()}</span>
+                    {/* Top Row: Timestamp & Status Badge */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: 'clamp(0.72rem, 2vw, 0.78rem)',
+                      color: 'var(--text-muted)',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                        <Clock size={13} style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: 'break-word' }}>{new Date(d.created_at).toLocaleString()}</span>
                       </div>
-                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>Download</span>
+                      <span className="badge badge-warning" style={{ fontSize: '0.68rem', flexShrink: 0 }}>Download</span>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      <div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Downloaded By:</div>
+                    {/* Details: Stack on Mobile, 2-col on Tablet/Desktop */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '10px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid rgba(255,255,255,0.06)'
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Downloaded By:</div>
                         <button
                           onClick={() => setSelectedStudentForActivity(students.find(s => s.id === d.user_id) || { id: d.user_id, full_name: d.user_name, roll_number: d.roll_number, branch_name: d.branch_name })}
-                          style={{ background: 'none', border: 'none', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: 0, textAlign: 'left' }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--secondary)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            padding: 0,
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.35,
+                            display: 'inline'
+                          }}
                         >
                           {d.user_name} ({d.roll_number})
                         </button>
                       </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Book Downloaded:</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Book Downloaded:</div>
                         <button
                           onClick={() => setSelectedBookForActivity(books.find(b => b.id === d.book_id) || { id: d.book_id, title: d.book_title, author: d.book_author, cover_url: d.cover_url })}
-                          style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: 0, textAlign: 'right' }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: 'clamp(0.82rem, 2.2vw, 0.9rem)',
+                            padding: 0,
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.35,
+                            display: 'inline'
+                          }}
                         >
                           "{d.book_title}"
                         </button>
@@ -5412,23 +5622,35 @@ const AdminDashboard = () => {
 
             {/* Drawer Footer */}
             <div style={{
-              padding: '16px 24px',
+              padding: 'clamp(12px, 3vw, 16px) clamp(14px, 3.5vw, 24px)',
+              paddingBottom: 'max(clamp(12px, 3vw, 16px), env(safe-area-inset-bottom, 12px))',
               borderTop: '1px solid var(--border-glass)',
               background: 'var(--modal-card-bg, rgba(255,255,255,0.02))',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: '0.82rem',
-              color: 'var(--text-muted)'
+              fontSize: 'clamp(0.74rem, 2vw, 0.82rem)',
+              color: 'var(--text-muted)',
+              flexShrink: 0,
+              gap: '12px'
             }}>
-              <span>100% Authoritative Supabase Records</span>
+              <span style={{ wordBreak: 'break-word', lineHeight: 1.3 }}>100% Authoritative Supabase Records</span>
               <button
                 onClick={() => {
                   setActiveAnalyticsDrilldown(null);
                   setDrilldownSearch('');
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '6px 16px', fontSize: '0.8rem' }}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '0.82rem',
+                  minHeight: '40px',
+                  minWidth: '80px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
               >
                 Close
               </button>
