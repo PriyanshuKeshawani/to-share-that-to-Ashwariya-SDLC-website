@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   Sun, Moon, Palette, Check, User, Shield, Laptop,
-  Bell, Send, Volume2, Radio, Sparkles, AlertCircle, Info, CheckCircle2, 
+  Bell, Send, Radio, Sparkles, AlertCircle, Info, CheckCircle2, 
   AlertTriangle, Users, BookOpen, Clock, Loader2, RefreshCw, Megaphone,
   LogOut
 } from 'lucide-react';
@@ -103,11 +103,6 @@ const SettingsView = ({ isAdmin = false }) => {
   const [notifType, setNotifType] = useState('announcement');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastStatus, setBroadcastStatus] = useState(null);
-
-  // Self Test state
-  const [isTestingNotification, setIsTestingNotification] = useState(false);
-  const [testResult, setTestResult] = useState(null);
-
   // Broadcast History state
   const [recentBroadcasts, setRecentBroadcasts] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -151,71 +146,6 @@ const SettingsView = ({ isAdmin = false }) => {
     loadBranches();
     fetchBroadcastHistory();
   }, [isAdmin, fetchBroadcastHistory]);
-
-  const handleSelfTest = async () => {
-    setIsTestingNotification(true);
-    setTestResult(null);
-    try {
-      // 1. Play dual-harmonic audio chime via Web Audio API (works 100% reliably on all devices)
-      try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          const ctx = new AudioContextClass();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-          osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
-          gain.gain.setValueAtTime(0.15, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.4);
-        }
-      } catch (audioErr) {
-        console.warn('Web Audio synthesis notice:', audioErr);
-      }
-
-      // Also trigger audio file playback
-      try {
-        const audio = new Audio('/sounds/notification.mp3');
-        audio.volume = 0.6;
-        audio.play().catch(() => {});
-      } catch {}
-
-      // 2. Insert test alert into notifications via secure backend endpoint
-      await apiCall('/notifications/test', { method: 'POST' });
-
-      // 3. Immediately trigger local NotificationBell sync
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('library:notification-refresh'));
-      }
-
-      // 4. Native desktop notification if permission granted
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification('SISTec Library Diagnostic Test', {
-            body: 'Notification chime & alert system are active!',
-            icon: '/logo.png'
-          });
-        } catch {}
-      }
-
-      setTestResult({
-        success: true,
-        message: 'Notification chime played and test alert added to your bell icon (top right)!'
-      });
-    } catch (err) {
-      console.error('Test notification failure:', err);
-      setTestResult({
-        success: false,
-        message: err.message || 'Error triggering test notification'
-      });
-    } finally {
-      setIsTestingNotification(false);
-    }
-  };
 
   const applyTemplate = (tpl) => {
     setNotifTitle(tpl.title);
@@ -551,83 +481,6 @@ const SettingsView = ({ isAdmin = false }) => {
           })}
         </div>
       </div>
-
-      {/* ── Admin Section: Notification Diagnostic & Self-Test ── */}
-      {isAdmin && (
-        <div className="glass-panel settings-section-card" style={{ padding: '28px', marginBottom: '24px' }}>
-          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ 
-                padding: '10px', borderRadius: '12px', 
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(168, 85, 247, 0.12))', 
-                color: 'var(--primary)' 
-              }}>
-                <Volume2 size={20} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
-                  Notification Diagnostics & Audio Self-Test
-                </h3>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Test live notification sound chime, top-right bell counters, and desktop alerts
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSelfTest}
-              disabled={isTestingNotification}
-              className="btn btn-primary"
-              style={{
-                padding: '10px 18px',
-                borderRadius: '10px',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
-              }}
-            >
-              {isTestingNotification ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Testing System...
-                </>
-              ) : (
-                <>
-                  <Bell size={16} />
-                  Test Sound Chime & Bell Alert
-                </>
-              )}
-            </button>
-          </div>
-
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.5 }}>
-            Clicking this button triggers the <strong>/sounds/notification.mp3</strong> chime and inserts an immediate real-time test notification into your administrator account. Check the notification bell icon at the top right to verify that unread counter badge and popup list update dynamically without reloading.
-          </p>
-
-          {testResult && (
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '10px',
-              background: testResult.success ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              border: testResult.success ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
-              color: testResult.success ? 'var(--success)' : 'var(--danger)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              {testResult.success ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-              <span>{testResult.message}</span>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Admin Section: Custom Broadcast Notification Center ── */}
       {isAdmin && (
