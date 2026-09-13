@@ -365,10 +365,15 @@ const BookReader = ({ book, onClose }) => {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Canvases refs
+  // Canvases refs & deterministic rendering state
   const canvasLeftRef = useRef(null);
   const canvasRightRef = useRef(null);
   const activeRenderTasks = useRef({});
+  const renderSeqRef = useRef({ left: 0, right: 0 });
+  const pageCacheRef = useRef(new Map());
+  const failedPagesRef = useRef(new Set());
+  const loadingModeRef = useRef('stream'); // 'stream' (Tier 1 fast path) | 'buffer' (Tier 2 in-memory fallback)
+  const fallbackLoadingRef = useRef(false);
 
   // Slide-over drawer state (showNotes closed by default for distraction-free reading!)
   const [showDrawer, setShowDrawer] = useState(false);
@@ -541,7 +546,75 @@ const BookReader = ({ book, onClose }) => {
     }, 350);
   }, [apiCall, book.id, book.title, totalPages]);
 
-  // Load PDF document into memory via PDF.js with progressive chunk streaming & activity watchdog
+  // Two-Tier PDF Document Loading: Fast Progressive Streaming (Tier 1) & In-Memory Buffer Fallback (Tier 2)
+  const loadFullDocumentFallback = useCallback(async (reason) => {
+    if (fallbackLoadingRef.current || !pdfSource) return;
+    fallbackLoadingRef.current = true;
+    loadingModeRef.current = 'buffer';
+    console.info(`[3D Book Engine] Activating Full-Document In-Memory Buffer: ${reason}`);
+
+    try {
+      setDownloadProgress(5);
+      const response = await fetch(pdfSource);
+      if (!response.ok) {
+        throw new Error(`Failed to download book buffer: HTTP ${response.status}`);
+      }
+
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      let buffer;
+
+      if (response.body && total > 0) {
+        const reader = response.body.getReader();
+        let receivedLength = 0;
+        const chunks = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedLength += value.length;
+          const pct = Math.min(99, Math.round((receivedLength / total) * 100));
+          setDownloadProgress(pct);
+        }
+        const fullArray = new Uint8Array(receivedLength);
+        let position = 0;
+        for (const chunk of chunks) {
+          fullArray.set(chunk, position);
+          position += chunk.length;
+        }
+        buffer = fullArray.buffer;
+      } else {
+        buffer = await response.arrayBuffer();
+      }
+
+      setDownloadProgress(100);
+
+      const cMapUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`;
+      const bufferTask = pdfjsLib.getDocument({
+        data: new Uint8Array(buffer),
+        cMapUrl,
+        cMapPacked: true
+      });
+
+      const fullDoc = await bufferTask.promise;
+      pageCacheRef.current.clear();
+      failedPagesRef.current.clear();
+      setPdfDoc(fullDoc);
+      if (fullDoc.numPages && fullDoc.numPages > 0) {
+        setTotalPages(fullDoc.numPages);
+      }
+      setPdfLoadError(null);
+      console.info(`[3D Book Engine] Successfully loaded in-memory book buffer (${fullDoc.numPages} pages). All pages ready for 3D view.`);
+    } catch (err) {
+      console.error('[3D Book Engine] Full-document buffer fallback failed:', err);
+      setPdfLoadError(err.message || 'Unable to load book document');
+    } finally {
+      fallbackLoadingRef.current = false;
+      setPdfLoading(false);
+    }
+  }, [pdfSource]);
+
+  // Load PDF document: Tier 1 Fast Path with automatic watchdog and completeness probe
   useEffect(() => {
     if (!pdfSource || useNativeViewer) return;
 
@@ -552,19 +625,22 @@ const BookReader = ({ book, onClose }) => {
     setPdfLoading(true);
     setPdfLoadError(null);
     setDownloadProgress(0);
+    loadingModeRef.current = 'stream';
 
     const loadPdf = async () => {
       try {
-        // Enable progressive byte-range streaming for instant page readiness on large PDFs
+        const cMapUrl = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`;
+        // Progressive streaming with auto-fetch enabled so background prebuffering prevents range starvation
         loadingTask = pdfjsLib.getDocument({
           url: pdfSource,
           withCredentials: false,
-          disableAutoFetch: true, // Stream pages on-demand without buffering full 24MB+ first
+          disableAutoFetch: false,
           disableStream: false,
-          rangeChunkSize: 65536   // 64KB initial chunk size for fast metadata & first page
+          cMapUrl,
+          cMapPacked: true
         });
 
-        // Real-time progressive streaming monitor
+        // Real-time streaming progress monitor
         loadingTask.onProgress = ({ loaded, total }) => {
           lastActivityTime = Date.now();
           if (total > 0 && isMounted) {
@@ -573,8 +649,7 @@ const BookReader = ({ book, onClose }) => {
           }
         };
 
-        // Resilient activity-based watchdog: only timeout if ZERO bytes received for 45 seconds.
-        // As long as data chunks keep arriving, the stream is never killed.
+        // Resilient activity-based watchdog
         const watchdogPromise = new Promise((_, reject) => {
           activityTimer = setInterval(() => {
             const now = Date.now();
@@ -594,17 +669,39 @@ const BookReader = ({ book, onClose }) => {
         if (doc.numPages && doc.numPages > 0) {
           setTotalPages(doc.numPages);
         }
+
+        // Diagnostic Completeness Probe (Step 4): Non-blocking test of middle and last page access
+        if (doc.numPages > 1) {
+          const probePages = [
+            Math.ceil(doc.numPages / 2),
+            doc.numPages
+          ];
+          (async () => {
+            for (const p of probePages) {
+              try {
+                await doc.getPage(p);
+              } catch (probeErr) {
+                console.warn(`[3D Book Engine Diagnostic] Stream probe failed on page ${p}:`, probeErr?.message);
+                if (isMounted && loadingModeRef.current === 'stream') {
+                  loadFullDocumentFallback(`Stream probe failed on page ${p}`);
+                }
+                break;
+              }
+            }
+          })();
+        }
       } catch (err) {
         if (activityTimer) clearInterval(activityTimer);
         if (loadingTask && loadingTask.destroy) {
           try { loadingTask.destroy(); } catch {}
         }
-        console.warn('PDF.js loading notice (switching to graceful fallback if needed):', err);
+        console.warn('PDF.js stream notice; attempting full-document fallback:', err);
         if (isMounted) {
-          setPdfLoadError(err.message || 'Failed to render PDF in book engine');
+          // Gracefully upgrade to Tier 2 in-memory buffer rather than failing to a flat viewer
+          loadFullDocumentFallback(`Stream initialization error: ${err?.message}`);
         }
       } finally {
-        if (isMounted) setPdfLoading(false);
+        if (isMounted && loadingModeRef.current !== 'buffer') setPdfLoading(false);
       }
     };
 
@@ -625,13 +722,42 @@ const BookReader = ({ book, onClose }) => {
       }
       window.removeEventListener('online', handleOnline);
     };
-  }, [pdfSource, useNativeViewer, reloadTrigger]);
+  }, [pdfSource, useNativeViewer, reloadTrigger, loadFullDocumentFallback]);
 
-  // Function to render a page cleanly to a target canvas
+  // Render an informative, non-blank error notification directly on the canvas
+  const renderErrorOnCanvas = useCallback((canvas, pageNum, message) => {
+    if (!canvas) return;
+    const w = canvas.width || 400;
+    const h = canvas.height || 600;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = mode === 'dark' ? '#11141c' : '#f8fafc';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = mode === 'dark' ? '#f59e0b' : '#d97706';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Page ${pageNum} Render Notice`, w / 2, h / 2 - 15);
+
+    ctx.fillStyle = mode === 'dark' ? '#94a3b8' : '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Tap page or flip back to reload', w / 2, h / 2 + 15);
+  }, [mode]);
+
+  // Deterministic Page Rendering Pipeline with Staging Canvas, Sequence Tickets & LRU Cache
+  const MAX_CACHE_SIZE = 25;
+  const getCacheKey = useCallback((pageNum, currentMode, currentScale, currentMobileZoom) => {
+    return `${pageNum}_${currentMode}_${Math.round(currentScale * 100)}_${Math.round(currentMobileZoom * 100)}`;
+  }, []);
+
   const renderPage = useCallback(async (pageNum, canvasKey, canvasElement) => {
     if (!pdfDoc || !canvasElement || pageNum < 1 || pageNum > pdfDoc.numPages) return;
 
-    // Cancel existing render on this canvas if any
+    // 1. Issue unique sequence ticket for this canvas side to eliminate race conditions
+    const ticket = ++renderSeqRef.current[canvasKey];
+
+    // 2. Cancel any pending PDF.js render task on this canvas side
     if (activeRenderTasks.current[canvasKey]) {
       try {
         activeRenderTasks.current[canvasKey].cancel();
@@ -639,39 +765,75 @@ const BookReader = ({ book, onClose }) => {
       delete activeRenderTasks.current[canvasKey];
     }
 
+    const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+    const cacheKey = getCacheKey(pageNum, mode, scale, isMobileView ? mobileZoom : 1.0);
+
+    // 3. Fast In-Memory LRU Cache Hit: instant 0ms flip with zero flicker
+    if (pageCacheRef.current.has(cacheKey)) {
+      const cachedCanvas = pageCacheRef.current.get(cacheKey);
+      pageCacheRef.current.delete(cacheKey);
+      pageCacheRef.current.set(cacheKey, cachedCanvas);
+
+      if (renderSeqRef.current[canvasKey] === ticket) {
+        canvasElement.width = cachedCanvas.width;
+        canvasElement.height = cachedCanvas.height;
+        canvasElement.style.width = cachedCanvas.style.width;
+        canvasElement.style.height = cachedCanvas.style.height;
+        const ctx = canvasElement.getContext('2d');
+        ctx.drawImage(cachedCanvas, 0, 0);
+        failedPagesRef.current.delete(pageNum);
+        return;
+      }
+    }
+
+    // 4. Fetch Page Object from PDF.js
+    let page;
     try {
-      const page = await pdfDoc.getPage(pageNum);
+      page = await pdfDoc.getPage(pageNum);
+    } catch (pageErr) {
+      console.warn(`[3D Book Engine] getPage(${pageNum}) failed:`, pageErr);
+      // If streaming range request failed on this page, trigger seamless full-document fallback
+      if (loadingModeRef.current === 'stream') {
+        loadFullDocumentFallback(`getPage(${pageNum}) stream error`);
+      }
+
+      if (renderSeqRef.current[canvasKey] === ticket) {
+        renderErrorOnCanvas(canvasElement, pageNum, pageErr?.message || 'Page data missing');
+        failedPagesRef.current.add(pageNum);
+      }
+      return;
+    }
+
+    // If another page turn superseded this ticket during getPage, exit cleanly
+    if (renderSeqRef.current[canvasKey] !== ticket) return;
+
+    try {
       const unscaledViewport = page.getViewport({ scale: 1.0 });
+      if (unscaledViewport.width <= 0 || unscaledViewport.height <= 0) {
+        throw new Error('Invalid zero-size page viewport');
+      }
 
       let effectiveScale = scale;
-      const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
-
       if (isMobileView) {
-        // Fit cleanly within mobile viewport with comfortable padding
         const availableW = Math.max(260, window.innerWidth - 20);
         const availableH = Math.max(360, (window.innerHeight || 640) - 125);
         const scaleX = availableW / unscaledViewport.width;
         const scaleY = availableH / unscaledViewport.height;
         const baseFitScale = Math.min(scaleX, scaleY);
-        // Apply user's selected mobile zoom multiplier
         effectiveScale = baseFitScale * mobileZoom;
       }
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: effectiveScale * dpr });
 
-      canvasElement.width = viewport.width;
-      canvasElement.height = viewport.height;
-      const cssWidth = Math.round(viewport.width / dpr);
-      const cssHeight = Math.round(viewport.height / dpr);
-      canvasElement.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
-      canvasElement.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
-
-      const ctx = canvasElement.getContext('2d');
-      ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      // 5. Offscreen Staging Canvas: prevents canvas reuse collisions and white-flash artifacts
+      const offscreen = document.createElement('canvas');
+      offscreen.width = viewport.width;
+      offscreen.height = viewport.height;
+      const offscreenCtx = offscreen.getContext('2d', { alpha: false });
 
       const renderTask = page.render({
-        canvasContext: ctx,
+        canvasContext: offscreenCtx,
         viewport: viewport
       });
 
@@ -679,16 +841,102 @@ const BookReader = ({ book, onClose }) => {
       await renderTask.promise;
       delete activeRenderTasks.current[canvasKey];
 
-      // Smart Dark Reading Mode: dynamically transform rendered PDF canvas
+      // Verify sequence ticket is still current before updating DOM
+      if (renderSeqRef.current[canvasKey] !== ticket) return;
+
+      // Smart Dark Reading Mode: transform offscreen canvas before display
       if (mode === 'dark') {
-        applySmartDarkModeToCanvas(ctx, canvasElement.width, canvasElement.height);
+        applySmartDarkModeToCanvas(offscreenCtx, offscreen.width, offscreen.height);
       }
-    } catch (err) {
-      if (err?.name !== 'RenderingCancelledException') {
-        console.warn(`Render notice on page ${pageNum}:`, err);
+
+      const cssWidth = Math.round(viewport.width / dpr);
+      const cssHeight = Math.round(viewport.height / dpr);
+      offscreen.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
+      offscreen.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
+
+      // Store in LRU Page Cache
+      if (pageCacheRef.current.size >= MAX_CACHE_SIZE) {
+        const oldestKey = pageCacheRef.current.keys().next().value;
+        pageCacheRef.current.delete(oldestKey);
+      }
+      pageCacheRef.current.set(cacheKey, offscreen);
+
+      // 6. Atomic blit to visible DOM canvas
+      canvasElement.width = offscreen.width;
+      canvasElement.height = offscreen.height;
+      canvasElement.style.width = offscreen.style.width;
+      canvasElement.style.height = offscreen.style.height;
+
+      const ctx = canvasElement.getContext('2d');
+      ctx.drawImage(offscreen, 0, 0);
+      failedPagesRef.current.delete(pageNum);
+    } catch (renderErr) {
+      delete activeRenderTasks.current[canvasKey];
+      if (renderErr?.name !== 'RenderingCancelledException') {
+        console.warn(`[3D Book Engine] Render failure on page ${pageNum}:`, renderErr);
+        if (renderSeqRef.current[canvasKey] === ticket) {
+          renderErrorOnCanvas(canvasElement, pageNum, renderErr?.message || 'Rendering error');
+          failedPagesRef.current.add(pageNum);
+        }
       }
     }
-  }, [pdfDoc, scale, mobileZoom, mode]);
+  }, [pdfDoc, scale, mobileZoom, mode, loadFullDocumentFallback, getCacheKey, renderErrorOnCanvas]);
+
+  // Idle preloader for adjacent pages (currentPage + 1, currentPage + 2, currentPage - 1)
+  useEffect(() => {
+    if (!pdfDoc) return;
+    const preloadTimer = setTimeout(async () => {
+      const pagesToPreload = [
+        currentPage + 1,
+        currentPage + 2,
+        currentPage - 1
+      ].filter(p => p >= 1 && p <= pdfDoc.numPages);
+
+      const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
+
+      for (const p of pagesToPreload) {
+        const key = getCacheKey(p, mode, scale, isMobileView ? mobileZoom : 1.0);
+        if (pageCacheRef.current.has(key)) continue;
+
+        try {
+          const page = await pdfDoc.getPage(p);
+          const unscaledViewport = page.getViewport({ scale: 1.0 });
+          let effectiveScale = scale;
+          if (isMobileView) {
+            const availableW = Math.max(260, window.innerWidth - 20);
+            const availableH = Math.max(360, (window.innerHeight || 640) - 125);
+            effectiveScale = Math.min(availableW / unscaledViewport.width, availableH / unscaledViewport.height) * mobileZoom;
+          }
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const viewport = page.getViewport({ scale: effectiveScale * dpr });
+          const offscreen = document.createElement('canvas');
+          offscreen.width = viewport.width;
+          offscreen.height = viewport.height;
+          const offCtx = offscreen.getContext('2d', { alpha: false });
+          await page.render({ canvasContext: offCtx, viewport }).promise;
+
+          if (mode === 'dark') {
+            applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height);
+          }
+
+          const cssWidth = Math.round(viewport.width / dpr);
+          const cssHeight = Math.round(viewport.height / dpr);
+          offscreen.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
+          offscreen.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
+
+          if (pageCacheRef.current.size >= MAX_CACHE_SIZE) {
+            const oldestKey = pageCacheRef.current.keys().next().value;
+            pageCacheRef.current.delete(oldestKey);
+          }
+          pageCacheRef.current.set(key, offscreen);
+        } catch {
+          // Non-critical background preload failure
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(preloadTimer);
+  }, [pdfDoc, currentPage, mode, scale, mobileZoom, getCacheKey]);
 
   // Re-render canvases when currentPage, scale, mobileZoom, viewMode, mobile breakpoint, or dark/light theme mode changes
   useEffect(() => {
@@ -1562,7 +1810,15 @@ const BookReader = ({ book, onClose }) => {
                         willChange: 'transform'
                       } : undefined}
                     >
-                      <canvas ref={canvasLeftRef} />
+                      <canvas
+                        ref={canvasLeftRef}
+                        onClick={() => {
+                          if (failedPagesRef.current.has(currentPage) && canvasLeftRef.current) {
+                            renderPage(currentPage, 'left', canvasLeftRef.current);
+                          }
+                        }}
+                        style={{ cursor: failedPagesRef.current.has(currentPage) ? 'pointer' : 'default' }}
+                      />
                     </div>
 
                     {/* Left Interactive Page Turn Zone (hidden while zoomed to prevent accidental flips) */}
@@ -1598,7 +1854,15 @@ const BookReader = ({ book, onClose }) => {
                         } : undefined}
                       >
                         {currentPage + 1 <= totalPages ? (
-                          <canvas ref={canvasRightRef} />
+                          <canvas
+                            ref={canvasRightRef}
+                            onClick={() => {
+                              if (failedPagesRef.current.has(currentPage + 1) && canvasRightRef.current) {
+                                renderPage(currentPage + 1, 'right', canvasRightRef.current);
+                              }
+                            }}
+                            style={{ cursor: failedPagesRef.current.has(currentPage + 1) ? 'pointer' : 'default' }}
+                          />
                         ) : (
                           <div style={{
                             display: 'flex',
