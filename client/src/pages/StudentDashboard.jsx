@@ -17,6 +17,7 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import { printStudentTranscript } from '../components/StudentActivityModal';
 import ShareBookModal from '../components/ShareBookModal';
 import BookOverviewModal from '../components/BookOverviewModal';
+import NotificationBell from '../components/NotificationBell';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -533,22 +534,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={toggleMode}
-            className="btn btn-secondary"
-            style={{
-              padding: '7px',
-              borderRadius: '10px',
-              minWidth: 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label="Toggle theme mode"
-          >
-            {isDark ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="var(--primary)" />}
-          </button>
+          <NotificationBell />
         </div>
       </header>
 

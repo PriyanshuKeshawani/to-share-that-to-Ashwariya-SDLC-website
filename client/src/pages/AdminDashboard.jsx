@@ -18,6 +18,7 @@ import BookActivityModal from '../components/BookActivityModal';
 import { parseDirectoryFiles } from '../utils/directoryParser';
 import { extractFirstPageAsCover } from '../utils/pdfCoverExtractor';
 import { resolveBookCover } from '../utils/bookCoverResolver';
+import NotificationBell from '../components/NotificationBell';
 
 const AdminDashboard = () => {
   const { user, logout, apiCall } = useAuth();
@@ -4587,14 +4588,7 @@ const AdminDashboard = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={toggleMode}
-            className="btn btn-secondary"
-            style={{ padding: '6px', borderRadius: '8px' }}
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDark ? <Sun size={16} color="#fbbf24" /> : <Moon size={16} color="var(--primary)" />}
-          </button>
+          <NotificationBell />
         </div>
       </header>
 

@@ -1005,10 +1005,26 @@ th.sticky-action-col {
 .logout-btn-mobile { transition: all 0.25s var(--ease-smooth); }
 .logout-btn-mobile:hover { background: rgba(244, 63, 94, 0.12); transform: translateY(-1px); }
 
-/* ═══ NOTIFICATION DROPDOWN — smooth entrance ═══ */
+/* ═══ NOTIFICATION DROPDOWN & MOBILE SHEET ═══ */
 .notification-dropdown {
   animation: scaleIn 0.3s var(--ease-spring) forwards;
   transform-origin: top right;
+}
+
+.notification-sheet-mobile {
+  animation: slideUpSheet 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  transform-origin: bottom center !important;
+}
+
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* ═══ MODAL SYSTEM — smooth open/close ═══ */

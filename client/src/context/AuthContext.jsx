@@ -610,6 +610,30 @@ export const AuthProvider = ({ children }) => {
 
       const { data, error } = await supabase.from('books').insert([cleanPayload]).select().single();
       if (error) throw error;
+
+      // Realtime notification for active students
+      try {
+        const { data: students } = await supabase
+          .from('users')
+          .select('id, branch_name')
+          .eq('role', 'student')
+          .eq('status', 'approved')
+          .limit(80);
+
+        if (students && students.length > 0) {
+          const bookNotifs = students.map(s => ({
+            user_id: s.id,
+            title: `New Book: ${cleanPayload.title}`,
+            message: `"${cleanPayload.title}" by ${cleanPayload.author || 'Academic Faculty'} has been added to the library portal.`,
+            type: 'book',
+            is_read: false
+          }));
+          await supabase.from('notifications').insert(bookNotifs);
+        }
+      } catch (notifErr) {
+        console.warn('New book student notification note:', notifErr);
+      }
+
       return { message: 'Book created successfully', data };
     }
 
@@ -1058,8 +1082,21 @@ export const AuthProvider = ({ children }) => {
           action_type: 'admin_edit',
           details: `Admin updated student academic profile for ${updates.full_name || 'Student'} (${updates.roll_number || 'N/A'}) - Branch: ${updates.branch_name || 'N/A'}, Year: ${updates.year || 'N/A'}, Sem: ${updates.semester || 'N/A'}`
         }]);
+
+        if (updates.status) {
+          const isApproved = updates.status === 'approved';
+          await supabase.from('notifications').insert([{
+            user_id: userId,
+            title: isApproved ? 'Registration Approved' : 'Registration Status Updated',
+            message: isApproved
+              ? 'Your institutional library portal account has been approved. You now have full access to the digital library.'
+              : `Your library registration status has been updated to ${updates.status}.`,
+            type: isApproved ? 'approval' : 'warning',
+            is_read: false
+          }]);
+        }
       } catch (logErr) {
-        console.warn('Notice writing activity log for student edit:', logErr);
+        console.warn('Notice writing activity log or notification for student edit:', logErr);
       }
 
       return { message: 'Student profile updated successfully', data };
@@ -1364,29 +1401,78 @@ export const AuthProvider = ({ children }) => {
 
       const { data, error } = await supabase.from('permissions').insert([insertPayload]).select().single();
       if (error) throw error;
+
+      // Realtime notification for department & central administrators
+      try {
+        const { data: adminUsers } = await supabase
+          .from('users')
+          .select('id, branch_name')
+          .eq('role', 'admin');
+
+        if (adminUsers && adminUsers.length > 0) {
+          const reqNotifs = adminUsers.map(adm => ({
+            user_id: adm.id,
+            title: 'Book Access Request',
+            message: `${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested access to "${bookTitle || 'an eBook'}".`,
+            type: 'approval',
+            is_read: false
+          }));
+          await supabase.from('notifications').insert(reqNotifs);
+        }
+      } catch (notifErr) {
+        console.warn('Book request admin notification note:', notifErr);
+      }
+
       return data;
     }
 
     // 7. Notifications
     if (endpoint === '/notifications' && method === 'GET') {
       if (!user) return [];
-      const { data, error } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(40);
       if (error) throw error;
       return data || [];
     }
 
     if (endpoint === '/notifications/unread-count' && method === 'GET') {
       if (!user) return { count: 0 };
-      const { count, error } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false);
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
       if (error) throw error;
       return { count: count || 0 };
     }
 
     if (endpoint === '/notifications/mark-read' && method === 'POST') {
       if (!user) return null;
-      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
       if (error) throw error;
-      return { message: 'Notifications marked as read' };
+      return { message: 'All notifications marked as read' };
+    }
+
+    if (endpoint.startsWith('/notifications/') && endpoint.endsWith('/read') && method === 'POST') {
+      if (!user) return null;
+      const notifId = endpoint.split('/')[2];
+      if (notifId) {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('id', notifId)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        return { message: 'Notification marked as read' };
+      }
     }
 
     // 8. Analytics & Logs (real-time progress + audit logs)
@@ -2415,6 +2501,27 @@ export const AuthProvider = ({ children }) => {
       }]);
     } catch (logErr) {
       console.warn('Registration activity log notice:', logErr);
+    }
+
+    // Realtime notification for administrators about new student registration
+    try {
+      const { data: adminUsers } = await supabase
+        .from('users')
+        .select('id, branch_name')
+        .eq('role', 'admin');
+
+      if (adminUsers && adminUsers.length > 0) {
+        const regNotifs = adminUsers.map(adm => ({
+          user_id: adm.id,
+          title: 'New Student Registration',
+          message: `${fullName} (${rollNumber || 'N/A'}) has registered for ${branchName}. Status: ${initialStatus}.`,
+          type: 'student',
+          is_read: false
+        }));
+        await supabase.from('notifications').insert(regNotifs);
+      }
+    } catch (notifErr) {
+      console.warn('Admin registration notification note:', notifErr);
     }
 
     await supabase.auth.signOut();
