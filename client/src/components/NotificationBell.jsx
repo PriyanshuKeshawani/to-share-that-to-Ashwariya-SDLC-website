@@ -9,6 +9,24 @@ import {
 import { requestNotificationPermission } from '../firebase';
 import { supabase } from '../supabaseClient';
 
+const isValidUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || '').trim());
+const toDeterministicUuid = (str) => {
+  if (!str) return '00000000-0000-4000-8000-000000000000';
+  const clean = String(str).trim();
+  if (isValidUuid(clean)) return clean;
+  let h1 = 0xdeadbeef, h2 = 0x41c64e6d, h3 = 0x9e3779b9, h4 = 0x27d4eb2f;
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 3812015801);
+    h4 = Math.imul(h4 ^ ch, 2246822519);
+  }
+  const toHex = (n) => (n >>> 0).toString(16).padStart(8, '0');
+  const rawHex = (toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4)).toLowerCase();
+  return `${rawHex.slice(0, 8)}-${rawHex.slice(8, 12)}-4${rawHex.slice(13, 16)}-a${rawHex.slice(17, 20)}-${rawHex.slice(20, 32)}`;
+};
+
 const NotificationBell = () => {
   const { user, apiCall } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -117,48 +135,66 @@ const NotificationBell = () => {
     }
   }, [user, apiCall]);
 
-  // Initial load, Realtime subscription & focus sync
+  // Initial load, Realtime subscription, local event & focus sync
   useEffect(() => {
     if (!user) return;
+
+    let effectiveUserId = user?.id;
+    if (user?.role === 'admin') {
+      effectiveUserId = (effectiveUserId && isValidUuid(effectiveUserId) && !String(effectiveUserId).includes('branch-'))
+        ? effectiveUserId 
+        : '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
+    } else if (effectiveUserId && !isValidUuid(effectiveUserId)) {
+      effectiveUserId = toDeterministicUuid(effectiveUserId);
+    }
 
     fetchNotifications();
 
     // 1. Instant Supabase Realtime WebSocket subscription
     let channel = null;
-    try {
-      const channelId = `bell-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      channel = supabase
-        .channel(channelId)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            if (payload.eventType === 'INSERT') {
-              if (payload.new) {
-                setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
-                setUnreadCount(prev => prev + 1);
-                playChime();
+    if (effectiveUserId) {
+      try {
+        const channelId = `bell-${effectiveUserId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        channel = supabase
+          .channel(channelId)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${effectiveUserId}`
+            },
+            (payload) => {
+              if (payload.eventType === 'INSERT') {
+                if (payload.new) {
+                  setNotifications(prev => [payload.new, ...prev.filter(n => n.id !== payload.new.id)]);
+                  setUnreadCount(prev => prev + 1);
+                  playChime();
+                }
+              } else {
+                fetchNotifications();
               }
-            } else {
-              fetchNotifications();
             }
-          }
-        )
-        .subscribe();
-    } catch (e) {
-      console.warn('Realtime notifications subscribe notice:', e?.message);
+          )
+          .subscribe();
+      } catch (e) {
+        console.warn('Realtime notifications subscribe notice:', e?.message);
+      }
     }
 
-    // 2. Window focus listener: immediately sync when user tabs back
+    // 2. Custom event listener for instant local test / broadcast events
+    const handleLocalRefresh = () => {
+      fetchNotifications();
+      playChime();
+    };
+    window.addEventListener('library:notification-refresh', handleLocalRefresh);
+
+    // 3. Window focus listener: immediately sync when user tabs back
     const handleFocus = () => fetchNotifications();
     window.addEventListener('focus', handleFocus);
 
-    // 3. Periodic background sync (every 15s)
+    // 4. Periodic background sync (every 15s)
     const interval = setInterval(fetchNotifications, 15000);
 
     return () => {
@@ -167,6 +203,7 @@ const NotificationBell = () => {
           supabase.removeChannel(channel);
         } catch {}
       }
+      window.removeEventListener('library:notification-refresh', handleLocalRefresh);
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };

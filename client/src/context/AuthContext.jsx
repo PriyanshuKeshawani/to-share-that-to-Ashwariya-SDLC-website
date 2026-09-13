@@ -161,19 +161,23 @@ export const toDeterministicUuid = (str) => {
 
 const sanitizeCustomUser = (u) => {
   if (!u || typeof u !== 'object') return u;
-  if (u.id && !isValidUuid(u.id)) {
-    const validId = toDeterministicUuid(u.id);
-    const updated = { ...u, id: validId };
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('lib_custom_user', JSON.stringify(updated));
-      }
-    } catch {
-      // ignore storage error
+  let targetId = u.id;
+  if (u.role === 'admin') {
+    if (!targetId || !isValidUuid(targetId) || String(targetId).includes('branch-')) {
+      targetId = '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
     }
-    return updated;
+  } else if (targetId && !isValidUuid(targetId)) {
+    targetId = toDeterministicUuid(targetId);
   }
-  return u;
+  const updated = { ...u, id: targetId };
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lib_custom_user', JSON.stringify(updated));
+    }
+  } catch {
+    // ignore storage error
+  }
+  return updated;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -1429,10 +1433,12 @@ export const AuthProvider = ({ children }) => {
     // 7. Notifications
     if (endpoint === '/notifications' && method === 'GET') {
       if (!user) return [];
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveUserId) return [];
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .order('created_at', { ascending: false })
         .limit(40);
       if (error) throw error;
@@ -1441,10 +1447,12 @@ export const AuthProvider = ({ children }) => {
 
     if (endpoint === '/notifications/unread-count' && method === 'GET') {
       if (!user) return { count: 0 };
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveUserId) return { count: 0 };
       const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .eq('is_read', false);
       if (error) throw error;
       return { count: count || 0 };
@@ -1452,10 +1460,12 @@ export const AuthProvider = ({ children }) => {
 
     if (endpoint === '/notifications/mark-read' && method === 'POST') {
       if (!user) return null;
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveUserId) return null;
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .eq('is_read', false);
       if (error) throw error;
       return { message: 'All notifications marked as read' };
@@ -1464,15 +1474,33 @@ export const AuthProvider = ({ children }) => {
     if (endpoint.startsWith('/notifications/') && endpoint.endsWith('/read') && method === 'POST') {
       if (!user) return null;
       const notifId = endpoint.split('/')[2];
-      if (notifId) {
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (notifId && effectiveUserId) {
         const { error } = await supabase
           .from('notifications')
           .update({ is_read: true })
           .eq('id', notifId)
-          .eq('user_id', user.id);
+          .eq('user_id', effectiveUserId);
         if (error) throw error;
         return { message: 'Notification marked as read' };
       }
+    }
+
+    if (endpoint === '/notifications/test' && method === 'POST') {
+      if (!user) throw new Error('Please sign in to test notifications.');
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (!effectiveUserId) throw new Error('Invalid user identity.');
+
+      const { data, error } = await supabase.from('notifications').insert([{
+        user_id: effectiveUserId,
+        title: 'System Self-Test: Notifications Online',
+        message: 'Realtime WebSocket push, bell unread counters, and audio chimes are functioning properly.',
+        type: 'info',
+        is_read: false
+      }]).select().single();
+
+      if (error) throw error;
+      return { success: true, message: 'Test notification created successfully', data };
     }
 
     // 8. Analytics & Logs (real-time progress + audit logs)
@@ -2118,8 +2146,19 @@ export const AuthProvider = ({ children }) => {
         throw new Error(`Invalid password for ${isDeptAdmin.title}.`);
       }
 
+      let adminId = '0271446c-5515-4406-9c4d-19fe5d4e9c9a';
+      try {
+        const { data: dbAdmin } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'admin')
+          .limit(1)
+          .maybeSingle();
+        if (dbAdmin?.id) adminId = dbAdmin.id;
+      } catch {}
+
       const branchAdminUser = {
-        id: `0271446c-5515-4406-9c4d-branch-${idLower.split('.')[0]}`,
+        id: adminId,
         username: idLower,
         email: idLower,
         fullName: isDeptAdmin.title,

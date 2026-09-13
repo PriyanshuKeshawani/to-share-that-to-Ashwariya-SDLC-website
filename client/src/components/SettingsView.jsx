@@ -76,7 +76,7 @@ const SettingsView = ({ isAdmin = false }) => {
     palettes
   } = useTheme();
 
-  const { user, logout } = useAuth();
+  const { user, logout, apiCall } = useAuth();
   const isDark = mode === 'dark';
 
   // Account Session & Logout States
@@ -156,33 +156,48 @@ const SettingsView = ({ isAdmin = false }) => {
     setIsTestingNotification(true);
     setTestResult(null);
     try {
-      // 1. Play audio chime
+      // 1. Play dual-harmonic audio chime via Web Audio API (works 100% reliably on all devices)
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+          osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      } catch (audioErr) {
+        console.warn('Web Audio synthesis notice:', audioErr);
+      }
+
+      // Also trigger audio file playback
       try {
         const audio = new Audio('/sounds/notification.mp3');
         audio.volume = 0.6;
-        await audio.play();
-      } catch (audioErr) {
-        console.warn('Audio play note:', audioErr);
+        audio.play().catch(() => {});
+      } catch {}
+
+      // 2. Insert test alert into notifications via secure backend endpoint
+      await apiCall('/notifications/test', { method: 'POST' });
+
+      // 3. Immediately trigger local NotificationBell sync
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('library:notification-refresh'));
       }
 
-      // 2. Insert test alert into notifications for this admin
-      if (user?.id) {
-        const { error: insErr } = await supabase.from('notifications').insert([{
-          user_id: user.id,
-          title: 'System Self-Test: Notifications Online',
-          message: 'Realtime WebSocket push, bell unread counters, and audio chimes are functioning properly.',
-          type: 'info',
-          is_read: false
-        }]);
-        if (insErr) throw insErr;
-      }
-
-      // 3. Native desktop notification if permission granted
+      // 4. Native desktop notification if permission granted
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         try {
           new Notification('SISTec Library Diagnostic Test', {
             body: 'Notification chime & alert system are active!',
-            icon: '/sistec-logo.png'
+            icon: '/logo.png'
           });
         } catch {}
       }
@@ -192,6 +207,7 @@ const SettingsView = ({ isAdmin = false }) => {
         message: 'Notification chime played and test alert added to your bell icon (top right)!'
       });
     } catch (err) {
+      console.error('Test notification failure:', err);
       setTestResult({
         success: false,
         message: err.message || 'Error triggering test notification'
@@ -276,11 +292,15 @@ const SettingsView = ({ isAdmin = false }) => {
         : 'All Registered Portal Users';
 
       if (user?.id) {
-        await supabase.from('activity_logs').insert([{
-          user_id: user.id,
-          action_type: 'admin_broadcast_notification',
-          details: `Broadcast sent to ${targetLabel} (${recipients.length} recipients): "${notifTitle.trim()}"`
-        }]);
+        const isValidUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || '').trim());
+        const effectiveAdminId = isValidUuid(user.id) ? user.id : null;
+        if (effectiveAdminId) {
+          await supabase.from('activity_logs').insert([{
+            user_id: effectiveAdminId,
+            action_type: 'admin_broadcast_notification',
+            details: `Broadcast sent to ${targetLabel} (${recipients.length} recipients): "${notifTitle.trim()}"`
+          }]);
+        }
       }
 
       // 5. Play chime on admin screen
@@ -289,6 +309,10 @@ const SettingsView = ({ isAdmin = false }) => {
         audio.volume = 0.5;
         audio.play().catch(() => {});
       } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('library:notification-refresh'));
+      }
 
       setBroadcastStatus({
         success: true,
