@@ -209,6 +209,11 @@ const AdminDashboard = () => {
     );
   }, [books, searchQuery]);
 
+  const [visibleBookCount, setVisibleBookCount] = useState(40);
+  useEffect(() => {
+    setVisibleBookCount(40);
+  }, [searchQuery, books]);
+
   const studentStats = useMemo(() => {
     return {
       total: students.length,
@@ -2847,7 +2852,7 @@ const AdminDashboard = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredBooks.map(b => (
+                            {filteredBooks.slice(0, visibleBookCount).map(b => (
                               <tr key={b.id}>
                                 <td style={{ textAlign: 'center' }}>
                                   <input
@@ -2914,7 +2919,7 @@ const AdminDashboard = () => {
 
                     {/* Mobile Card View (< 768px) */}
                     <div className="mobile-cards-view">
-                      {filteredBooks.map(b => (
+                      {filteredBooks.slice(0, visibleBookCount).map(b => (
                         <div key={b.id} className="mobile-data-card">
                           <div className="mobile-card-header">
                             <input
@@ -2971,6 +2976,32 @@ const AdminDashboard = () => {
                         </div>
                       ))}
                     </div>
+
+                    {visibleBookCount < filteredBooks.length && (
+                      <div style={{ textAlign: 'center', marginTop: '24px', marginBottom: '24px' }}>
+                        <button
+                          onClick={() => setVisibleBookCount(prev => Math.min(prev + 40, filteredBooks.length))}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '10px 24px',
+                            fontSize: '0.84rem',
+                            fontWeight: 600,
+                            borderRadius: '9999px',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid var(--border-glass)',
+                            backdropFilter: 'blur(10px)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
+                          }}
+                        >
+                          <BookOpen size={15} /> Load More Books ({filteredBooks.length - visibleBookCount} remaining)
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
