@@ -20,7 +20,7 @@ import { extractFirstPageAsCover } from '../utils/pdfCoverExtractor';
 import { resolveBookCover } from '../utils/bookCoverResolver';
 import NotificationBell from '../components/NotificationBell';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
   const { mode, toggleMode } = useTheme();
   const isDark = mode === 'dark';
@@ -2864,12 +2864,45 @@ const AdminDashboard = () => {
                                 </td>
                                 <td style={{ textAlign: 'center' }}>
                                   {b.cover_url ? (
-                                    <img src={b.cover_url} alt={b.title} style={{ width: '40px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-glass)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                    <img
+                                      src={b.cover_url}
+                                      alt={b.title}
+                                      onClick={() => onSelectBook?.(b)}
+                                      style={{
+                                        width: '40px',
+                                        height: '56px',
+                                        objectFit: 'cover',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--border-glass)',
+                                        cursor: onSelectBook ? 'pointer' : 'default',
+                                        transition: 'transform 0.15s ease'
+                                      }}
+                                      title={onSelectBook ? "Click to Read Book" : undefined}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
                                   ) : (
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
                                   )}
                                 </td>
-                                <td style={{ fontWeight: 600 }}>{b.title}</td>
+                                <td
+                                  style={{
+                                    fontWeight: 600,
+                                    cursor: onSelectBook ? 'pointer' : 'default',
+                                    color: onSelectBook ? 'var(--text-primary)' : undefined
+                                  }}
+                                  onClick={() => onSelectBook?.(b)}
+                                  title={onSelectBook ? "Click to Read Book" : undefined}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>{b.title}</span>
+                                    {onSelectBook && (
+                                      <BookOpen
+                                        size={13}
+                                        style={{ color: '#34d399', opacity: 0.7, flexShrink: 0 }}
+                                      />
+                                    )}
+                                  </div>
+                                </td>
                                 <td>{b.author}</td>
                                 <td>
                                   <span className="badge badge-secondary" style={{ textTransform: 'none', fontSize: '0.65rem' }}>{b.branch_name}</span>
@@ -2884,6 +2917,16 @@ const AdminDashboard = () => {
                                 </td>
                                 <td className="sticky-action-col" style={{ textAlign: 'center' }}>
                                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                    {onSelectBook && (
+                                      <button
+                                        onClick={() => onSelectBook(b)}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '6px 10px', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#34d399' }}
+                                        title="Read / Inspect Book (Instant Admin Access)"
+                                      >
+                                        <BookOpen size={14} />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => setSelectedBookForActivity(b)}
                                       className="btn btn-secondary"
@@ -2952,6 +2995,15 @@ const AdminDashboard = () => {
                           </div>
 
                           <div className="mobile-card-actions">
+                            {onSelectBook && (
+                              <button
+                                onClick={() => onSelectBook(b)}
+                                className="btn btn-secondary"
+                                style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: '#34d399' }}
+                              >
+                                <BookOpen size={15} /> Read
+                              </button>
+                            )}
                             <button
                               onClick={() => setSelectedBookForActivity(b)}
                               className="btn btn-secondary"
@@ -5707,6 +5759,10 @@ const AdminDashboard = () => {
           onClose={() => setSelectedBookForActivity(null)}
           onSelectStudent={(st) => {
             setSelectedStudentForActivity(st);
+          }}
+          onSelectBook={(bk) => {
+            setSelectedBookForActivity(null);
+            onSelectBook?.(bk);
           }}
         />
       )}

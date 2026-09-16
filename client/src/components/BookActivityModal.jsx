@@ -28,7 +28,7 @@ const formatDateTime = (iso) => {
   });
 };
 
-const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
+const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => {
   const { apiCall } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -445,9 +445,38 @@ const BookActivityModal = ({ book, onClose, onSelectStudent }) => {
                   )}
                 </div>
               </div>
-              <button className="bam-close-btn" onClick={onClose}>
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                {onSelectBook && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose?.();
+                      onSelectBook(bookInfo);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(5,150,105,0.3) 100%)',
+                      border: '1px solid rgba(16,185,129,0.4)',
+                      color: '#34d399',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    title="Directly Open and Read Book"
+                  >
+                    <BookOpen size={16} />
+                    <span>Read Book</span>
+                  </button>
+                )}
+                <button className="bam-close-btn" onClick={onClose} aria-label="Close">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Overall Stats */}

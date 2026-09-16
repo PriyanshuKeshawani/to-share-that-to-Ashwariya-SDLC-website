@@ -145,13 +145,33 @@ const AppContent = () => {
     window.history.pushState(null, '', newSearch);
   }, []);
 
-  // Restore book on refresh if ?read=:id exists in URL
-  useEffect(() => {
+  const getBookIdFromUrl = useCallback(() => {
+    if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
+    let bookId = params.get('read') || params.get('book');
+    if (!bookId && window.location.hash) {
+      const hash = window.location.hash;
+      const qIdx = hash.indexOf('?');
+      if (qIdx !== -1) {
+        const hashParams = new URLSearchParams(hash.slice(qIdx));
+        bookId = hashParams.get('read') || hashParams.get('book');
+      }
+    }
     const path = window.location.pathname.replace(/^\/+/, '');
-    const readBookId = params.get('read') || params.get('book') || (path.startsWith('read/') ? path.split('/')[1] : null);
+    if (!bookId && path.startsWith('read/')) {
+      bookId = path.split('/')[1];
+    }
+    return bookId;
+  }, []);
 
-    if (readBookId && !selectedBook && user && user.role === 'student' && user.status === 'approved') {
+  // Restore book on refresh if ?read=:id or ?book=:id exists in URL
+  useEffect(() => {
+    const readBookId = getBookIdFromUrl();
+    // Admin has 100% unrestricted direct access to ANY book (shared or inventory)
+    // Students have direct access if their account is approved
+    const canAccess = user && (user.role === 'admin' || (user.role === 'student' && user.status === 'approved'));
+
+    if (readBookId && !selectedBook && canAccess) {
       supabase
         .from('books')
         .select('*, category:category_id(name), branch:branch_id(name)')
@@ -163,7 +183,7 @@ const AppContent = () => {
           }
         });
     }
-  }, [user]);
+  }, [user, getBookIdFromUrl]);
 
   const handleOpenBook = useCallback((book) => {
     setSelectedBook(book);
@@ -192,7 +212,7 @@ const AppContent = () => {
       const isReg = params.get('view') === 'register' || path === 'register';
       setIsRegisteringState(isReg);
 
-      const readBookId = params.get('read') || params.get('book') || (path.startsWith('read/') ? path.split('/')[1] : null);
+      const readBookId = getBookIdFromUrl();
       if (!readBookId && selectedBook) {
         setSelectedBook(null);
       } else if (readBookId && (!selectedBook || String(selectedBook.id) !== String(readBookId))) {
@@ -208,7 +228,7 @@ const AppContent = () => {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedBook]);
+  }, [selectedBook, getBookIdFromUrl]);
 
   // If user needs profile, reflect in URL
   useEffect(() => {
@@ -265,9 +285,23 @@ const AppContent = () => {
     );
   }
 
+  // Book Reader View (Available instantly for both Admin and Student without approval barriers)
+  if (selectedBook) {
+    return (
+      <div className="reader-page-wrapper">
+        <ReaderErrorBoundary onClose={handleCloseBook}>
+          <BookReader
+            book={selectedBook}
+            onClose={handleCloseBook}
+          />
+        </ReaderErrorBoundary>
+      </div>
+    );
+  }
+
   // Admin View
   if (user.role === 'admin') {
-    return <AdminDashboard />;
+    return <AdminDashboard onSelectBook={handleOpenBook} />;
   }
 
   // Student Account Pending or Rejected Access Blocker
@@ -389,20 +423,6 @@ const AppContent = () => {
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Student View (Reader or Dashboard)
-  if (selectedBook) {
-    return (
-      <div className="reader-page-wrapper">
-        <ReaderErrorBoundary onClose={handleCloseBook}>
-          <BookReader
-            book={selectedBook}
-            onClose={handleCloseBook}
-          />
-        </ReaderErrorBoundary>
       </div>
     );
   }
