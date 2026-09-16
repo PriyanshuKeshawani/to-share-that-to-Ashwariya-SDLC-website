@@ -7,7 +7,7 @@ import {
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
   Activity, X, Settings, RefreshCw, Printer, FileText,
-  Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen
+  Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen, Sparkles
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -429,22 +429,31 @@ const StudentDashboard = ({ onSelectBook }) => {
     onSelectBook(book);
   };
 
+  const isOutOfSyllabusBook = useCallback((b) => {
+    const branchName = (b.branch_name || b.branch?.name || '').toLowerCase();
+    return branchName.includes('syllabus') || b.branch_id === 34;
+  }, []);
+
   const homeBooksCount = useMemo(() => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim();
     if (!userBranch) return 0;
-    return books.filter(b => isSameBranch(userBranch, b.branch_name || b.branch?.name) || b.isHomeBranch).length;
-  }, [books, user]);
+    return books.filter(b => (isSameBranch(userBranch, b.branch_name || b.branch?.name) || b.isHomeBranch) && !isOutOfSyllabusBook(b)).length;
+  }, [books, user, isOutOfSyllabusBook]);
+
+  const outOfSyllabusBooksCount = useMemo(() => {
+    return books.filter(b => isOutOfSyllabusBook(b)).length;
+  }, [books, isOutOfSyllabusBook]);
 
   const otherBooksCount = useMemo(() => {
-    return Math.max(0, books.length - homeBooksCount);
-  }, [books, homeBooksCount]);
+    return Math.max(0, books.length - homeBooksCount - outOfSyllabusBooksCount);
+  }, [books, homeBooksCount, outOfSyllabusBooksCount]);
 
   const filteredBooks = useMemo(() => {
     const userBranch = (user?.branchName || user?.branch_name || '').trim();
 
     return books.filter(book => {
       const bookBranch = (book.branch_name || book.branch?.name || '').trim();
-      const isHome = isSameBranch(userBranch, bookBranch) || Boolean(book.isHomeBranch);
+      const isHome = (isSameBranch(userBranch, bookBranch) || Boolean(book.isHomeBranch)) && !isOutOfSyllabusBook(book);
 
       if (selectedBranch) {
         const selectedBranchObj = branches.find(b => String(b.id) === String(selectedBranch));
@@ -453,7 +462,8 @@ const StudentDashboard = ({ onSelectBook }) => {
         if (!matchBranchId && !matchBranchName) return false;
       } else {
         if (activeTab === 'home' && !isHome) return false;
-        if (activeTab === 'other' && isHome) return false;
+        if (activeTab === 'other' && (isHome || isOutOfSyllabusBook(book))) return false;
+        if (activeTab === 'out_of_syllabus' && !isOutOfSyllabusBook(book)) return false;
       }
 
       if (selectedCategory) {
@@ -723,6 +733,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                   activeTab === 'all' ? 'All Catalog' :
                   activeTab === 'home' ? 'Home Branch' :
                   activeTab === 'other' ? 'Other Branches' :
+                  activeTab === 'out_of_syllabus' ? 'Out of Syllabus' :
                   activeTab === 'requests' ? 'My Requests' :
                   activeTab === 'history' ? 'Reading History' : 'Settings & Theme'
                 }</span>
@@ -1292,8 +1303,10 @@ const StudentDashboard = ({ onSelectBook }) => {
                     style={{ width: '100%' }}
                   >
                     <option value="">All Branches</option>
-                    {branches.map(br => (
-                      <option key={br.id} value={String(br.id)}>{br.name}</option>
+                    {branches
+                      .filter(br => !br.name.toLowerCase().includes('syllabus'))
+                      .map(br => (
+                        <option key={br.id} value={String(br.id)}>{br.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1351,6 +1364,20 @@ const StudentDashboard = ({ onSelectBook }) => {
                       }}
                     >
                       Other Branches ({otherBooksCount})
+                    </button>
+                    <button
+                      onClick={() => { setSelectedBranch(''); setActiveTab('out_of_syllabus'); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'out_of_syllabus' && !selectedBranch ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'out_of_syllabus' && !selectedBranch ? '#f59e0b' : 'var(--text-secondary)',
+                        border: activeTab === 'out_of_syllabus' && !selectedBranch ? '1px solid #f59e0b' : '1px solid var(--border-glass)',
+                        display: 'flex', alignItems: 'center', gap: '5px'
+                      }}
+                    >
+                      <Sparkles size={12} />
+                      Out of Syllabus ({outOfSyllabusBooksCount})
                     </button>
                     <button
                       onClick={() => { setActiveTab('requests'); }}
@@ -1411,6 +1438,26 @@ const StudentDashboard = ({ onSelectBook }) => {
                 <ShieldAlert size={16} style={{ flexShrink: 0 }} />
                 <span>
                   <strong>Cross-Department Books:</strong> As per college policy, accessing books outside your registered department requires permission from the Central Library Administrator. Click <strong>"Request Access"</strong> on any book to get approved.
+                </span>
+              </div>
+            )}
+
+            {activeTab === 'out_of_syllabus' && (
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                color: '#fbbf24',
+                fontSize: '0.82rem',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <Sparkles size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Out of Syllabus Collection:</strong> Curated extra-curricular, competitive exams, personality development, and general reading literature outside regular departmental syllabus.
                 </span>
               </div>
             )}
