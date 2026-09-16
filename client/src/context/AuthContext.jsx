@@ -286,12 +286,13 @@ export const AuthProvider = ({ children }) => {
         category:category_id(name),
         branch:branch_id(name)
       `;
-      const [res1, res2] = await Promise.all([
+      const [res1, res2, res3] = await Promise.all([
         supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),
-        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999)
+        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999),
+        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(2000, 2999)
       ]);
       if (res1.error) throw res1.error;
-      const data = [...(res1.data || []), ...(res2.data || [])];
+      const data = [...(res1.data || []), ...(res2.data || []), ...(res3.data || [])];
 
       let approvedBookIds = [];
       if (user && user.role === 'student') {
@@ -1158,7 +1159,11 @@ export const AuthProvider = ({ children }) => {
         `).eq('user_id', studentId).order('last_accessed_at', { ascending: false }),
         supabase.from('permissions').select('*, branch:branch_id(name), book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }),
         supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(100),
-        supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)')
+        Promise.all([
+          supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(0, 999),
+          supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(1000, 1999),
+          supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(2000, 2999)
+        ]).then(res => res.flatMap(r => r.data || []))
       ]);
 
       const bookLookup = new Map((allBooksList || []).map(b => [b.id, b]));
@@ -1654,19 +1659,27 @@ export const AuthProvider = ({ children }) => {
         logsQuery = logsQuery.gte('created_at', startDate);
       }
 
+      const bookAnalyticsFields = 'id, title, author, branch_id, category_id, priority, cover_url, description, total_pages, created_at, branch:branch_id(id, name), category:category_id(id, name)';
       const [
         { data: allBranches, error: brErr },
-        { data: allBooks, error: bkErr },
+        booksChunks,
         { data: allUsers, error: usrErr },
         { data: allProgress, error: prgErr },
         { data: logsData, error: logErr }
       ] = await Promise.all([
         supabase.from('branches').select('id, name').order('name', { ascending: true }),
-        supabase.from('books').select('id, title, author, branch_id, category_id, priority, cover_url, description, total_pages, created_at, branch:branch_id(id, name), category:category_id(id, name)').order('title', { ascending: true }),
+        Promise.all([
+          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(0, 999),
+          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(1000, 1999),
+          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(2000, 2999)
+        ]),
         supabase.from('users').select('id, full_name, roll_number, branch_name, role, status, is_blocked, created_at, avatar_url, year, semester, bt_number').order('full_name', { ascending: true }),
         supabase.from('user_book_progress').select('id, user_id, book_id, accessed_count, downloaded_count, is_downloaded, last_page_read, total_pages, session_count, reading_time_minutes, progress_percentage, status, last_accessed_at, last_active_at'),
         logsQuery
       ]);
+
+      const allBooks = booksChunks.flatMap(res => res.data || []);
+      const bkErr = booksChunks.find(res => res.error)?.error || null;
 
       if (brErr) console.warn('Notice loading branches:', brErr.message);
       if (bkErr) console.warn('Notice loading books:', bkErr.message);

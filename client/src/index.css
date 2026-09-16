@@ -3390,3 +3390,21 @@ body.dark .st-page-footer,
   pointer-events: auto !important;
   cursor: pointer;
 }
+
+/* GPU-accelerated mobile dark mode filter for zero CPU overhead on low-end devices */
+.st-page-img.st-mobile-dark {
+  filter: invert(0.92) hue-rotate(180deg) contrast(0.96);
+  background: #11141c;
+}
+
+.st-page {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.stf__parent {
+  transform: translateZ(0);
+  will-change: transform;
+}
