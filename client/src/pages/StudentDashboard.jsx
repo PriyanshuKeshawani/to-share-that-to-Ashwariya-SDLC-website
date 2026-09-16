@@ -1539,14 +1539,28 @@ const StudentDashboard = ({ onSelectBook }) => {
                             color: 'var(--text-primary)',
                             lineHeight: 1.35,
                             marginBottom: '4px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
                           }}
                           onClick={() => access.hasAccess ? handleOpenBook(book) : handleRequestAccess(book)}
                           title={book.title}
                         >
                           {book.title}
                         </h4>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        <p
+                          style={{
+                            fontSize: '0.82rem',
+                            color: 'var(--text-secondary)',
+                            marginBottom: '8px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={book.author || 'Author not specified'}
+                        >
                           by {book.author || 'Author not specified'}
                         </p>
                         {!hasDrive && !hasPdf && (

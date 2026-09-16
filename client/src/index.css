@@ -1297,6 +1297,13 @@ th.sticky-action-col {
   width: 100%;
 }
 
+@media (min-width: 1680px) {
+  .book-pinterest-grid {
+    column-count: 5;
+    column-gap: 24px;
+  }
+}
+
 @media (max-width: 1380px) {
   .book-pinterest-grid {
     column-count: 3;
@@ -1433,13 +1440,13 @@ th.sticky-action-col {
   border-radius: 0 2px 2px 0;
 }
 
-/* Adaptive Natural Image (Pinterest fluid dimensions) */
+/* Adaptive Natural Image (Pinterest fluid dimensions - uncropped) */
 .realistic-book-img {
   width: 100%;
   height: auto;
-  max-height: 480px;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
+  background: #090e1a;
   border-radius: 3px 12px 12px 3px;
   transition: transform 0.4s var(--ease-out-expo);
 }
