@@ -171,14 +171,6 @@ const BookReader = ({ book, onClose }) => {
   const holderRightRef = useRef(null);
   const [viewMode, setViewMode] = useState('single'); // 'single' (focused) or 'spread' (open 2-page book)
   const [useNativeViewer, setUseNativeViewer] = useState(false);
-  const [isFlipping, setIsFlipping] = useState(null); // 'next' | 'prev' | null
-  const [dragCurl, setDragCurl] = useState({
-    active: false,
-    direction: null, // 'next' | 'prev'
-    progress: 0,
-    startX: 0,
-    startY: 0
-  });
   const [saving, setSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1047,8 +1039,8 @@ const BookReader = ({ book, onClose }) => {
     }
   }, [pdfDoc, currentPage, scale, mobileZoom, viewMode, isMobile, mode, renderPage]);
 
-  // Page Flip Navigation
-  const handlePageChange = useCallback((targetPage, direction = null) => {
+  // Page Navigation
+  const handlePageChange = useCallback((targetPage) => {
     const pageNum = Math.max(1, Math.min(targetPage, totalPages));
     if (pageNum === currentPage) return;
 
@@ -1058,88 +1050,9 @@ const BookReader = ({ book, onClose }) => {
     if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
     if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
 
-    const dir = direction || (pageNum > currentPage ? 'next' : 'prev');
-    setIsFlipping(dir);
-
-    setTimeout(() => {
-      setCurrentPage(pageNum);
-      saveProgress(pageNum);
-    }, 180);
-
-    setTimeout(() => {
-      setIsFlipping(null);
-    }, 450);
+    setCurrentPage(pageNum);
+    saveProgress(pageNum);
   }, [currentPage, totalPages, saveProgress]);
-
-  // Interactive Corner Drag-to-Curl Gesture Handlers (XBPageCurl)
-  const handleCornerPointerDown = useCallback((e, direction) => {
-    if (isMobile && mobileZoom > 1.05) return;
-    if (isFlipping) return;
-    if (direction === 'next' && currentPage >= totalPages) return;
-    if (direction === 'prev' && currentPage <= 1) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const clientX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : null);
-    const clientY = e.clientY ?? (e.touches && e.touches[0] ? e.touches[0].clientY : null);
-    if (clientX == null) return;
-
-    setDragCurl({
-      active: true,
-      direction,
-      progress: 0.05,
-      startX: clientX,
-      startY: clientY
-    });
-  }, [isMobile, mobileZoom, isFlipping, currentPage, totalPages]);
-
-  useEffect(() => {
-    if (!dragCurl.active) return;
-
-    const onPointerMove = (e) => {
-      const clientX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : null);
-      if (clientX == null) return;
-
-      const spreadEl = document.querySelector('.book-open-spread');
-      const spreadWidth = spreadEl ? spreadEl.getBoundingClientRect().width : window.innerWidth;
-      const leafWidth = viewMode === 'spread' && !isMobile ? spreadWidth * 0.5 : spreadWidth;
-
-      const deltaX = dragCurl.direction === 'next'
-        ? dragCurl.startX - clientX
-        : clientX - dragCurl.startX;
-
-      const progress = Math.max(0, Math.min(1, deltaX / Math.max(140, leafWidth * 0.75)));
-      setDragCurl(prev => ({ ...prev, progress }));
-    };
-
-    const onPointerUp = () => {
-      const { direction, progress } = dragCurl;
-      setDragCurl({ active: false, direction: null, progress: 0, startX: 0, startY: 0 });
-
-      if (progress >= 0.20) {
-        const step = viewMode === 'spread' && !isMobile ? 2 : 1;
-        if (direction === 'next') {
-          handlePageChange(currentPage + step, 'next');
-        } else {
-          handlePageChange(currentPage - step, 'prev');
-        }
-      }
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
-    window.addEventListener('touchmove', onPointerMove, { passive: true });
-    window.addEventListener('touchend', onPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
-      window.removeEventListener('touchmove', onPointerMove);
-      window.removeEventListener('touchend', onPointerUp);
-    };
-  }, [dragCurl, viewMode, isMobile, currentPage, handlePageChange]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -1923,7 +1836,7 @@ const BookReader = ({ book, onClose }) => {
 
                   {/* LEFT PAGE (or Sole Page in Single Mode) */}
                   <div
-                    className={`book-page-leaf ${isFlipping ? `flipping-${isFlipping}` : ''}`}
+                    className="book-page-leaf"
                     style={{
                       flex: 1,
                       borderRight: viewMode === 'spread' && !isMobile ? '1px solid rgba(0,0,0,0.06)' : 'none',
@@ -1963,23 +1876,6 @@ const BookReader = ({ book, onClose }) => {
                       </div>
                     )}
 
-                    {/* Interactive Corner Drag-to-Curl Dog-Ear Handles */}
-                    {(!isMobile || mobileZoom <= 1.05) && currentPage > 1 && (
-                      <div
-                        className="curl-corner-handle curl-corner-handle-left"
-                        onPointerDown={(e) => handleCornerPointerDown(e, 'prev')}
-                        title="Drag or click to curl page back"
-                        aria-label="Previous Page Corner Curl"
-                      />
-                    )}
-                    {(!isMobile || mobileZoom <= 1.05) && (viewMode === 'single' || isMobile) && currentPage < totalPages && (
-                      <div
-                        className="curl-corner-handle curl-corner-handle-right"
-                        onPointerDown={(e) => handleCornerPointerDown(e, 'next')}
-                        title="Drag or click to curl page forward"
-                        aria-label="Next Page Corner Curl"
-                      />
-                    )}
                   </div>
 
                   {/* RIGHT PAGE (in Two-Page Spread Mode) */}
@@ -2039,60 +1935,6 @@ const BookReader = ({ book, onClose }) => {
                         </div>
                       )}
 
-                      {/* Interactive Corner Drag-to-Curl Handle on Right Page */}
-                      {(!isMobile || mobileZoom <= 1.05) && currentPage + 1 < totalPages && (
-                        <div
-                          className="curl-corner-handle curl-corner-handle-right"
-                          onPointerDown={(e) => handleCornerPointerDown(e, 'next')}
-                          title="Drag or click to curl page forward"
-                          aria-label="Next Page Corner Curl"
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {/* XBPageCurl Realistic 3D Cylindrical Page Curl & Turn Effect */}
-                  {(isFlipping || dragCurl.active) && (
-                    <div
-                      className={`xb-page-curl-wrapper ${isDark ? 'dark-mode' : 'light-mode'} ${
-                        viewMode === 'single' || isMobile ? 'curl-single' : 'curl-spread'
-                      } ${(isFlipping === 'next' || dragCurl.direction === 'next') ? 'curl-next' : 'curl-prev'} ${
-                        dragCurl.active ? 'is-dragging' : ''
-                      }`}
-                    >
-                      {/* Dynamic cast shadow on the revealing page underneath */}
-                      <div
-                        className="xb-curl-cast-shadow"
-                        style={dragCurl.active ? {
-                          opacity: Math.sin(dragCurl.progress * Math.PI) * 0.95
-                        } : undefined}
-                      />
-
-                      {/* Cylindrical rolling 3D sheet */}
-                      <div
-                        className="xb-curl-cylinder"
-                        style={dragCurl.active ? {
-                          transform: `perspective(2200px) rotateY(${
-                            (dragCurl.direction === 'next' ? -1 : 1) * dragCurl.progress * 180
-                          }deg) rotateZ(${
-                            (dragCurl.direction === 'next' ? -1 : 1) * Math.sin(dragCurl.progress * Math.PI) * 5
-                          }deg) skewY(${
-                            (dragCurl.direction === 'next' ? -1 : 1) * Math.sin(dragCurl.progress * Math.PI) * 3.5
-                          }deg)`
-                        } : undefined}
-                      >
-                        {/* Front face of curling sheet */}
-                        <div className="xb-curl-face xb-curl-front" />
-                        {/* Reverse back of sheet */}
-                        <div className="xb-curl-face xb-curl-back" />
-                        {/* Specular apex light band running down cylinder ridge */}
-                        <div
-                          className="xb-curl-ridge-highlight"
-                          style={dragCurl.active ? {
-                            opacity: Math.sin(dragCurl.progress * Math.PI)
-                          } : undefined}
-                        />
-                      </div>
                     </div>
                   )}
                 </div>
