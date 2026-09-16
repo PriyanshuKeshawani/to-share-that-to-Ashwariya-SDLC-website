@@ -158,6 +158,7 @@ const DESKTOP_ZOOM_STEPS = [0.75, 0.85, 1.0, 1.15, 1.30, 1.50, 1.75, 2.0, 2.25, 
 const BookReader = ({ book, onClose }) => {
   const { apiCall, user, extractDriveFileId } = useAuth();
   const { mode, toggleMode } = useTheme();
+  const isDark = mode === 'dark';
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(book?.total_pages && book.total_pages > 0 ? book.total_pages : 100);
   const [scale, setScale] = useState(1.15);

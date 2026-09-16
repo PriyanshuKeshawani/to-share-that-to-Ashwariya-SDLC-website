@@ -529,7 +529,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   return (
     <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
           <div style={{
             width: '38px', height: '38px', borderRadius: '11px',
             background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
@@ -539,16 +539,16 @@ const StudentDashboard = ({ onSelectBook }) => {
           }}>
             <img src="/logo.png" alt="SISTec Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <div>
-            <div style={{ fontSize: '0.94rem', fontWeight: 800, lineHeight: 1.15, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.94rem', fontWeight: 800, lineHeight: 1.15, color: 'var(--text-primary)', letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               SISTec Library
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.department || user?.branchName || 'Student'}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <NotificationBell />
         </div>
       </header>
@@ -1248,8 +1248,8 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : (
           <div className="animate-section-enter">
-            <div className="glass-panel" style={{ padding: '16px 18px', marginBottom: '22px' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+            <div className="glass-panel catalog-search-panel" style={{ padding: '16px 18px', marginBottom: '22px' }}>
+              <div className="catalog-search-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
                 <div style={{ flex: '1 1 240px', position: 'relative' }}>
                   <div className="search-input-wrapper">
                     <span className="search-icon">
@@ -1403,7 +1403,7 @@ const StudentDashboard = ({ onSelectBook }) => {
 
             {/* Department Access Context Banner */}
             {activeTab === 'home' && (
-              <div style={{
+              <div className="dept-context-banner" style={{
                 padding: '12px 16px',
                 borderRadius: '12px',
                 background: 'rgba(34, 197, 94, 0.08)',
@@ -1423,7 +1423,7 @@ const StudentDashboard = ({ onSelectBook }) => {
             )}
 
             {activeTab === 'other' && (
-              <div style={{
+              <div className="dept-context-banner" style={{
                 padding: '12px 16px',
                 borderRadius: '12px',
                 background: 'rgba(59, 130, 246, 0.08)',
@@ -1443,7 +1443,7 @@ const StudentDashboard = ({ onSelectBook }) => {
             )}
 
             {activeTab === 'out_of_syllabus' && (
-              <div style={{
+              <div className="dept-context-banner" style={{
                 padding: '12px 16px',
                 borderRadius: '12px',
                 background: 'rgba(245, 158, 11, 0.08)',
@@ -1556,9 +1556,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                       </div>
 
                       {/* Book Metadata & Badges */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
-                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div className="book-card-body">
+                        <div className="book-card-badges" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
+                          <div className="book-card-badges-left" style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
                             {book.priority === 'main' ? (
                               <span className="badge badge-gold">Main Syllabus</span>
                             ) : (
@@ -1586,6 +1586,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                         </div>
 
                         <h4
+                          className="book-card-title"
                           style={{
                             fontSize: '0.86rem',
                             fontWeight: 700,
@@ -1605,6 +1606,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                           {book.title}
                         </h4>
                         <p
+                          className="book-card-author"
                           style={{
                             fontSize: '0.72rem',
                             color: 'var(--text-secondary)',
@@ -1625,17 +1627,17 @@ const StudentDashboard = ({ onSelectBook }) => {
                       </div>
 
                       {/* Card Action Controls */}
-                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '8px', marginTop: '6px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.70rem', color: 'var(--text-muted)' }}>
+                      <div className="book-card-footer" style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '8px', marginTop: '6px' }}>
+                        <div className="book-card-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.70rem', color: 'var(--text-muted)' }}>
                           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{book.category_name || 'General Engineering'}</span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '5px' }}>
+                        <div className="book-card-actions" style={{ display: 'flex', gap: '5px' }}>
                           {access.hasAccess ? (
                             <>
                               <button
                                 onClick={() => handleOpenBook(book)}
-                                className="btn btn-primary btn-shine"
+                                className="btn btn-primary btn-shine btn-read-primary"
                                 style={{ flex: 1, padding: '6px 8px', fontSize: '0.78rem', gap: '4px' }}
                               >
                                 <BookOpen size={13} /> Read
@@ -1643,7 +1645,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               {(hasDrive || hasPdf) && (
                                 <button
                                   onClick={() => handleDownload(book)}
-                                  className="btn btn-secondary"
+                                  className="btn btn-secondary btn-icon-action"
                                   style={{ padding: '6px 8px' }}
                                   title="Download / Open in Drive"
                                 >
@@ -1652,7 +1654,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               )}
                               <button
                                 onClick={() => setSharingBook(book)}
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-icon-action"
                                 style={{ padding: '6px 8px' }}
                                 title="Share Book Link"
                               >
@@ -1660,7 +1662,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                               <button
                                 onClick={() => setOverviewBook(book)}
-                                className="btn btn-ghost"
+                                className="btn btn-ghost btn-icon-action"
                                 style={{ padding: '6px 6px' }}
                                 title="View Details & Overview"
                               >
@@ -1668,9 +1670,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                             </>
                           ) : access.status === 'pending' ? (
-                            <div style={{ display: 'flex', gap: '5px', width: '100%' }}>
+                            <div className="book-card-actions" style={{ display: 'flex', gap: '5px', width: '100%' }}>
                               <button
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-read-primary"
                                 style={{ flex: 1, cursor: 'not-allowed', fontSize: '0.76rem', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
                                 disabled
                               >
@@ -1681,7 +1683,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                                 return matchReq ? (
                                   <button
                                     onClick={() => handleCancelRequest(matchReq.id, book.title)}
-                                    className="btn btn-secondary"
+                                    className="btn btn-secondary btn-icon-action"
                                     style={{ padding: '8px 10px', fontSize: '0.78rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                                     title="Cancel Request"
                                     disabled={actionLoading[`cancel-${matchReq.id}`]}
@@ -1692,7 +1694,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               })()}
                               <button
                                 onClick={() => setSharingBook(book)}
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-icon-action"
                                 style={{ padding: '8px 10px' }}
                                 title="Share Book Link"
                               >
@@ -1700,7 +1702,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                               <button
                                 onClick={() => setOverviewBook(book)}
-                                className="btn btn-ghost"
+                                className="btn btn-ghost btn-icon-action"
                                 style={{ padding: '8px 8px' }}
                                 title="View Details & Overview"
                               >
@@ -1708,10 +1710,10 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                             </div>
                           ) : access.status === 'rejected' ? (
-                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                            <div className="book-card-actions" style={{ display: 'flex', gap: '6px', width: '100%' }}>
                               <button
                                 onClick={() => handleRequestAccess(book)}
-                                className="btn btn-danger"
+                                className="btn btn-danger btn-read-primary"
                                 style={{ flex: 1, fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                                 disabled={actionLoading[`book-${book.id}`]}
                               >
@@ -1719,7 +1721,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                               <button
                                 onClick={() => setSharingBook(book)}
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-icon-action"
                                 style={{ padding: '8px 10px' }}
                                 title="Share Book Link"
                               >
@@ -1727,10 +1729,10 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                            <div className="book-card-actions" style={{ display: 'flex', gap: '6px', width: '100%' }}>
                               <button
                                 onClick={() => handleRequestAccess(book)}
-                                className="btn btn-primary btn-shine"
+                                className="btn btn-primary btn-shine btn-read-primary"
                                 style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                                 disabled={actionLoading[`book-${book.id}`]}
                               >
@@ -1738,7 +1740,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                               <button
                                 onClick={() => setSharingBook(book)}
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-icon-action"
                                 style={{ padding: '8px 10px' }}
                                 title="Share Book Link"
                               >
@@ -1746,7 +1748,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                               </button>
                               <button
                                 onClick={() => setOverviewBook(book)}
-                                className="btn btn-ghost"
+                                className="btn btn-ghost btn-icon-action"
                                 style={{ padding: '8px 8px' }}
                                 title="View Details & Overview"
                               >
@@ -1785,6 +1787,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                   </button>
                 </div>
               )}
+              <div className="catalog-mobile-spacer" />
               </>
             )}
           </div>
