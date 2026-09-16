@@ -85,12 +85,28 @@ const TAG_COLORS = {
  * - Gently enhances contrast for very dark colored elements so they remain legible
  * - Leaves layout, zoom, and canvas dimensions completely untouched
  */
-const applySmartDarkModeToCanvas = (ctx, width, height) => {
+const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
   if (!ctx || width <= 0 || height <= 0) return;
   try {
     const imgData = ctx.getImageData(0, 0, width, height);
     const d = imgData.data;
     const len = d.length;
+
+    // Fast 1-byte lookup mask of image pixels to completely protect photos, figures, and diagrams from inversion
+    let isImage = null;
+    if (imageRects && imageRects.length > 0) {
+      isImage = new Uint8Array(width * height);
+      for (let r = 0; r < imageRects.length; r++) {
+        const rect = imageRects[r];
+        const x1 = Math.max(0, Math.floor(rect.x1));
+        const y1 = Math.max(0, Math.floor(rect.y1));
+        const x2 = Math.min(width, Math.ceil(rect.x2));
+        const y2 = Math.min(height, Math.ceil(rect.y2));
+        for (let y = y1; y < y2; y++) {
+          isImage.fill(1, y * width + x1, y * width + x2);
+        }
+      }
+    }
 
     // Target dark charcoal background (#11141c) and soft off-white text (#e2e8f0)
     const BG_R = 17;
@@ -103,6 +119,13 @@ const applySmartDarkModeToCanvas = (ctx, width, height) => {
     for (let i = 0; i < len; i += 4) {
       // Skip transparent pixels
       if (d[i + 3] < 10) continue;
+
+      const pixelIdx = i >> 2;
+      // 1. INTELLIGENT IMAGE PRESERVATION:
+      // Real photos, diagrams, and figures remain 100% natural in original color without negative inversion
+      if (isImage && isImage[pixelIdx] === 1) {
+        continue;
+      }
 
       const r = d[i];
       const g = d[i + 1];
@@ -136,9 +159,9 @@ const applySmartDarkModeToCanvas = (ctx, width, height) => {
         // Enhance legibility of very dark colored elements against dark charcoal
         if (lum < 60) {
           const boost = 1 + (60 - lum) * 0.01;
-          colR = colR * boost;
-          colG = colG * boost;
-          colB = colB * boost;
+          colR = Math.min(255, colR * boost);
+          colG = Math.min(255, colG * boost);
+          colB = Math.min(255, colB * boost);
         }
 
         d[i] = darkR * (1 - colorWeight) + colR * colorWeight;
@@ -919,14 +942,63 @@ const BookReader = ({ book, onClose }) => {
         offCtx.fillStyle = '#ffffff';
         offCtx.fillRect(0, 0, viewport.width, viewport.height);
 
-        await page.render({
-          canvasContext: offCtx,
-          viewport
-        }).promise;
+        // Track embedded raster images (photos, figures, diagrams) to protect them from inversion
+        const imageRects = [];
+        let origDrawImage = null;
+        if (mode === 'dark') {
+          origDrawImage = offCtx.drawImage.bind(offCtx);
+          offCtx.drawImage = function (img, ...args) {
+            try {
+              let dx = 0, dy = 0, dw = 1, dh = 1;
+              if (args.length === 2) {
+                [dx, dy] = args;
+                dw = (img && (img.naturalWidth || img.width)) || 1;
+                dh = (img && (img.naturalHeight || img.height)) || 1;
+              } else if (args.length === 4) {
+                [dx, dy, dw, dh] = args;
+              } else if (args.length === 8) {
+                [, , , , dx, dy, dw, dh] = args;
+              }
+              const m = offCtx.getTransform ? offCtx.getTransform() : { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+              const p1 = { x: m.a * dx + m.c * dy + m.e, y: m.b * dx + m.d * dy + m.f };
+              const p2 = { x: m.a * (dx + dw) + m.c * dy + m.e, y: m.b * (dx + dw) + m.d * dy + m.f };
+              const p3 = { x: m.a * (dx + dw) + m.c * (dy + dh) + m.e, y: m.b * (dx + dw) + m.d * (dy + dh) + m.f };
+              const p4 = { x: m.a * dx + m.c * (dy + dh) + m.e, y: m.b * dx + m.d * (dy + dh) + m.f };
 
-        // Desktop gets rich pixel-level contrast; Mobile uses zero-CPU GPU CSS filter to prevent processor stalls
-        if (mode === 'dark' && !isMobileViewport) {
-          applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height);
+              const minX = Math.floor(Math.min(p1.x, p2.x, p3.x, p4.x));
+              const maxX = Math.ceil(Math.max(p1.x, p2.x, p3.x, p4.x));
+              const minY = Math.floor(Math.min(p1.y, p2.y, p3.y, p4.y));
+              const maxY = Math.ceil(Math.max(p1.y, p2.y, p3.y, p4.y));
+
+              const isFullPage = (maxX - minX) >= offscreen.width * 0.95 && (maxY - minY) >= offscreen.height * 0.95;
+              const isTiny = (maxX - minX) < 8 && (maxY - minY) < 8;
+              if (!isFullPage && !isTiny && maxX > minX && maxY > minY) {
+                imageRects.push({
+                  x1: Math.max(0, minX),
+                  y1: Math.max(0, minY),
+                  x2: Math.min(offscreen.width, maxX),
+                  y2: Math.min(offscreen.height, maxY)
+                });
+              }
+            } catch {}
+            return origDrawImage(img, ...args);
+          };
+        }
+
+        try {
+          await page.render({
+            canvasContext: offCtx,
+            viewport
+          }).promise;
+        } finally {
+          if (origDrawImage) {
+            offCtx.drawImage = origDrawImage;
+          }
+        }
+
+        // Apply intelligent dark reading mode across both mobile and desktop with zero photographic negative inversion
+        if (mode === 'dark') {
+          applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height, imageRects);
         }
 
         const dataUrl = offscreen.toDataURL('image/jpeg', isMobileViewport ? 0.80 : 0.88);
@@ -955,17 +1027,12 @@ const BookReader = ({ book, onClose }) => {
     if (!dataUrl) return;
 
     // Apply to all matching img elements (handles soft clone elements during page flips)
-    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
     const imgs = document.querySelectorAll(`img.st-page-img[data-page="${pageNum}"]`);
     imgs.forEach(img => {
       if (img.src !== dataUrl) {
         img.src = dataUrl;
       }
-      if (isMobileViewport && mode === 'dark') {
-        img.classList.add('st-mobile-dark');
-      } else {
-        img.classList.remove('st-mobile-dark');
-      }
+      img.classList.remove('st-mobile-dark');
       img.style.display = 'block';
     });
 
@@ -1077,53 +1144,8 @@ const BookReader = ({ book, onClose }) => {
       pageElements.push(pageDiv);
     }
 
-    const isMobileViewport = window.innerWidth < 768;
-    const baseWidth = isMobileViewport ? Math.min(window.innerWidth - 20, 460) : 550;
-    const baseHeight = isMobileViewport ? Math.min(window.innerHeight - 130, 680) : 733;
-
+    let isCancelled = false;
     let pageFlipInstance = null;
-    try {
-      pageFlipInstance = new PageFlip(flipWrapper, {
-        width: baseWidth,
-        height: baseHeight,
-        size: 'stretch',
-        minWidth: 380,
-        maxWidth: 900,
-        minHeight: 450,
-        maxHeight: 1200,
-        maxShadowOpacity: isMobileViewport ? 0.2 : 0.5,
-        showCover: true,
-        mobileScrollSupport: false,
-        usePortrait: true,
-        startPage: Math.max(0, currentPageRef.current - 1),
-        // Disabling dynamic shadow canvas recalculation on mobile prevents GPU frame drops
-        drawShadow: !isMobileViewport,
-        flippingTime: isMobileViewport ? 450 : 650,
-        useMouseEvents: true,
-        swipeDistance: 35,
-        clickEventForward: true
-      });
-
-      pageFlipInstance.loadFromHTML(pageElements);
-      pageFlipRef.current = pageFlipInstance;
-
-      pageFlipInstance.on('changeState', (e) => {
-        isFlippingRef.current = (e.data === 'flipping');
-      });
-
-      pageFlipInstance.on('flip', (e) => {
-        const flippedPage = (typeof e.data === 'number' ? e.data : pageFlipInstance.getCurrentPageIndex()) + 1;
-        setCurrentPage(flippedPage);
-        currentPageRef.current = flippedPage;
-        saveProgress(flippedPage);
-        ensurePagesRendered(flippedPage);
-      });
-
-      // Render initial pages around start position
-      ensurePagesRendered(currentPageRef.current);
-    } catch (err) {
-      console.error('[StPageFlip] Error creating flipbook instance:', err);
-    }
 
     const handleWindowResize = () => {
       if (pageFlipRef.current) {
@@ -1134,7 +1156,85 @@ const BookReader = ({ book, onClose }) => {
     };
     window.addEventListener('resize', handleWindowResize);
 
+    (async () => {
+      let pageRatio = 0.72;
+      try {
+        const firstPage = await pdfDoc.getPage(1);
+        const vp = firstPage.getViewport({ scale: 1.0 });
+        if (vp && vp.width && vp.height) {
+          pageRatio = vp.width / vp.height;
+        }
+      } catch {}
+
+      if (isCancelled || !mount.contains(flipWrapper)) return;
+
+      const isMobileViewport = window.innerWidth < 768;
+      let baseWidth = 550;
+      let baseHeight = 733;
+
+      if (isMobileViewport) {
+        const maxAvailWidth = Math.min(window.innerWidth - 12, 480);
+        const maxAvailHeight = window.innerHeight - 110;
+        let w = maxAvailWidth;
+        let h = Math.round(w / (pageRatio || 0.72));
+        if (h > maxAvailHeight) {
+          h = maxAvailHeight;
+          w = Math.round(h * (pageRatio || 0.72));
+        }
+        baseWidth = Math.max(280, w);
+        baseHeight = Math.max(380, h);
+      } else {
+        baseWidth = 550;
+        baseHeight = Math.round(550 / (pageRatio || 0.72));
+        baseHeight = Math.max(700, Math.min(880, baseHeight));
+      }
+
+      try {
+        pageFlipInstance = new PageFlip(flipWrapper, {
+          width: baseWidth,
+          height: baseHeight,
+          size: 'stretch',
+          minWidth: isMobileViewport ? 260 : 380,
+          maxWidth: 950,
+          minHeight: isMobileViewport ? 360 : 450,
+          maxHeight: 1200,
+          maxShadowOpacity: isMobileViewport ? 0.2 : 0.5,
+          showCover: true,
+          mobileScrollSupport: false,
+          usePortrait: true,
+          startPage: Math.max(0, currentPageRef.current - 1),
+          // Disabling dynamic shadow canvas recalculation on mobile prevents GPU frame drops
+          drawShadow: !isMobileViewport,
+          flippingTime: isMobileViewport ? 450 : 650,
+          useMouseEvents: true,
+          swipeDistance: 35,
+          clickEventForward: true
+        });
+
+        pageFlipInstance.loadFromHTML(pageElements);
+        pageFlipRef.current = pageFlipInstance;
+
+        pageFlipInstance.on('changeState', (e) => {
+          isFlippingRef.current = (e.data === 'flipping');
+        });
+
+        pageFlipInstance.on('flip', (e) => {
+          const flippedPage = (typeof e.data === 'number' ? e.data : pageFlipInstance.getCurrentPageIndex()) + 1;
+          setCurrentPage(flippedPage);
+          currentPageRef.current = flippedPage;
+          saveProgress(flippedPage);
+          ensurePagesRendered(flippedPage);
+        });
+
+        // Render initial pages around start position
+        ensurePagesRendered(currentPageRef.current);
+      } catch (err) {
+        console.error('[StPageFlip] Error creating flipbook instance:', err);
+      }
+    })();
+
     return () => {
+      isCancelled = true;
       window.removeEventListener('resize', handleWindowResize);
       if (pageFlipRef.current) {
         try {

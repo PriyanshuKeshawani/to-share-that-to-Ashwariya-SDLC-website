@@ -3217,8 +3217,12 @@ html, body {
 
 /* Dark mode overrides for book pages */
 body.dark .st-page,
-[data-theme="dark"] .st-page {
-  background-color: #11141c;
+[data-theme="dark"] .st-page,
+body.dark .st-page-inner,
+[data-theme="dark"] .st-page-inner,
+body.dark .st-page-content,
+[data-theme="dark"] .st-page-content {
+  background-color: #11141c !important;
   color: #e2e8f0;
   box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
 }
@@ -3391,10 +3395,9 @@ body.dark .st-page-footer,
   cursor: pointer;
 }
 
-/* GPU-accelerated mobile dark mode filter for zero CPU overhead on low-end devices */
-.st-page-img.st-mobile-dark {
-  filter: invert(0.92) hue-rotate(180deg) contrast(0.96);
-  background: #11141c;
+/* Zero-flicker book page image styling */
+.st-page-img {
+  background: transparent !important;
 }
 
 .st-page {
