@@ -3343,3 +3343,50 @@ body.dark .st-page-footer,
   background: linear-gradient(225deg, transparent 50%, rgba(99, 102, 241, 0.25) 100%);
   border-bottom-left-radius: 4px;
 }
+
+/* StPageFlip Zoom Stage & 4-Direction Panning */
+.st-zoom-content {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.book-stage-viewport.is-zoomed {
+  overflow: hidden !important;
+}
+
+.st-pan-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  cursor: grab;
+}
+
+.st-pan-overlay.is-dragging {
+  cursor: grabbing;
+}
+
+/* Silk Ribbon Left / Right placement for 2-page book spread */
+.silk-ribbon-left {
+  left: 32px !important;
+  right: auto !important;
+}
+
+.silk-ribbon-right {
+  right: 32px !important;
+  left: auto !important;
+}
+
+/* Ensure corner page-turn hit testing never blocks physical page curling */
+.page-turn-trigger {
+  pointer-events: none !important;
+}
+
+.page-turn-arrow-badge {
+  pointer-events: auto !important;
+  cursor: pointer;
+}
