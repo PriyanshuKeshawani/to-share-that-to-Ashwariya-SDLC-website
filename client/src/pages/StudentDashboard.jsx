@@ -95,6 +95,11 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
   const [toastExiting, setToastExiting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(36);
+
+  useEffect(() => {
+    setVisibleCount(36);
+  }, [search, selectedCategory, selectedBranch, activeTab]);
 
   const showFeedback = useCallback((text, type = 'success') => {
     setToastExiting(false);
@@ -752,77 +757,77 @@ const StudentDashboard = ({ onSelectBook }) => {
         )}
 
         {activeTab === 'all' && (
-          <div className="motion-ambient-banner animate-fade-in" style={{ marginBottom: '26px' }}>
+          <div className="motion-ambient-banner animate-fade-in" style={{ marginBottom: '18px', padding: '16px 20px' }}>
             <div style={{ position: 'relative', zIndex: 1 }}>
-              <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>
                 Welcome back, {user?.fullName || user?.username}!
               </h2>
-              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
                 SISTec Digital Library • {user?.branchName || 'All Departments'}
               </p>
             </div>
 
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '14px', marginTop: '20px', position: 'relative', zIndex: 1
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: '12px', marginTop: '14px', position: 'relative', zIndex: 1
             }}>
               <div
                 onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-1"
-                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
                 title="View all catalog books"
               >
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.14)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <BookOpen size={20} />
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(37, 99, 235, 0.14)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BookOpen size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Library Catalog</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{books.length}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Library Catalog</div>
                 </div>
               </div>
 
               <div
                 onClick={() => { setActiveTab('requests'); setRequestFilter('approved'); }}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-2"
-                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
                 title="View approved book clearances"
               >
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.14)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CheckCircle size={20} />
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(16, 185, 129, 0.14)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{approvedRequestsCount}</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Approved Access</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{approvedRequestsCount}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Approved Access</div>
                 </div>
               </div>
 
               <div
                 onClick={() => { setActiveTab('requests'); setRequestFilter('pending'); }}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-3"
-                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
                 title="View pending book requests"
               >
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Clock size={20} />
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pendingRequestsCount}</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Pending Requests</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pendingRequestsCount}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pending Requests</div>
                 </div>
               </div>
 
               <div
                 onClick={() => setActiveTab('history')}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-4"
-                style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
                 title="View your reading history"
               >
-                <div className="motion-card-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Activity size={20} />
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Activity size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Reading Activity</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{history.length}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Reading Activity</div>
                 </div>
               </div>
             </div>
@@ -1309,7 +1314,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Quick Filter:
                 </span>
-                <div className="quick-filter-scroll">
+                <div className="quick-filter-scroll" style={{ flex: '1 1 auto', minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: 'max-content' }}>
                     <button
                       onClick={() => { setActiveTab('all'); setSelectedBranch(''); }}
@@ -1423,8 +1428,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                   : () => { setSearch(''); setSelectedCategory(''); setSelectedBranch(''); setActiveTab('all'); }}
               />
             ) : (
-              <div className="book-pinterest-grid">
-                {filteredBooks.map((book, idx) => {
+              <>
+                <div className="book-pinterest-grid">
+                {filteredBooks.slice(0, visibleCount).map((book, idx) => {
                   const access = getBookAccess(book);
                   const hasDrive = !!(book.drive_link || book.drive_file_id);
                   const hasPdf = !!book.pdf_url;
@@ -1534,10 +1540,11 @@ const StudentDashboard = ({ onSelectBook }) => {
 
                         <h4
                           style={{
-                            fontSize: '1.02rem',
+                            fontSize: '0.86rem',
                             fontWeight: 700,
                             color: 'var(--text-primary)',
-                            lineHeight: 1.35,
+                            lineHeight: 1.25,
+                            minHeight: '2.5em',
                             marginBottom: '4px',
                             cursor: 'pointer',
                             display: '-webkit-box',
@@ -1552,9 +1559,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                         </h4>
                         <p
                           style={{
-                            fontSize: '0.82rem',
+                            fontSize: '0.72rem',
                             color: 'var(--text-secondary)',
-                            marginBottom: '8px',
+                            marginBottom: '4px',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis'
@@ -1564,57 +1571,57 @@ const StudentDashboard = ({ onSelectBook }) => {
                           by {book.author || 'Author not specified'}
                         </p>
                         {!hasDrive && !hasPdf && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px', fontStyle: 'italic' }}>
+                          <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', marginBottom: '6px', fontStyle: 'italic' }}>
                             Preview only — no file linked yet
                           </div>
                         )}
                       </div>
 
                       {/* Card Action Controls */}
-                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '10px', marginTop: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                          <span>{book.category_name || 'General Engineering'}</span>
+                      <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '8px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.70rem', color: 'var(--text-muted)' }}>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{book.category_name || 'General Engineering'}</span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '5px' }}>
                           {access.hasAccess ? (
                             <>
                               <button
                                 onClick={() => handleOpenBook(book)}
                                 className="btn btn-primary btn-shine"
-                                style={{ flex: 1, padding: '8px 10px', fontSize: '0.82rem', gap: '5px' }}
+                                style={{ flex: 1, padding: '6px 8px', fontSize: '0.78rem', gap: '4px' }}
                               >
-                                <BookOpen size={14} /> Read
+                                <BookOpen size={13} /> Read
                               </button>
                               {(hasDrive || hasPdf) && (
                                 <button
                                   onClick={() => handleDownload(book)}
                                   className="btn btn-secondary"
-                                  style={{ padding: '8px 10px' }}
+                                  style={{ padding: '6px 8px' }}
                                   title="Download / Open in Drive"
                                 >
-                                  <Download size={14} />
+                                  <Download size={13} />
                                 </button>
                               )}
                               <button
                                 onClick={() => setSharingBook(book)}
                                 className="btn btn-secondary"
-                                style={{ padding: '8px 10px' }}
+                                style={{ padding: '6px 8px' }}
                                 title="Share Book Link"
                               >
-                                <Share2 size={14} />
+                                <Share2 size={13} />
                               </button>
                               <button
                                 onClick={() => setOverviewBook(book)}
                                 className="btn btn-ghost"
-                                style={{ padding: '8px 8px' }}
+                                style={{ padding: '6px 6px' }}
                                 title="View Details & Overview"
                               >
-                                <Info size={14} />
+                                <Info size={13} />
                               </button>
                             </>
                           ) : access.status === 'pending' ? (
-                            <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                            <div style={{ display: 'flex', gap: '5px', width: '100%' }}>
                               <button
                                 className="btn btn-secondary"
                                 style={{ flex: 1, cursor: 'not-allowed', fontSize: '0.76rem', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}
@@ -1706,6 +1713,32 @@ const StudentDashboard = ({ onSelectBook }) => {
                   );
                 })}
               </div>
+              {visibleCount < filteredBooks.length && (
+                <div style={{ textAlign: 'center', marginTop: '36px', marginBottom: '36px' }}>
+                  <button
+                    onClick={() => setVisibleCount(prev => Math.min(prev + 36, filteredBooks.length))}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '12px 28px',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      borderRadius: '9999px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      backdropFilter: 'blur(10px)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
+                    }}
+                  >
+                    <BookOpen size={16} /> Load More Books ({filteredBooks.length - visibleCount} more)
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         )}

@@ -270,6 +270,8 @@ input:disabled {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  min-width: 0;
+  max-width: 100%;
 }
 .quick-filter-scroll::-webkit-scrollbar {
   display: none;
@@ -334,46 +336,100 @@ h2 { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #f
 [data-theme='light'] h2 { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%); -webkit-background-clip: text; background-clip: text; }
 p { color: var(--text-secondary); line-height: 1.65; }
 
-/* ═══ LAYOUT ═══ */
-.app-container { display: flex; min-height: 100vh; position: relative; }
+/* ═══ LAYOUT & COLLAPSIBLE SIDEBAR ═══ */
+:root {
+  --sidebar-width: 260px;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+}
+
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 .sidebar {
-  width: 260px; height: 100vh; position: fixed; left: 0; top: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border-glass);
   padding: 24px 16px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  z-index: 100; overflow-y: auto;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, width 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  z-index: 100;
+  overflow-y: auto;
+  box-sizing: border-box;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.25s ease,
+              width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, opacity;
 }
+
 .sidebar::after {
-  content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), transparent 30%, transparent 70%, rgba(6, 182, 212, 0.06));
   pointer-events: none;
 }
+
 .main-content {
-  flex: 1;
-  margin-left: 260px;
-  padding: 32px 36px;
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  max-width: calc(100vw - var(--sidebar-width));
+  padding: 28px 32px;
   min-height: 100vh;
   position: relative;
-  max-width: 1600px;
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s ease, max-width 0.3s ease;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.3s ease;
 }
 
-/* ── Google AI Studio Collapsible Sidebar Mode (PC) ── */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .sidebar {
+    padding: 20px 12px;
+  }
+  .main-content {
+    padding: 22px 20px;
+  }
+}
+
+/* ── Google AI Studio Collapsible Sidebar Mode ── */
 .app-container.sidebar-collapsed .sidebar {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
+  transform: translateX(-105%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
   visibility: hidden;
 }
+
 .app-container.sidebar-collapsed .main-content {
   margin-left: 0 !important;
-  max-width: 100% !important;
-  padding-left: 40px;
-  padding-right: 40px;
+  width: 100% !important;
+  max-width: 100vw !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
 }
 
 .sidebar-collapse-btn {
@@ -1060,8 +1116,13 @@ th.sticky-action-col {
    RESPONSIVE: TABLET (768–1199px)
    ═══════════════════════════════════════════ */
 @media (min-width: 768px) and (max-width: 1199px) {
-  .sidebar { width: 220px; padding: 20px 12px; }
-  .main-content { margin-left: 220px; padding: 28px 24px; }
+  .sidebar { width: var(--sidebar-width); padding: 20px 12px; }
+  .main-content {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    max-width: calc(100vw - var(--sidebar-width));
+    padding: 22px 20px;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1290,60 +1351,76 @@ th.sticky-action-col {
    PINTEREST MASONRY & REALISTIC 3D PHYSICAL BOOK CARDS
    ═══════════════════════════════════════════════════════════════ */
 
-/* Masonry Grid (Pinterest style columns) */
+/* Responsive Pinterest-Style Adaptive Grid */
 .book-pinterest-grid {
-  column-count: 4;
-  column-gap: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 16px;
   width: 100%;
+  align-items: stretch;
 }
 
-@media (min-width: 1680px) {
+@media (min-width: 1700px) {
   .book-pinterest-grid {
-    column-count: 5;
-    column-gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+    gap: 18px;
   }
 }
 
-@media (max-width: 1380px) {
+@media (max-width: 1699px) and (min-width: 1200px) {
   .book-pinterest-grid {
-    column-count: 3;
-    column-gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+    gap: 16px;
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1199px) and (min-width: 880px) {
   .book-pinterest-grid {
-    column-count: 2;
-    column-gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+    gap: 14px;
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 879px) and (min-width: 580px) {
   .book-pinterest-grid {
-    column-count: 1;
-    column-gap: 0;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 579px) {
+  .book-pinterest-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 }
 
 /* Pinterest Book Card Item */
 .book-pinterest-card {
-  break-inside: avoid;
-  page-break-inside: avoid;
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  justifyContent: space-between;
   width: 100%;
-  margin-bottom: 22px;
+  height: 100%;
   background: rgba(13, 22, 42, 0.78);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 10px;
   box-sizing: border-box;
-  transition: transform 0.35s var(--ease-out-expo), 
-              box-shadow 0.35s var(--ease-out-expo), 
-              border-color 0.35s var(--ease-out-expo);
+  transition: transform 0.3s var(--ease-out-expo), 
+              box-shadow 0.3s var(--ease-out-expo), 
+              border-color 0.3s var(--ease-out-expo);
   position: relative;
   overflow: hidden;
+}
+
+@media (max-width: 560px) {
+  .book-pinterest-card {
+    padding: 8px;
+    border-radius: 10px;
+  }
 }
 
 [data-theme='light'] .book-pinterest-card {
@@ -1353,23 +1430,23 @@ th.sticky-action-col {
 }
 
 .book-pinterest-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
   border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.75), 
-              0 0 25px rgba(37, 99, 235, 0.16);
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.75), 
+              0 0 20px rgba(37, 99, 235, 0.16);
 }
 
 [data-theme='light'] .book-pinterest-card:hover {
-  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.12),
-              0 0 20px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.12),
+              0 0 16px rgba(37, 99, 235, 0.1);
 }
 
 /* ═══ Realistic 3D Physical Book Container ═══ */
 .realistic-book-wrapper {
   position: relative;
   width: 100%;
-  margin-bottom: 14px;
-  perspective: 1200px;
+  margin-bottom: 8px;
+  perspective: 1000px;
   cursor: pointer;
   user-select: none;
 }
@@ -1377,26 +1454,32 @@ th.sticky-action-col {
 .realistic-book-cover {
   position: relative;
   width: 100%;
-  border-radius: 3px 12px 12px 3px;
+  height: 215px; /* Golden desktop book height */
+  border-radius: 4px 9px 9px 4px;
   overflow: hidden;
-  background: #090e1a;
-  /* 3D Physical Book Shadow & Paper Depth */
+  background: #080d1a;
   box-shadow: 
-    -5px 6px 16px rgba(0, 0, 0, 0.55),
-    0 12px 28px -4px rgba(0, 0, 0, 0.65),
-    inset -2px 0 4px rgba(0, 0, 0, 0.35),
-    inset 1px 0 1px rgba(255, 255, 255, 0.22);
+    -3px 4px 12px rgba(0, 0, 0, 0.45),
+    0 8px 18px -3px rgba(0, 0, 0, 0.5),
+    inset -2px 0 3px rgba(0, 0, 0, 0.25),
+    inset 1px 0 1px rgba(255, 255, 255, 0.18);
   transform-origin: left center;
-  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
-              box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 560px) {
+  .realistic-book-cover {
+    height: 170px;
+  }
 }
 
 .book-pinterest-card:hover .realistic-book-cover {
   transform: perspective(1000px) rotateY(-5deg) translateY(-2px);
   box-shadow: 
-    -9px 14px 28px rgba(0, 0, 0, 0.65),
-    0 22px 42px -6px rgba(0, 0, 0, 0.75),
-    0 0 24px rgba(37, 99, 235, 0.25);
+    -6px 10px 20px rgba(0, 0, 0, 0.65),
+    0 14px 28px -5px rgba(0, 0, 0, 0.75),
+    0 0 18px rgba(37, 99, 235, 0.25);
 }
 
 /* Physical Spine Crease / Hinge Lighting (Left edge of real book) */
@@ -1405,7 +1488,7 @@ th.sticky-action-col {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 26px;
+  width: 22px;
   background: linear-gradient(
     to right,
     rgba(0, 0, 0, 0.55) 0%,
@@ -1443,12 +1526,13 @@ th.sticky-action-col {
 /* Adaptive Natural Image (Pinterest fluid dimensions - uncropped) */
 .realistic-book-img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  object-fit: contain;
-  background: #090e1a;
-  border-radius: 3px 12px 12px 3px;
-  transition: transform 0.4s var(--ease-out-expo);
+  object-fit: cover;
+  object-position: center top;
+  background: #080d1a;
+  border-radius: 4px 9px 9px 4px;
+  transition: transform 0.35s var(--ease-out-expo);
 }
 
 /* Quick Hover Action Pill over book cover */
@@ -1459,9 +1543,9 @@ th.sticky-action-col {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 16px;
+  padding: 14px;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s ease;
   z-index: 7;
   pointer-events: none;
 }
@@ -1471,19 +1555,19 @@ th.sticky-action-col {
 }
 
 .book-hover-pill {
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 20px;
   background: rgba(37, 99, 235, 0.9);
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  gap: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   backdrop-filter: blur(8px);
   transform: translateY(6px);
-  transition: transform 0.3s var(--ease-spring);
+  transition: transform 0.25s var(--ease-spring);
 }
 
 .book-pinterest-card:hover .book-hover-pill {
@@ -1493,13 +1577,13 @@ th.sticky-action-col {
 /* Fallback Physical Hardcover when cover_url is missing */
 .realistic-book-fallback {
   width: 100%;
-  aspect-ratio: 1 / 1.42;
-  border-radius: 3px 12px 12px 3px;
+  height: 100%;
+  border-radius: 4px 9px 9px 4px;
   background: linear-gradient(145deg, #101e42 0%, #080f24 100%);
   display: flex;
   flex-direction: column;
   justifyContent: space-between;
-  padding: 22px 18px 22px 28px;
+  padding: 14px 12px 14px 18px;
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
@@ -1510,7 +1594,7 @@ th.sticky-action-col {
   content: '';
   position: absolute;
   top: 0;
-  left: 20px;
+  left: 16px;
   bottom: 0;
   width: 1px;
   background: rgba(245, 158, 11, 0.35);
@@ -1519,26 +1603,33 @@ th.sticky-action-col {
 .fallback-emboss-title {
   font-family: var(--font-sans);
   font-weight: 800;
-  font-size: 1.05rem;
-  line-height: 1.35;
+  font-size: 0.90rem;
+  line-height: 1.28;
   color: #f8fafc;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .fallback-emboss-author {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: #94a3b8;
   font-weight: 500;
-  margin-top: 6px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fallback-sistec-seal {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.7rem;
+  gap: 6px;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   color: #f59e0b;
   font-weight: 700;
 }
@@ -2692,35 +2783,7 @@ th.sticky-action-col {
   transform: scale(1.05);
 }
 
-/* Sidebar transition & collapse behavior */
-.sidebar {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.25s ease,
-              width 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-.main-content {
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              width 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-@media (min-width: 1024px) {
-  .app-container.sidebar-collapsed .sidebar {
-    transform: translateX(-105%) !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    visibility: hidden;
-  }
-
-  .app-container.sidebar-collapsed .main-content {
-    margin-left: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    padding-left: 36px !important;
-    padding-right: 36px !important;
-  }
-}
+/* Sidebar responsive transitions unified in layout section */
 
 /* ============================================================
    RESPONSIVE DATA TABLES & STICKY ACTION COLUMNS

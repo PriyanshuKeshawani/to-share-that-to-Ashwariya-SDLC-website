@@ -280,12 +280,18 @@ export const AuthProvider = ({ children }) => {
 
     // 3. Books
     if (endpoint === '/books' && method === 'GET') {
-      const { data, error } = await supabase.from('books').select(`
+      // Supabase default max-rows limit is 1000, so we fetch in paged chunks to retrieve all 1,400+ books
+      const bookSelectFields = `
         *,
         category:category_id(name),
         branch:branch_id(name)
-      `).order('created_at', { ascending: false }).range(0, 4999);
-      if (error) throw error;
+      `;
+      const [res1, res2] = await Promise.all([
+        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),
+        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999)
+      ]);
+      if (res1.error) throw res1.error;
+      const data = [...(res1.data || []), ...(res2.data || [])];
 
       let approvedBookIds = [];
       if (user && user.role === 'student') {
