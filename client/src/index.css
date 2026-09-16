@@ -1552,29 +1552,324 @@ th.sticky-action-col {
   user-select: none;
 }
 
-/* Floating Sleek Minimalist Top Navigation */
+/* ════════════════════════════════════════════════════════════════
+   PRODUCTION-GRADE RIGID SINGLE-ROW TOP TOOLBAR (IMAGE 1 STANDARD)
+   ════════════════════════════════════════════════════════════════ */
 .reader-minimal-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  border-radius: 14px;
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-glass);
-  box-shadow: var(--shadow-glass);
-  z-index: 40;
-  gap: 12px;
-  flex-wrap: wrap;
-  transition: all 0.25s ease;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 6px 14px !important;
+  border-radius: 14px !important;
+  background: var(--bg-card) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--border-glass) !important;
+  box-shadow: var(--shadow-glass) !important;
+  z-index: 40 !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  height: 52px !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  transition: all 0.2s ease !important;
+  user-select: none !important;
+}
+
+.reader-minimal-bar::-webkit-scrollbar {
+  display: none !important;
 }
 
 [data-theme='light'] .reader-minimal-bar {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04) !important;
 }
+
+/* Left Group */
+.reader-bar-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  min-width: 0 !important;
+}
+
+.reader-btn-compact {
+  padding: 6px 11px !important;
+  font-size: 0.8rem !important;
+  gap: 5px !important;
+  height: 32px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+.reader-branch-badge {
+  font-size: 0.68rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+  max-width: 170px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  display: inline-block !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Center Group: Title + Page Stepper */
+.reader-bar-center {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 1 1 auto !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.reader-title-block {
+  text-align: right !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+  max-width: clamp(100px, 17vw, 280px) !important;
+  cursor: default !important;
+}
+
+.reader-book-title {
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.25 !important;
+}
+
+.reader-book-author {
+  font-size: 0.72rem !important;
+  color: var(--text-muted) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.2 !important;
+}
+
+.reader-page-stepper {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: var(--input-bg) !important;
+  padding: 3px 7px !important;
+  border-radius: 9px !important;
+  border: 1px solid var(--border-glass) !important;
+  box-shadow: var(--shadow-glass) !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+.reader-stepper-btn {
+  padding: 3px 6px !important;
+  font-size: 0.75rem !important;
+  min-height: auto !important;
+  height: 26px !important;
+  width: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.reader-stepper-counter {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap !important;
+}
+
+.reader-page-input {
+  width: 44px !important;
+  padding: 2px 2px !important;
+  text-align: center !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+}
+
+.reader-percentage-badge {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  color: var(--primary) !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+  padding: 2px 5px !important;
+  border-radius: 4px !important;
+}
+
+.reader-status-indicator {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 0.68rem !important;
+  margin-left: 2px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+}
+
+/* Right Group: Interactive Reading Tools */
+.reader-bar-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+}
+
+.reader-tool-btn {
+  padding: 6px 9px !important;
+  font-size: 0.78rem !important;
+  gap: 5px !important;
+  min-height: auto !important;
+  height: 32px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.reader-tool-label {
+  display: inline !important;
+}
+
+.reader-zoom-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  background: var(--input-bg) !important;
+  border: 1px solid var(--border-glass) !important;
+  border-radius: 8px !important;
+  padding: 2px 4px !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+.reader-zoom-btn {
+  padding: 3px 5px !important;
+  font-size: 0.75rem !important;
+  min-height: auto !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.reader-zoom-pct {
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  min-width: 34px !important;
+  text-align: center !important;
+  color: var(--text-primary) !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+.reader-zoom-reset {
+  padding: 2px 5px !important;
+  font-size: 0.65rem !important;
+  font-weight: 600 !important;
+  color: var(--primary) !important;
+  border-radius: 4px !important;
+  height: 22px !important;
+}
+
+.reader-notes-badge {
+  background: var(--primary) !important;
+  color: #fff !important;
+  font-size: 0.65rem !important;
+  padding: 1px 5px !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PROGRESSIVE DISCLOSURE MEDIA QUERIES (FLAWLESS HORIZONTAL FITTING)
+   ════════════════════════════════════════════════════════════════ */
+
+/* Wide Screens (>= 1550px): All button labels visible exactly as Image 1 */
+@media (min-width: 1550px) {
+  .reader-tool-label {
+    display: inline !important;
+  }
+}
+
+/* Standard Laptops & 1080p with 125% scaling (1281px - 1549px):
+   Secondary tools (Share, PDF, Light, Exit) show icons only with tooltips.
+   Primary tools (Bookmark, 2-Page Book, Notes) keep full text.
+   Saves ~170px of space, perfectly preserving Image 1 single-line layout! */
+@media (max-width: 1549px) {
+  .secondary-label {
+    display: none !important;
+  }
+  .reader-branch-badge {
+    max-width: 140px !important;
+  }
+  .reader-title-block {
+    max-width: 220px !important;
+  }
+}
+
+/* Compact Desktop & Standard Laptops (1025px - 1280px):
+   All buttons become sleek icon-only buttons with tooltips.
+   Page stepper and book title remain 100% visible on one single row! */
+@media (max-width: 1280px) {
+  .primary-label {
+    display: none !important;
+  }
+  .reader-tool-btn {
+    padding: 6px 8px !important;
+  }
+  .reader-branch-badge {
+    max-width: 100px !important;
+  }
+  .reader-title-block {
+    max-width: 180px !important;
+  }
+  .reader-bar-center {
+    gap: 8px !important;
+  }
+}
+
+/* Tight screens (768px - 1024px):
+   Close button becomes icon-only with tooltip.
+   Branch badge hidden.
+   Toolbar NEVER wraps into two lines! */
+@media (max-width: 1024px) {
+  .reader-btn-text {
+    display: none !important;
+  }
+  .reader-branch-badge {
+    display: none !important;
+  }
+  .reader-title-block {
+    max-width: 130px !important;
+  }
+  .reader-bar-center {
+    gap: 6px !important;
+  }
+}
+
 
 /* 3D Book Stage Viewport */
 .book-stage-viewport {

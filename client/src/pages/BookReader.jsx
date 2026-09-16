@@ -1419,62 +1419,54 @@ const BookReader = ({ book, onClose }) => {
               </div>
             </div>
           ) : (
-            <div className="reader-minimal-bar">
-              {/* Left: Back & Branch */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="reader-minimal-bar" role="toolbar" aria-label="PDF Reader Controls">
+              {/* Left: Close & Branch */}
+              <div className="reader-bar-left">
                 <button
                   onClick={onClose}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 12px', fontSize: '0.82rem', gap: '6px' }}
-                  title="Close Reader"
+                  className="btn btn-secondary reader-btn-compact"
+                  title="Close Reader (Back to Catalog)"
+                  aria-label="Close Reader"
                 >
-                  <ArrowLeft size={15} /> Close
+                  <ArrowLeft size={15} />
+                  <span className="reader-btn-text">Close</span>
                 </button>
-                <span className="badge badge-primary hide-mobile" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
+                <span
+                  className="badge badge-primary reader-branch-badge"
+                  title={book.branch_name || 'Engineering'}
+                >
                   {book.branch_name || 'Engineering'}
                 </span>
               </div>
 
               {/* Center: Book Title & Active Page Navigator */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 auto', justifyContent: 'center' }}>
-                <div className="hide-mobile" style={{ textAlign: 'right', maxWidth: '300px' }}>
-                  <div style={{
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
+              <div className="reader-bar-center">
+                <div
+                  className="reader-title-block"
+                  title={`${book.title} — By ${book.author || 'Academic Faculty'}`}
+                >
+                  <div className="reader-book-title">
                     {book.title}
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    By {book.author}
+                  <div className="reader-book-author">
+                    By {book.author || 'Academic Faculty'}
                   </div>
                 </div>
 
                 {/* Central Dynamic Page Stepper */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: 'var(--input-bg)',
-                  padding: '4px 8px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-glass)',
-                  boxShadow: 'var(--shadow-glass)'
-                }}>
+                <div className="reader-page-stepper">
                   <button
                     onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
                     disabled={currentPage <= 1}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage <= 1 ? 0.35 : 1 }}
+                    className="btn btn-secondary reader-stepper-btn"
+                    style={{ opacity: currentPage <= 1 ? 0.35 : 1 }}
                     title="Previous Page (Left Arrow)"
+                    aria-label="Previous Page"
                   >
                     <ChevronLeft size={14} />
                   </button>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
+                  <div className="reader-stepper-counter">
                     <span style={{ color: 'var(--text-muted)' }}>Pg</span>
                     <input
                       type="number"
@@ -1487,19 +1479,12 @@ const BookReader = ({ book, onClose }) => {
                           handlePageChange(Math.min(val, totalPages));
                         }
                       }}
-                      className="glass-input"
-                      style={{ width: '48px', padding: '2px 4px', textAlign: 'center', fontSize: '0.84rem', fontWeight: 700 }}
+                      className="glass-input reader-page-input"
                       title={`Jump to page (1 - ${totalPages})`}
+                      aria-label="Current Page Number"
                     />
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>/ {totalPages}</span>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      color: 'var(--primary)',
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      padding: '2px 5px',
-                      borderRadius: '5px'
-                    }}>
+                    <span className="reader-percentage-badge">
                       {Math.min(100, Math.round((currentPage / totalPages) * 100))}%
                     </span>
                   </div>
@@ -1507,109 +1492,94 @@ const BookReader = ({ book, onClose }) => {
                   <button
                     onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
                     disabled={currentPage >= totalPages}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 7px', fontSize: '0.75rem', minHeight: 'auto', opacity: currentPage >= totalPages ? 0.35 : 1 }}
+                    className="btn btn-secondary reader-stepper-btn"
+                    style={{ opacity: currentPage >= totalPages ? 0.35 : 1 }}
                     title="Next Page (Right Arrow)"
+                    aria-label="Next Page"
                   >
                     <ChevronRight size={14} />
                   </button>
 
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '0.7rem',
-                    color: saving ? '#f59e0b' : '#10b981',
-                    marginLeft: '4px',
-                    fontWeight: 600
-                  }}>
-                    <span style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: saving ? '#f59e0b' : '#10b981',
-                      boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981'
-                    }} />
-                    {saving ? 'Saving...' : 'Live'}
+                  <span
+                    className="reader-status-indicator"
+                    style={{ color: saving ? '#f59e0b' : '#10b981' }}
+                    title={saving ? 'Auto-saving page progress...' : 'Reading progress synced live'}
+                  >
+                    <span
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: saving ? '#f59e0b' : '#10b981',
+                        boxShadow: saving ? '0 0 6px #f59e0b' : '0 0 6px #10b981',
+                        flexShrink: 0
+                      }}
+                    />
+                    <span>{saving ? 'Saving...' : 'Live'}</span>
                   </span>
                 </div>
               </div>
 
-              {/* Right: Interactive Reading Tools */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Right: Interactive Reading Tools (Rigid Single Row) */}
+              <div className="reader-bar-right">
                 {/* Quick Bookmark Toggle with Ribbon State */}
                 <button
                   onClick={() => handleToggleBookmark()}
-                  className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn ${isCurrentPageBookmarked ? 'btn-primary' : 'btn-secondary'} reader-tool-btn`}
                   style={{
-                    padding: '7px 11px',
-                    fontSize: '0.8rem',
-                    gap: '5px',
                     background: isCurrentPageBookmarked ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : undefined,
                     borderColor: isCurrentPageBookmarked ? '#ef4444' : undefined,
                     color: isCurrentPageBookmarked ? '#fef08a' : undefined
                   }}
                   title={isCurrentPageBookmarked ? 'Remove Bookmark for this Page' : 'Bookmark this Page'}
+                  aria-label="Toggle Bookmark"
                 >
                   <Bookmark size={14} fill={isCurrentPageBookmarked ? 'currentColor' : 'none'} />
-                  <span className="hide-mobile">{isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                  <span className="reader-tool-label primary-label">{isCurrentPageBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
                 </button>
 
                 {/* View Mode Toggle: Single Page vs 2-Page Open Book */}
                 <button
                   onClick={() => setViewMode(prev => prev === 'single' ? 'spread' : 'single')}
-                  className="btn btn-secondary hide-mobile"
-                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  className="btn btn-secondary reader-tool-btn"
                   title={viewMode === 'single' ? 'Switch to 2-Page Open Book Spread' : 'Switch to Single Page Focused View'}
+                  aria-label="Toggle 2-Page View"
                 >
                   {viewMode === 'single' ? <BookOpen size={14} /> : <Book size={14} />}
-                  <span>{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
+                  <span className="reader-tool-label primary-label">{viewMode === 'single' ? '2-Page Book' : '1-Page'}</span>
                 </button>
 
                 {/* Desktop Zoom Controls (up to 250%) */}
-                <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--input-bg)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '2px' }}>
+                <div className="reader-zoom-group">
                   <button
                     onClick={handleDesktopZoomOut}
-                    className="btn btn-ghost"
-                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                    className="btn btn-ghost reader-zoom-btn"
                     title="Zoom Out"
+                    aria-label="Zoom Out"
                   >
                     <ZoomOut size={13} />
                   </button>
                   <span
                     onClick={() => setScale(1.15)}
-                    style={{
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      minWidth: '38px',
-                      textAlign: 'center',
-                      color: scale !== 1.15 ? 'var(--primary)' : 'var(--text-primary)',
-                      cursor: 'pointer'
-                    }}
+                    className="reader-zoom-pct"
                     title="Click to reset to Default (115%)"
                   >
                     {Math.round(scale * 100)}%
                   </span>
                   <button
                     onClick={handleDesktopZoomIn}
-                    className="btn btn-ghost"
-                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                    className="btn btn-ghost reader-zoom-btn"
                     title="Zoom In (up to 250%)"
+                    aria-label="Zoom In"
                   >
                     <ZoomIn size={13} />
                   </button>
                   {scale !== 1.15 && (
                     <button
                       onClick={() => setScale(1.15)}
-                      className="btn btn-ghost"
-                      style={{
-                        padding: '2px 5px',
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        color: 'var(--primary)',
-                        borderRadius: '4px'
-                      }}
+                      className="btn btn-ghost reader-zoom-reset"
                       title="Reset to 115% Default"
+                      aria-label="Reset Zoom"
                     >
                       Reset
                     </button>
@@ -1619,21 +1589,14 @@ const BookReader = ({ book, onClose }) => {
                 {/* Study Notes & Bookmarks Drawer Toggle */}
                 <button
                   onClick={() => setShowDrawer(prev => !prev)}
-                  className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '6px' }}
+                  className={`btn ${showDrawer ? 'btn-primary' : 'btn-secondary'} reader-tool-btn`}
                   title="Open Study Notes & Bookmarks Drawer"
+                  aria-label="Study Notes and Bookmarks"
                 >
                   <StickyNote size={14} />
-                  <span>Notes</span>
+                  <span className="reader-tool-label primary-label">Notes</span>
                   {(notes.length > 0 || bookmarks.length > 0) && (
-                    <span style={{
-                      background: 'var(--primary)',
-                      color: '#fff',
-                      fontSize: '0.68rem',
-                      padding: '1px 5px',
-                      borderRadius: '10px',
-                      fontWeight: 700
-                    }}>
+                    <span className="reader-notes-badge">
                       {notes.length + bookmarks.length}
                     </span>
                   )}
@@ -1642,46 +1605,46 @@ const BookReader = ({ book, onClose }) => {
                 {/* Share Book Link */}
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  className="btn btn-secondary reader-tool-btn"
                   title="Share Book Link"
+                  aria-label="Share Book Link"
                 >
                   <Share2 size={14} />
-                  <span className="hide-mobile">Share</span>
+                  <span className="reader-tool-label secondary-label">Share</span>
                 </button>
 
                 {/* Quick PDF Download */}
                 <button
                   onClick={handleDownloadPdf}
                   disabled={downloadingPdf}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  className="btn btn-secondary reader-tool-btn"
                   title="Download PDF Document"
+                  aria-label="Download PDF Document"
                 >
                   <Download size={14} />
-                  <span className="hide-mobile">{downloadingPdf ? '...' : 'PDF'}</span>
+                  <span className="reader-tool-label secondary-label">{downloadingPdf ? '...' : 'PDF'}</span>
                 </button>
 
                 {/* Day / Night Theme Toggle */}
                 <button
                   onClick={toggleMode}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  className="btn btn-secondary reader-tool-btn"
                   title={mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  aria-label="Toggle Light Dark Theme"
                 >
                   {mode === 'dark' ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="var(--primary)" />}
-                  <span className="hide-mobile">{mode === 'dark' ? 'Light' : 'Dark'}</span>
+                  <span className="reader-tool-label secondary-label">{mode === 'dark' ? 'Light' : 'Dark'}</span>
                 </button>
 
                 {/* Fullscreen Reading Mode Toggle */}
                 <button
                   onClick={toggleFullscreen}
-                  className="btn btn-secondary"
-                  style={{ padding: '7px 10px', fontSize: '0.8rem', gap: '5px' }}
+                  className="btn btn-secondary reader-tool-btn"
                   title={isFullscreen ? 'Exit Full Screen' : 'Full Screen Reading Mode'}
+                  aria-label="Toggle Fullscreen"
                 >
                   {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                  <span className="hide-mobile">{isFullscreen ? 'Exit' : 'Full'}</span>
+                  <span className="reader-tool-label secondary-label">{isFullscreen ? 'Exit' : 'Full'}</span>
                 </button>
               </div>
             </div>
