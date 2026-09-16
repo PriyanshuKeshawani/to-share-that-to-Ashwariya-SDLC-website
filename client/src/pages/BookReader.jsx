@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { PageFlip } from 'page-flip';
 import { useAuth, BASE_URL, isSameBranch } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -369,14 +370,13 @@ const BookReader = ({ book, onClose }) => {
 
     // Only allow swipe page flip when NOT zoomed in (prevents accidental flips while panning)
     if (mobileZoom <= 1.05 && Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
-      const step = viewMode === 'spread' ? 2 : 1;
       if (deltaX < 0) {
-        if (currentPage < totalPages) {
-          handlePageChange(currentPage + step, 'next');
+        if (pageFlipRef.current) {
+          try { pageFlipRef.current.flipNext('bottom'); } catch {}
         }
       } else {
-        if (currentPage > 1) {
-          handlePageChange(currentPage - step, 'prev');
+        if (pageFlipRef.current) {
+          try { pageFlipRef.current.flipPrev('bottom'); } catch {}
         }
       }
     }
@@ -400,6 +400,16 @@ const BookReader = ({ book, onClose }) => {
   const fallbackLoadingRef = useRef(false);
   const bufferDocRef = useRef(null);
   const bufferDocPromiseRef = useRef(null);
+
+  // StPageFlip instance & rendering refs
+  const flipbookMountRef = useRef(null);
+  const pageFlipRef = useRef(null);
+  const pageImageCacheRef = useRef(new Map());
+  const renderingPagePromisesRef = useRef(new Map());
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   // Slide-over drawer state (showNotes closed by default for distraction-free reading!)
   const [showDrawer, setShowDrawer] = useState(false);
@@ -805,273 +815,294 @@ const BookReader = ({ book, onClose }) => {
     ctx.fillText('Tap page or flip back to reload', w / 2, h / 2 + 15);
   }, [mode]);
 
-  // Deterministic Page Rendering Pipeline with Staging Canvas, Sequence Tickets & LRU Cache
-  const MAX_CACHE_SIZE = 25;
-  const getCacheKey = useCallback((pageNum, currentMode, currentScale, currentMobileZoom) => {
-    return `${pageNum}_${currentMode}_${Math.round(currentScale * 100)}_${Math.round(currentMobileZoom * 100)}`;
-  }, []);
+  // ══════════════════════════════════════════════════════════════════
+  // ST-PAGE-FLIP: ON-DEMAND HIGH-FIDELITY RENDERING PIPELINE
+  // ══════════════════════════════════════════════════════════════════
+  const MAX_PAGE_IMAGE_CACHE = 40;
 
-  const renderPage = useCallback(async (pageNum, canvasKey, canvasElement) => {
-    if (!pdfDoc || !canvasElement || pageNum < 1 || pageNum > pdfDoc.numPages) return;
+  const renderPageToDataUrl = useCallback(async (pageNum) => {
+    if (!pdfDoc || pageNum < 1 || pageNum > pdfDoc.numPages) return null;
+    const cacheKey = `${pageNum}_${mode}`;
+    if (pageImageCacheRef.current.has(cacheKey)) {
+      return pageImageCacheRef.current.get(cacheKey);
+    }
+    if (renderingPagePromisesRef.current.has(cacheKey)) {
+      return renderingPagePromisesRef.current.get(cacheKey);
+    }
 
-    // 1. Issue unique sequence ticket for this canvas side to eliminate race conditions
-    const ticket = ++renderSeqRef.current[canvasKey];
-
-    // 2. Cancel any pending PDF.js render task on this canvas side
-    if (activeRenderTasks.current[canvasKey]) {
+    const renderPromise = (async () => {
       try {
-        activeRenderTasks.current[canvasKey].cancel();
-      } catch {}
-      delete activeRenderTasks.current[canvasKey];
-    }
-
-    const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
-    const cacheKey = getCacheKey(pageNum, mode, scale, isMobileView ? mobileZoom : 1.0);
-
-    // 3. Fast In-Memory LRU Cache Hit: instant 0ms flip with zero flicker
-    if (pageCacheRef.current.has(cacheKey)) {
-      const cachedCanvas = pageCacheRef.current.get(cacheKey);
-      pageCacheRef.current.delete(cacheKey);
-      pageCacheRef.current.set(cacheKey, cachedCanvas);
-
-      if (renderSeqRef.current[canvasKey] === ticket) {
-        canvasElement.width = cachedCanvas.width;
-        canvasElement.height = cachedCanvas.height;
-        canvasElement.style.width = cachedCanvas.style.width;
-        canvasElement.style.height = cachedCanvas.style.height;
-        const ctx = canvasElement.getContext('2d');
-        ctx.drawImage(cachedCanvas, 0, 0);
-        failedPagesRef.current.delete(pageNum);
-        return;
-      }
-    }
-
-    // 4. Fetch Page Object from PDF.js (Fast streaming with instant in-memory buffer recovery)
-    let page;
-    let effectiveDoc = pdfDoc;
-    try {
-      page = await effectiveDoc.getPage(pageNum);
-    } catch (pageErr) {
-      console.warn(`[3D Book Engine] Stream getPage(${pageNum}) failed; recovering via in-memory buffer:`, pageErr?.message || pageErr);
-      try {
-        const bufferDoc = await getOrFetchBufferDoc();
-        if (bufferDoc) {
-          effectiveDoc = bufferDoc;
-          if (pdfDoc !== bufferDoc) {
-            setPdfDoc(bufferDoc);
-            if (bufferDoc.numPages && bufferDoc.numPages > 0) {
-              setTotalPages(bufferDoc.numPages);
-            }
-          }
-          page = await bufferDoc.getPage(pageNum);
-        }
-      } catch (bufErr) {
-        console.error(`[3D Book Engine] Failed to obtain page ${pageNum} from buffer:`, bufErr);
-      }
-
-      if (!page) {
-        if (renderSeqRef.current[canvasKey] === ticket) {
-          renderErrorOnCanvas(canvasElement, pageNum, pageErr?.message || 'Page data missing');
-          failedPagesRef.current.add(pageNum);
-        }
-        return;
-      }
-    }
-
-    // If another page turn superseded this ticket during getPage, exit cleanly
-    if (renderSeqRef.current[canvasKey] !== ticket) return;
-
-    try {
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-      if (unscaledViewport.width <= 0 || unscaledViewport.height <= 0) {
-        throw new Error('Invalid zero-size page viewport');
-      }
-
-      let effectiveScale = scale;
-      if (isMobileView) {
-        const availableW = Math.max(260, window.innerWidth - 20);
-        const availableH = Math.max(360, (window.innerHeight || 640) - 125);
-        const scaleX = availableW / unscaledViewport.width;
-        const scaleY = availableH / unscaledViewport.height;
-        const baseFitScale = Math.min(scaleX, scaleY);
-        effectiveScale = baseFitScale * mobileZoom;
-      }
-
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const viewport = page.getViewport({ scale: effectiveScale * dpr });
-
-      // 5. Offscreen Staging Canvas: prevents canvas reuse collisions and white-flash artifacts
-      const offscreen = document.createElement('canvas');
-      offscreen.width = viewport.width;
-      offscreen.height = viewport.height;
-      const offscreenCtx = offscreen.getContext('2d', { alpha: false });
-      // Ensure canvas background is filled with opaque white before page rendering
-      // Canvas with alpha:false initializes to black (#000000), which renders transparent/scanned pages completely black!
-      offscreenCtx.fillStyle = '#ffffff';
-      offscreenCtx.fillRect(0, 0, viewport.width, viewport.height);
-
-      const renderTask = page.render({
-        canvasContext: offscreenCtx,
-        viewport: viewport
-      });
-
-      activeRenderTasks.current[canvasKey] = renderTask;
-      await renderTask.promise;
-      delete activeRenderTasks.current[canvasKey];
-
-      // Verify sequence ticket is still current before updating DOM
-      if (renderSeqRef.current[canvasKey] !== ticket) return;
-
-      // Smart Dark Reading Mode: transform offscreen canvas before display
-      if (mode === 'dark') {
-        applySmartDarkModeToCanvas(offscreenCtx, offscreen.width, offscreen.height);
-      }
-
-      const cssWidth = Math.round(viewport.width / dpr);
-      const cssHeight = Math.round(viewport.height / dpr);
-      offscreen.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
-      offscreen.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
-
-      // Store in LRU Page Cache
-      if (pageCacheRef.current.size >= MAX_CACHE_SIZE) {
-        const oldestKey = pageCacheRef.current.keys().next().value;
-        pageCacheRef.current.delete(oldestKey);
-      }
-      pageCacheRef.current.set(cacheKey, offscreen);
-
-      // 6. Atomic blit to visible DOM canvas
-      canvasElement.width = offscreen.width;
-      canvasElement.height = offscreen.height;
-      canvasElement.style.width = offscreen.style.width;
-      canvasElement.style.height = offscreen.style.height;
-
-      const ctx = canvasElement.getContext('2d');
-      ctx.drawImage(offscreen, 0, 0);
-      failedPagesRef.current.delete(pageNum);
-    } catch (renderErr) {
-      delete activeRenderTasks.current[canvasKey];
-      if (renderErr?.name !== 'RenderingCancelledException') {
-        console.warn(`[3D Book Engine] Render failure on page ${pageNum}:`, renderErr);
-        if (renderSeqRef.current[canvasKey] === ticket) {
-          renderErrorOnCanvas(canvasElement, pageNum, renderErr?.message || 'Rendering error');
-          failedPagesRef.current.add(pageNum);
-        }
-      }
-    }
-  }, [pdfDoc, scale, mobileZoom, mode, loadFullDocumentFallback, getOrFetchBufferDoc, getCacheKey, renderErrorOnCanvas]);
-
-  // Idle preloader for adjacent pages (currentPage + 1, currentPage + 2, currentPage - 1)
-  useEffect(() => {
-    if (!pdfDoc) return;
-    const preloadTimer = setTimeout(async () => {
-      const pagesToPreload = [
-        currentPage + 1,
-        currentPage + 2,
-        currentPage - 1
-      ].filter(p => p >= 1 && p <= pdfDoc.numPages);
-
-      const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
-
-      for (const p of pagesToPreload) {
-        const key = getCacheKey(p, mode, scale, isMobileView ? mobileZoom : 1.0);
-        if (pageCacheRef.current.has(key)) continue;
-
+        let page;
         try {
-          let page;
-          try {
-            page = await pdfDoc.getPage(p);
-          } catch {
-            if (bufferDocRef.current) {
-              page = await bufferDocRef.current.getPage(p);
-            }
+          page = await pdfDoc.getPage(pageNum);
+        } catch (pageErr) {
+          if (bufferDocRef.current) {
+            try {
+              page = await bufferDocRef.current.getPage(pageNum);
+            } catch {}
           }
-          if (!page) continue;
-          const unscaledViewport = page.getViewport({ scale: 1.0 });
-          let effectiveScale = scale;
-          if (isMobileView) {
-            const availableW = Math.max(260, window.innerWidth - 20);
-            const availableH = Math.max(360, (window.innerHeight || 640) - 125);
-            effectiveScale = Math.min(availableW / unscaledViewport.width, availableH / unscaledViewport.height) * mobileZoom;
-          }
-          const dpr = Math.min(window.devicePixelRatio || 1, 2);
-          const viewport = page.getViewport({ scale: effectiveScale * dpr });
-          const offscreen = document.createElement('canvas');
-          offscreen.width = viewport.width;
-          offscreen.height = viewport.height;
-          const offCtx = offscreen.getContext('2d', { alpha: false });
-          offCtx.fillStyle = '#ffffff';
-          offCtx.fillRect(0, 0, viewport.width, viewport.height);
-          await page.render({ canvasContext: offCtx, viewport }).promise;
-
-          if (mode === 'dark') {
-            applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height);
-          }
-
-          const cssWidth = Math.round(viewport.width / dpr);
-          const cssHeight = Math.round(viewport.height / dpr);
-          offscreen.style.width = isMobileView && mobileZoom === 1.0 ? '100%' : `${cssWidth}px`;
-          offscreen.style.height = isMobileView && mobileZoom === 1.0 ? 'auto' : `${cssHeight}px`;
-
-          if (pageCacheRef.current.size >= MAX_CACHE_SIZE) {
-            const oldestKey = pageCacheRef.current.keys().next().value;
-            pageCacheRef.current.delete(oldestKey);
-          }
-          pageCacheRef.current.set(key, offscreen);
-        } catch {
-          // Non-critical background preload failure
         }
+        if (!page) return null;
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        // Crisp rendering scale: 1.4 * dpr ensures ultra-sharp text without massive memory bloat
+        const targetScale = Math.min(2.2, Math.max(1.3, 1.4 * dpr));
+        const viewport = page.getViewport({ scale: targetScale });
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = viewport.width;
+        offscreen.height = viewport.height;
+        const offCtx = offscreen.getContext('2d', { alpha: false });
+        offCtx.fillStyle = '#ffffff';
+        offCtx.fillRect(0, 0, viewport.width, viewport.height);
+
+        await page.render({
+          canvasContext: offCtx,
+          viewport
+        }).promise;
+
+        if (mode === 'dark') {
+          applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height);
+        }
+
+        const dataUrl = offscreen.toDataURL('image/jpeg', 0.88);
+
+        if (pageImageCacheRef.current.size >= MAX_PAGE_IMAGE_CACHE) {
+          const oldestKey = pageImageCacheRef.current.keys().next().value;
+          pageImageCacheRef.current.delete(oldestKey);
+        }
+        pageImageCacheRef.current.set(cacheKey, dataUrl);
+        return dataUrl;
+      } catch (err) {
+        console.warn(`[StPageFlip] Error rendering page ${pageNum}:`, err?.message || err);
+        return null;
+      } finally {
+        renderingPagePromisesRef.current.delete(cacheKey);
       }
-    }, 400);
+    })();
 
-    return () => clearTimeout(preloadTimer);
-  }, [pdfDoc, currentPage, mode, scale, mobileZoom, getCacheKey]);
+    renderingPagePromisesRef.current.set(cacheKey, renderPromise);
+    return renderPromise;
+  }, [pdfDoc, mode]);
 
-  // Re-render canvases when currentPage, scale, mobileZoom, viewMode, mobile breakpoint, or dark/light theme mode changes
-  useEffect(() => {
+  const applyPageImage = useCallback(async (pageNum) => {
+    if (pageNum < 1 || !pdfDoc || pageNum > pdfDoc.numPages) return;
+    const dataUrl = await renderPageToDataUrl(pageNum);
+    if (!dataUrl) return;
+
+    // Apply to all matching img elements (handles soft clone elements during page flips)
+    const imgs = document.querySelectorAll(`img.st-page-img[data-page="${pageNum}"]`);
+    imgs.forEach(img => {
+      if (img.src !== dataUrl) {
+        img.src = dataUrl;
+      }
+      img.style.display = 'block';
+    });
+
+    const loaders = document.querySelectorAll(`.st-page-loader[data-page="${pageNum}"]`);
+    loaders.forEach(l => {
+      l.style.display = 'none';
+    });
+  }, [pdfDoc, renderPageToDataUrl]);
+
+  const ensurePagesRendered = useCallback((centerPage) => {
     if (!pdfDoc) return;
+    const windowPages = [
+      centerPage,
+      centerPage + 1,
+      centerPage - 1,
+      centerPage + 2,
+      centerPage + 3,
+      centerPage - 2
+    ].filter(p => p >= 1 && p <= pdfDoc.numPages);
 
-    if (canvasLeftRef.current) {
-      renderPage(currentPage, 'left', canvasLeftRef.current);
-    }
-
-    if (viewMode === 'spread' && !isMobile && canvasRightRef.current && currentPage + 1 <= pdfDoc.numPages) {
-      renderPage(currentPage + 1, 'right', canvasRightRef.current);
-    }
-  }, [pdfDoc, currentPage, scale, mobileZoom, viewMode, isMobile, mode, renderPage]);
+    windowPages.forEach(p => {
+      applyPageImage(p);
+    });
+  }, [pdfDoc, applyPageImage]);
 
   // Page Navigation
   const handlePageChange = useCallback((targetPage) => {
     const pageNum = Math.max(1, Math.min(targetPage, totalPages));
     if (pageNum === currentPage) return;
 
-    // Reset pan position on page change so new page is neatly centered
-    setPanOffset({ x: 0, y: 0 });
-    panOffsetRef.current = { x: 0, y: 0 };
-    if (holderLeftRef.current) holderLeftRef.current.style.transform = 'translate3d(0px, 0px, 0)';
-    if (holderRightRef.current) holderRightRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+    if (pageFlipRef.current) {
+      try {
+        pageFlipRef.current.turnToPage(pageNum - 1);
+      } catch (e) {
+        console.warn('[StPageFlip] Notice turning page:', e);
+      }
+    }
 
     setCurrentPage(pageNum);
+    currentPageRef.current = pageNum;
     saveProgress(pageNum);
-  }, [currentPage, totalPages, saveProgress]);
+    ensurePagesRendered(pageNum);
+  }, [currentPage, totalPages, saveProgress, ensurePagesRendered]);
+
+  const handleFlipNext = useCallback(() => {
+    if (pageFlipRef.current) {
+      try {
+        pageFlipRef.current.flipNext('bottom');
+      } catch {
+        handlePageChange(currentPage + (viewMode === 'spread' && !isMobile ? 2 : 1));
+      }
+    } else {
+      handlePageChange(currentPage + (viewMode === 'spread' && !isMobile ? 2 : 1));
+    }
+  }, [currentPage, viewMode, isMobile, handlePageChange]);
+
+  const handleFlipPrev = useCallback(() => {
+    if (pageFlipRef.current) {
+      try {
+        pageFlipRef.current.flipPrev('bottom');
+      } catch {
+        handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1));
+      }
+    } else {
+      handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1));
+    }
+  }, [currentPage, viewMode, isMobile, handlePageChange]);
+
+  // StPageFlip Engine Lifecycle & Initialization
+  useEffect(() => {
+    if (!pdfDoc || !flipbookMountRef.current || useNativeViewer) return;
+
+    const mount = flipbookMountRef.current;
+    mount.innerHTML = '';
+
+    const flipWrapper = document.createElement('div');
+    flipWrapper.className = 'st-flipbook-wrapper';
+    mount.appendChild(flipWrapper);
+
+    const numPages = pdfDoc.numPages || totalPages || 1;
+    const pageElements = [];
+    for (let i = 1; i <= numPages; i++) {
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'st-page';
+      pageDiv.dataset.page = String(i);
+      if (i === 1 || i === numPages) {
+        pageDiv.dataset.density = 'hard';
+      } else {
+        pageDiv.dataset.density = 'soft';
+      }
+
+      pageDiv.innerHTML = `
+        <div class="st-page-inner">
+          <div class="st-page-content">
+            <img class="st-page-img" data-page="${i}" id="st-img-${i}" alt="Page ${i}" />
+            <div class="st-page-loader" data-page="${i}" id="st-loader-${i}">
+              <div class="st-page-spinner"></div>
+              <span>Page ${i}</span>
+            </div>
+          </div>
+          <div class="st-page-footer">
+            <span class="st-page-num">${i}</span>
+          </div>
+        </div>
+      `;
+      flipWrapper.appendChild(pageDiv);
+      pageElements.push(pageDiv);
+    }
+
+    const isMobileViewport = window.innerWidth < 768;
+    const baseWidth = isMobileViewport ? Math.min(window.innerWidth - 20, 460) : 550;
+    const baseHeight = isMobileViewport ? Math.min(window.innerHeight - 130, 680) : 733;
+
+    let pageFlipInstance = null;
+    try {
+      pageFlipInstance = new PageFlip(flipWrapper, {
+        width: baseWidth,
+        height: baseHeight,
+        size: 'stretch',
+        minWidth: 280,
+        maxWidth: 850,
+        minHeight: 380,
+        maxHeight: 1200,
+        maxShadowOpacity: 0.5,
+        showCover: true,
+        mobileScrollSupport: false,
+        usePortrait: true,
+        startPage: Math.max(0, currentPageRef.current - 1),
+        drawShadow: true,
+        flippingTime: 650,
+        useMouseEvents: true,
+        swipeDistance: 25,
+        clickEventForward: true
+      });
+
+      pageFlipInstance.loadFromHTML(pageElements);
+      pageFlipRef.current = pageFlipInstance;
+
+      pageFlipInstance.on('flip', (e) => {
+        const flippedPage = (typeof e.data === 'number' ? e.data : pageFlipInstance.getCurrentPageIndex()) + 1;
+        setCurrentPage(flippedPage);
+        currentPageRef.current = flippedPage;
+        saveProgress(flippedPage);
+        ensurePagesRendered(flippedPage);
+      });
+
+      // Render initial pages around start position
+      ensurePagesRendered(currentPageRef.current);
+    } catch (err) {
+      console.error('[StPageFlip] Error creating flipbook instance:', err);
+    }
+
+    const handleWindowResize = () => {
+      if (pageFlipRef.current) {
+        try {
+          pageFlipRef.current.update();
+        } catch {}
+      }
+    };
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      if (pageFlipRef.current) {
+        try {
+          pageFlipRef.current.destroy();
+        } catch {}
+        pageFlipRef.current = null;
+      }
+      mount.innerHTML = '';
+    };
+  }, [pdfDoc, totalPages, useNativeViewer, ensurePagesRendered, saveProgress]);
+
+  // Re-render visible pages on Dark/Light theme toggle
+  useEffect(() => {
+    if (!pdfDoc) return;
+    ensurePagesRendered(currentPage);
+  }, [mode, pdfDoc, ensurePagesRendered, currentPage]);
+
+  // Update layout when viewMode changes
+  useEffect(() => {
+    if (pageFlipRef.current) {
+      setTimeout(() => {
+        try {
+          pageFlipRef.current.update();
+        } catch {}
+      }, 50);
+    }
+  }, [viewMode]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
-      const step = viewMode === 'spread' ? 2 : 1;
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         e.preventDefault();
-        handlePageChange(currentPage + step, 'next');
+        handleFlipNext();
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
-        handlePageChange(currentPage - step, 'prev');
+        handleFlipPrev();
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPage, viewMode, handlePageChange, toggleFullscreen]);
+  }, [handleFlipNext, handleFlipPrev, toggleFullscreen]);
 
   // Check if active page is bookmarked
   const isCurrentPageBookmarked = useMemo(() => {
@@ -1447,11 +1478,11 @@ const BookReader = ({ book, onClose }) => {
                 {/* Central Dynamic Page Stepper */}
                 <div className="reader-page-stepper">
                   <button
-                    onClick={() => handlePageChange(currentPage - (viewMode === 'spread' ? 2 : 1), 'prev')}
+                    onClick={handleFlipPrev}
                     disabled={currentPage <= 1}
                     className="btn btn-secondary reader-stepper-btn"
                     style={{ opacity: currentPage <= 1 ? 0.35 : 1 }}
-                    title="Previous Page (Left Arrow)"
+                    title="Previous Page (Left Arrow or Drag Corner)"
                     aria-label="Previous Page"
                   >
                     <ChevronLeft size={14} />
@@ -1481,11 +1512,11 @@ const BookReader = ({ book, onClose }) => {
                   </div>
 
                   <button
-                    onClick={() => handlePageChange(currentPage + (viewMode === 'spread' ? 2 : 1), 'next')}
+                    onClick={handleFlipNext}
                     disabled={currentPage >= totalPages}
                     className="btn btn-secondary reader-stepper-btn"
                     style={{ opacity: currentPage >= totalPages ? 0.35 : 1 }}
-                    title="Next Page (Right Arrow)"
+                    title="Next Page (Right Arrow or Drag Corner)"
                     aria-label="Next Page"
                   >
                     <ChevronRight size={14} />
@@ -1803,144 +1834,63 @@ const BookReader = ({ book, onClose }) => {
               </div>
             ) : (
               /* ══════════════════════════════════════════════════════════
-                 AUTHENTIC 3D PHYSICAL BOOK CASING & PAGES
+                 AUTHENTIC ST-PAGE-FLIP PHYSICAL BOOK ENGINE
                  ══════════════════════════════════════════════════════════ */
-              <div className="book-hardcover-casing">
-                {/* Left Stacked Paper Edges (Desktop only) */}
-                {!isMobile && <div className="book-edge-stacked book-edge-left" />}
-
-                {/* The Open Book Spread */}
-                <div
-                  className="book-open-spread"
-                  style={{
-                    flexDirection: viewMode === 'spread' && !isMobile ? 'row' : 'column',
-                    minWidth: isMobile ? '100%' : (viewMode === 'spread' ? 'min(92vw, 1100px)' : 'min(90vw, 680px)'),
-                    width: isMobile ? '100%' : undefined,
-                    maxWidth: isMobile ? '100%' : undefined,
-                    minHeight: isMobile ? 'auto' : '70vh'
-                  }}
-                >
-                  {/* Center Spine Binding Groove (Two-Page Mode) */}
-                  {viewMode === 'spread' && !isMobile && <div className="book-center-spine" />}
-
-                  {/* Silk Ribbon Bookmark hanging from active page */}
-                  {isCurrentPageBookmarked && (
-                    <div
-                      className="silk-ribbon-bookmark"
-                      onClick={() => handleToggleBookmark()}
-                      title="Page Bookmarked (Click to toggle)"
-                    >
-                      <Bookmark size={13} fill="currentColor" />
-                    </div>
-                  )}
-
-                  {/* LEFT PAGE (or Sole Page in Single Mode) */}
+              <div
+                className="st-flipbook-container"
+                style={{
+                  maxWidth: isMobile ? '100%' : (viewMode === 'spread' ? 'min(94vw, 1150px)' : 'min(90vw, 640px)'),
+                  minHeight: isMobile ? 'auto' : '72vh'
+                }}
+              >
+                {/* Silk Ribbon Bookmark indicator hanging on active page */}
+                {isCurrentPageBookmarked && (
                   <div
-                    className="book-page-leaf"
-                    style={{
-                      flex: 1,
-                      borderRight: viewMode === 'spread' && !isMobile ? '1px solid rgba(0,0,0,0.06)' : 'none',
-                      minHeight: isMobile ? 'auto' : '70vh',
-                      width: isMobile ? '100%' : undefined
-                    }}
+                    className="silk-ribbon-bookmark"
+                    onClick={() => handleToggleBookmark()}
+                    title="Page Bookmarked (Click to toggle)"
                   >
-                    <div
-                      ref={holderLeftRef}
-                      className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''} ${!isMobile && scale > 1.2 ? 'desktop-zoomed' : ''}`}
-                      style={isMobile && mobileZoom > 1.05 ? {
-                        transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
-                        willChange: 'transform'
-                      } : undefined}
-                    >
-                      <canvas
-                        ref={canvasLeftRef}
-                        onClick={() => {
-                          if (failedPagesRef.current.has(currentPage) && canvasLeftRef.current) {
-                            renderPage(currentPage, 'left', canvasLeftRef.current);
-                          }
-                        }}
-                        style={{ cursor: failedPagesRef.current.has(currentPage) ? 'pointer' : 'default' }}
-                      />
-                    </div>
-
-                    {/* Left Interactive Page Turn Zone (hidden while zoomed to prevent accidental flips) */}
-                    {(!isMobile || mobileZoom <= 1.05) && (
-                      <div
-                        className="page-turn-trigger page-turn-trigger-left"
-                        onClick={() => handlePageChange(currentPage - (viewMode === 'spread' && !isMobile ? 2 : 1), 'prev')}
-                        title="Click to Turn Back (or use Left Arrow key)"
-                      >
-                        <div className="page-turn-arrow-badge">
-                          <ChevronLeft size={20} />
-                        </div>
-                      </div>
-                    )}
-
+                    <Bookmark size={13} fill="currentColor" />
                   </div>
+                )}
 
-                  {/* RIGHT PAGE (in Two-Page Spread Mode) */}
-                  {viewMode === 'spread' && !isMobile && (
-                    <div
-                      className="book-page-leaf"
-                      style={{
-                        flex: 1,
-                        borderLeft: '1px solid rgba(0,0,0,0.06)',
-                        minHeight: '70vh'
-                      }}
-                    >
-                      <div
-                        ref={holderRightRef}
-                        className={`book-canvas-holder ${isMobile && mobileZoom > 1.05 ? 'is-zoomed' : ''} ${!isMobile && scale > 1.2 ? 'desktop-zoomed' : ''}`}
-                        style={isMobile && mobileZoom > 1.05 ? {
-                          transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`,
-                          willChange: 'transform'
-                        } : undefined}
-                      >
-                        {currentPage + 1 <= totalPages ? (
-                          <canvas
-                            ref={canvasRightRef}
-                            onClick={() => {
-                              if (failedPagesRef.current.has(currentPage + 1) && canvasRightRef.current) {
-                                renderPage(currentPage + 1, 'right', canvasRightRef.current);
-                              }
-                            }}
-                            style={{ cursor: failedPagesRef.current.has(currentPage + 1) ? 'pointer' : 'default' }}
-                          />
-                        ) : (
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%',
-                            color: '#94a3b8',
-                            fontSize: '0.86rem'
-                          }}>
-                            <Book size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
-                            <span>End of Book</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Right Interactive Page Turn Zone (hidden while zoomed) */}
-                      {(!isMobile || mobileZoom <= 1.05) && (
-                        <div
-                          className="page-turn-trigger page-turn-trigger-right"
-                          onClick={() => handlePageChange(currentPage + 2, 'next')}
-                          title="Click to Turn Forward (or use Right Arrow key)"
-                        >
-                          <div className="page-turn-arrow-badge">
-                            <ChevronRight size={20} />
-                          </div>
-                        </div>
-                      )}
-
+                {/* Left Interactive Page Turn Zone */}
+                {(!isMobile || mobileZoom <= 1.05) && (
+                  <div
+                    className="page-turn-trigger page-turn-trigger-left"
+                    onClick={handleFlipPrev}
+                    title="Turn to Previous Page (or drag page corner)"
+                  >
+                    <div className="page-turn-arrow-badge">
+                      <ChevronLeft size={20} />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Right Stacked Paper Edges (Desktop only) */}
-                {!isMobile && <div className="book-edge-stacked book-edge-right" />}
+                {/* StPageFlip Mount Point */}
+                <div
+                  ref={flipbookMountRef}
+                  className="st-flipbook-mount"
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                />
+
+                {/* Right Interactive Page Turn Zone */}
+                {(!isMobile || mobileZoom <= 1.05) && (
+                  <div
+                    className="page-turn-trigger page-turn-trigger-right"
+                    onClick={handleFlipNext}
+                    title="Turn to Next Page (or drag page corner)"
+                  >
+                    <div className="page-turn-arrow-badge">
+                      <ChevronRight size={20} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2005,7 +1955,7 @@ const BookReader = ({ book, onClose }) => {
           {isMobile && !useNativeViewer && !pdfLoading && !pdfLoadError && (
             <div className="reader-mobile-bottom-bar">
               <button
-                onClick={() => handlePageChange(currentPage - 1, 'prev')}
+                onClick={handleFlipPrev}
                 disabled={currentPage <= 1}
                 className="btn btn-secondary"
                 style={{
@@ -2015,7 +1965,7 @@ const BookReader = ({ book, onClose }) => {
                   opacity: currentPage <= 1 ? 0.35 : 1,
                   gap: '4px'
                 }}
-                title="Previous Page"
+                title="Previous Page (or drag corner)"
               >
                 <ChevronLeft size={15} /> Prev
               </button>
@@ -2073,7 +2023,7 @@ const BookReader = ({ book, onClose }) => {
                 </button>
 
                 <button
-                  onClick={() => handlePageChange(currentPage + 1, 'next')}
+                  onClick={handleFlipNext}
                   disabled={currentPage >= totalPages}
                   className="btn btn-primary btn-shine"
                   style={{
@@ -2083,7 +2033,7 @@ const BookReader = ({ book, onClose }) => {
                     opacity: currentPage >= totalPages ? 0.35 : 1,
                     gap: '4px'
                   }}
-                  title="Next Page"
+                  title="Next Page (or drag corner)"
                 >
                   Next <ChevronRight size={15} />
                 </button>

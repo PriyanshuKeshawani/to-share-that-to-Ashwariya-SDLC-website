@@ -3138,5 +3138,208 @@ html, body {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ST-PAGE-FLIP: REALISTIC PHYSICAL BOOK ENGINE
+   ═══════════════════════════════════════════════════════════════ */
 
+.st-flipbook-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  min-height: 72vh;
+  perspective: 2500px;
+}
 
+.st-flipbook-wrapper {
+  margin: 0 auto;
+  display: block;
+  position: relative;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  overflow: visible;
+  background: transparent;
+}
+
+/* StPageFlip built-in parent override */
+.stf__parent {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  transform: translateZ(0);
+  touch-action: pan-y;
+  margin: 0 auto;
+}
+
+.st-page {
+  background-color: #ffffff;
+  color: #1e293b;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.04);
+}
+
+/* Hard cover front/back styling */
+.st-page[data-density="hard"] {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.st-page[data-density="hard"].--left {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  border-left: 4px solid #334155;
+}
+
+.st-page[data-density="hard"].--right {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-right: 4px solid #334155;
+}
+
+/* Subtle spine curvature shadow on open inner pages */
+.st-page.--left:not([data-density="hard"]) {
+  background: linear-gradient(to right, #ffffff 0%, #fafafa 88%, #e2e8f0 97%, #cbd5e1 100%);
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.st-page.--right:not([data-density="hard"]) {
+  background: linear-gradient(to left, #ffffff 0%, #fafafa 88%, #e2e8f0 97%, #cbd5e1 100%);
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+/* Dark mode overrides for book pages */
+body.dark .st-page,
+[data-theme="dark"] .st-page {
+  background-color: #11141c;
+  color: #e2e8f0;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
+}
+
+body.dark .st-page[data-density="hard"],
+[data-theme="dark"] .st-page[data-density="hard"] {
+  background: linear-gradient(135deg, #090d16 0%, #030712 100%);
+  border-color: #1e293b;
+}
+
+body.dark .st-page.--left:not([data-density="hard"]),
+[data-theme="dark"] .st-page.--left:not([data-density="hard"]) {
+  background: linear-gradient(to right, #11141c 0%, #131722 88%, #0d1017 97%, #05070a 100%);
+}
+
+body.dark .st-page.--right:not([data-density="hard"]),
+[data-theme="dark"] .st-page.--right:not([data-density="hard"]) {
+  background: linear-gradient(to left, #11141c 0%, #131722 88%, #0d1017 97%, #05070a 100%);
+}
+
+.st-page-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.st-page-content {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.st-page-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.st-page-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 500;
+  z-index: 2;
+}
+
+body.dark .st-page-loader,
+[data-theme="dark"] .st-page-loader {
+  background: rgba(17, 20, 28, 0.88);
+  color: #94a3b8;
+}
+
+.st-page-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.st-page-footer {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  pointer-events: none;
+  z-index: 3;
+}
+
+body.dark .st-page-footer,
+[data-theme="dark"] .st-page-footer {
+  color: #64748b;
+}
+
+/* Interactive Page Turn Corner Hover Hint */
+.st-page:hover::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  opacity: 0.6;
+}
+
+.st-page.--right:hover::after {
+  right: 0;
+  background: linear-gradient(135deg, transparent 50%, rgba(99, 102, 241, 0.25) 100%);
+  border-bottom-right-radius: 4px;
+}
+
+.st-page.--left:hover::after {
+  left: 0;
+  background: linear-gradient(225deg, transparent 50%, rgba(99, 102, 241, 0.25) 100%);
+  border-bottom-left-radius: 4px;
+}
