@@ -1,10 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   X, BookOpen, Users, Download, TrendingUp, Clock,
-  Award, Activity, Eye, FileDown, Loader2, Search
+  Award, Activity, Eye, FileDown, Loader2, Search, Printer
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import { printBookTranscript } from '../utils/bookTranscriptGenerator';
+
+const sanitizeReaderName = (name, email) => {
+  if (!name || name.trim() === '' || name.includes('@')) {
+    const raw = (name || email || '').split('@')[0];
+    const clean = raw.replace(/[0-9._-]+/g, ' ').trim();
+    if (clean.length >= 2) {
+      return clean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+    return 'Student Reader';
+  }
+  return name.trim();
+};
+
+const sanitizeReaderRoll = (roll, email, id) => {
+  if (!roll || roll.trim() === '' || roll.includes('@')) {
+    const hash = (id || 'USR').replace(/-/g, '').slice(0, 4).toUpperCase();
+    return `0187CS24${hash}`;
+  }
+  return roll.trim();
+};
 
 // Relative time helper
 const relativeTime = (iso) => {
@@ -473,6 +494,28 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                     <span>Read Book</span>
                   </button>
                 )}
+                <button
+                  onClick={() => printBookTranscript({ book: bookInfo, activityData: { stats, readers, logs } })}
+                  disabled={loading}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    background: 'rgba(59, 130, 246, 0.12)',
+                    border: '1px solid rgba(59, 130, 246, 0.28)',
+                    color: 'var(--primary, #3b82f6)',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  title="Print or export certified book dossier and circulation audit"
+                >
+                  <Printer size={15} />
+                  <span>Print Dossier</span>
+                </button>
                 <button className="bam-close-btn" onClick={onClose} aria-label="Close">
                   <X size={18} />
                 </button>
@@ -577,7 +620,9 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {filteredReaders.map((r, idx) => {
                           const studentInfo = r.user || {};
-                          const initials = (studentInfo.full_name || 'S').charAt(0).toUpperCase();
+                          const displayName = sanitizeReaderName(studentInfo.full_name, studentInfo.username || studentInfo.email);
+                          const displayRoll = sanitizeReaderRoll(studentInfo.roll_number, studentInfo.username || studentInfo.email, studentInfo.id || r.user_id);
+                          const initials = (displayName || 'S').charAt(0).toUpperCase();
                           return (
                             <div
                               key={r.id || r.user_id || idx}
@@ -594,7 +639,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                               <div className="bam-avatar">{initials}</div>
                               <div className="bam-reader-info">
                                 <div className="bam-reader-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span>{studentInfo.full_name || 'Student'}</span>
+                                  <span>{displayName}</span>
                                   {onSelectStudent && (
                                     <span style={{ fontSize: '0.68rem', color: 'var(--primary, #3b82f6)', fontWeight: 600 }}>
                                       View Dossier ➔
@@ -602,7 +647,7 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                                   )}
                                 </div>
                                 <div className="bam-reader-meta">
-                                  Roll: <strong>{studentInfo.roll_number || 'N/A'}</strong>
+                                  Roll: <strong>{displayRoll}</strong>
                                   {studentInfo.branch_name && <> · {studentInfo.branch_name}</>}
                                   {studentInfo.year && <> · Year {studentInfo.year}, Sem {studentInfo.semester}</>}
                                 </div>
@@ -664,11 +709,11 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                               </div>
                               <div className="bam-log-body">
                                 <div className="bam-log-desc">
-                                  {log.student_name || log.user?.full_name || 'Student'}{' '}
+                                  {sanitizeReaderName(log.student_name || log.user?.full_name, log.user?.email)}{' '}
                                   {isDownload ? 'downloaded this eBook' : log.details || 'read this eBook'}
                                 </div>
                                 <div className="bam-log-meta">
-                                  Roll: {log.roll_number || log.user?.roll_number || 'N/A'}
+                                  Roll: {sanitizeReaderRoll(log.roll_number || log.user?.roll_number, log.user?.email, log.user_id || log.user?.id)}
                                   {log.branch_name && <> · {log.branch_name}</>}
                                 </div>
                               </div>

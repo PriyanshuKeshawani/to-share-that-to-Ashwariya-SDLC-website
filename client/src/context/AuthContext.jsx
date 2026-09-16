@@ -716,7 +716,7 @@ export const AuthProvider = ({ children }) => {
         ] = await Promise.all([
           supabase
             .from('activity_logs')
-            .select('*, user:user_id(id, full_name, roll_number, branch_name)')
+            .select('*, user:user_id(id, full_name, username, roll_number, branch_name)')
             .eq('book_id', bookId)
             .order('created_at', { ascending: false })
             .limit(100),
@@ -731,9 +731,31 @@ export const AuthProvider = ({ children }) => {
             .eq('book_id', bookId)
             .eq('action_type', 'download')
         ]);
-        if (logsData) logs = logsData;
+        logs = logsData || [];
         totalViewLogs = viewCount || 0;
         totalDownloadLogs = dwnCount || 0;
+
+        // Extra title-based reconciliation for unlinked activity logs
+        if (bookData?.title) {
+          const shortTitle = bookData.title.trim().slice(0, 35);
+          const { data: titleLogs } = await supabase
+            .from('activity_logs')
+            .select('*, user:user_id(id, full_name, username, roll_number, branch_name)')
+            .ilike('details', `%${shortTitle}%`)
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (titleLogs && titleLogs.length > 0) {
+            const seenIds = new Set(logs.map(l => l.id));
+            titleLogs.forEach(tl => {
+              if (!seenIds.has(tl.id)) {
+                seenIds.add(tl.id);
+                logs.push(tl);
+                if (tl.action_type === 'view') totalViewLogs++;
+                if (tl.action_type === 'download') totalDownloadLogs++;
+              }
+            });
+          }
+        }
       } catch (logErr) {
         console.warn('Notice fetching logs for book:', logErr);
       }
@@ -768,18 +790,52 @@ export const AuthProvider = ({ children }) => {
       logs.forEach(l => {
         if (l.user_id && !existingUserIds.has(l.user_id)) {
           existingUserIds.add(l.user_id);
+          const userLogs = logs.filter(lg => lg.user_id === l.user_id);
+          let maxPage = 1;
+          let totalPagesFromLog = bookData?.total_pages || 100;
+          userLogs.forEach(lg => {
+            const m = lg.details?.match(/page\s+(\d+)\s+of\s+(\d+)/i) || lg.details?.match(/resumed\s+at\s+page\s+(\d+)\s+of\s+(\d+)/i);
+            if (m) {
+              const p = parseInt(m[1], 10);
+              const tot = parseInt(m[2], 10);
+              if (!isNaN(p) && p > maxPage) maxPage = p;
+              if (!isNaN(tot) && tot > 0) totalPagesFromLog = tot;
+            }
+          });
+          const pct = Math.min(100, Math.round((maxPage / totalPagesFromLog) * 100));
+          const isDl = userLogs.some(lg => lg.action_type === 'download');
           readers.push({
             id: `log-${l.id}`,
             user_id: l.user_id,
             book_id: bookId,
-            last_page_read: 1,
-            total_pages: bookData?.total_pages || 100,
-            progress_percentage: 1,
-            accessed_count: 1,
-            downloaded_count: l.action_type === 'download' ? 1 : 0,
-            is_downloaded: l.action_type === 'download' ? 1 : 0,
+            last_page_read: maxPage,
+            total_pages: totalPagesFromLog,
+            progress_percentage: pct,
+            accessed_count: Math.max(1, userLogs.length),
+            downloaded_count: isDl ? 1 : 0,
+            is_downloaded: isDl ? 1 : 0,
             last_accessed_at: l.created_at,
             user: l.user
+          });
+        }
+      });
+
+      // Also reconcile existing reader stats with log data
+      readers.forEach(r => {
+        const userLogs = logs.filter(lg => lg.user_id === r.user_id);
+        if (userLogs.length > 0) {
+          r.accessed_count = Math.max(Number(r.accessed_count) || 0, userLogs.length);
+          userLogs.forEach(lg => {
+            const m = lg.details?.match(/page\s+(\d+)\s+of\s+(\d+)/i) || lg.details?.match(/resumed\s+at\s+page\s+(\d+)\s+of\s+(\d+)/i);
+            if (m) {
+              const p = parseInt(m[1], 10);
+              const tot = parseInt(m[2], 10);
+              if (!isNaN(p) && p > (r.last_page_read || 1)) {
+                r.last_page_read = p;
+                if (!isNaN(tot) && tot > 0) r.total_pages = tot;
+                r.progress_percentage = Math.min(100, Math.round((p / (r.total_pages || 100)) * 100));
+              }
+            }
           });
         }
       });
@@ -808,9 +864,9 @@ export const AuthProvider = ({ children }) => {
         readers,
         logs: logs.map(l => ({
           ...l,
-          student_name: l.user?.full_name || 'Student',
-          roll_number: l.user?.roll_number || 'N/A',
-          branch_name: l.user?.branch_name || 'N/A'
+          student_name: l.user?.full_name || l.student_name || 'Student',
+          roll_number: l.user?.roll_number || l.roll_number || 'N/A',
+          branch_name: l.user?.branch_name || l.branch_name || 'N/A'
         }))
       };
     }
@@ -1168,7 +1224,10 @@ export const AuthProvider = ({ children }) => {
 
       const bookLookup = new Map((allBooksList || []).map(b => [b.id, b]));
 
-      const bookProgress = (rawBookProgress || []).map(p => {
+      const bookProgressMap = new Map();
+
+      // 1. Ingest existing user_book_progress rows
+      (rawBookProgress || []).forEach(p => {
         const bk = p.book || bookLookup.get(Number(p.book_id)) || null;
         const totalPages = p.total_pages && p.total_pages > 0
           ? p.total_pages
@@ -1178,18 +1237,103 @@ export const AuthProvider = ({ children }) => {
           ? p.progress_percentage
           : Math.min(100, Math.max(1, Math.round((lastPage / totalPages) * 100)));
 
-        return {
+        const item = {
           ...p,
           last_page_read: lastPage,
           total_pages: totalPages,
           progress_percentage: progressPercentage,
+          accessed_count: Math.max(1, Number(p.accessed_count) || 1),
+          downloaded_count: Number(p.downloaded_count) || (p.is_downloaded ? 1 : 0),
+          reading_time_minutes: Number(p.reading_time_minutes) || ((Number(p.accessed_count) || 1) * 8),
           book: bk
         };
+        const key = String(p.book_id || bk?.id || bk?.title || Math.random());
+        bookProgressMap.set(key, item);
       });
 
-      const totalReads = bookProgress.reduce((sum, b) => sum + (Number(b.accessed_count) || 1), 0);
-      const totalDownloads = bookProgress.reduce((sum, b) => sum + (Number(b.downloaded_count) || (b.is_downloaded ? 1 : 0)), 0);
-      const totalMinutes = bookProgress.reduce((sum, b) => sum + (Number(b.reading_time_minutes) || ((Number(b.accessed_count) || 1) * 8)), 0);
+      // 2. Intelligent Reconciliation with activity_logs
+      // Ensures reading progress is never 0 when activity logs exist (e.g. unlinked book_ids or delayed sync)
+      (activityLogs || []).forEach(l => {
+        if (l.action_type !== 'view' && l.action_type !== 'download') return;
+
+        let matchedBook = null;
+        if (l.book_id) {
+          matchedBook = bookLookup.get(Number(l.book_id));
+        }
+
+        let parsedTitle = null;
+        let parsedPage = 1;
+        let parsedTotal = 100;
+
+        if (l.details) {
+          const titleMatch = l.details.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i);
+          if (titleMatch) parsedTitle = titleMatch[1];
+          const pageMatch = l.details.match(/page\s+(\d+)(?:\s+of\s+(\d+))?/i);
+          if (pageMatch) {
+            parsedPage = parseInt(pageMatch[1], 10) || 1;
+            if (pageMatch[2]) parsedTotal = parseInt(pageMatch[2], 10) || 100;
+          }
+        }
+
+        if (!matchedBook && parsedTitle) {
+          const normQuery = parsedTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+          matchedBook = (allBooksList || []).find(b => {
+            const normTitle = (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return normTitle.includes(normQuery) || normQuery.includes(normTitle);
+          });
+        }
+
+        const bookKey = String(l.book_id || matchedBook?.id || parsedTitle || 'unknown');
+        if (bookProgressMap.has(bookKey)) {
+          const existing = bookProgressMap.get(bookKey);
+          if (l.action_type === 'view') {
+            existing.accessed_count = (existing.accessed_count || 0) + 1;
+            existing.last_page_read = Math.max(existing.last_page_read || 1, parsedPage);
+            existing.reading_time_minutes = (existing.reading_time_minutes || 0) + 8;
+            existing.progress_percentage = Math.min(100, Math.max(existing.progress_percentage || 1, Math.round((existing.last_page_read / (existing.total_pages || parsedTotal)) * 100)));
+          } else if (l.action_type === 'download') {
+            existing.downloaded_count = (existing.downloaded_count || 0) + 1;
+            existing.is_downloaded = 1;
+          }
+          if (!existing.book && matchedBook) existing.book = matchedBook;
+        } else {
+          // Synthetic progress entry derived from audit logs
+          const finalBook = matchedBook || (parsedTitle ? { id: l.book_id || null, title: parsedTitle, author: 'Faculty Resource' } : null);
+          if (finalBook) {
+            const isDl = l.action_type === 'download';
+            const pct = Math.min(100, Math.max(1, Math.round((parsedPage / parsedTotal) * 100)));
+            bookProgressMap.set(bookKey, {
+              id: `log-derived-${l.id}`,
+              user_id: studentId,
+              book_id: finalBook.id,
+              last_page_read: parsedPage,
+              total_pages: parsedTotal,
+              progress_percentage: pct,
+              status: pct >= 95 ? 'completed' : 'in_progress',
+              accessed_count: isDl ? 0 : 1,
+              downloaded_count: isDl ? 1 : 0,
+              is_downloaded: isDl ? 1 : 0,
+              reading_time_minutes: isDl ? 0 : 8,
+              last_accessed_at: l.created_at,
+              book: finalBook
+            });
+          }
+        }
+      });
+
+      const bookProgress = Array.from(bookProgressMap.values());
+      const totalReads = Math.max(
+        bookProgress.reduce((sum, b) => sum + (Number(b.accessed_count) || 1), 0),
+        (activityLogs || []).filter(l => l.action_type === 'view').length
+      );
+      const totalDownloads = Math.max(
+        bookProgress.reduce((sum, b) => sum + (Number(b.downloaded_count) || (b.is_downloaded ? 1 : 0)), 0),
+        (activityLogs || []).filter(l => l.action_type === 'download').length
+      );
+      const totalMinutes = Math.max(
+        bookProgress.reduce((sum, b) => sum + (Number(b.reading_time_minutes) || ((Number(b.accessed_count) || 1) * 8)), 0),
+        totalReads * 8
+      );
 
       return {
         student: studentUser,
@@ -1533,10 +1677,32 @@ export const AuthProvider = ({ children }) => {
     if (endpoint === '/analytics/track' && method === 'POST') {
       const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveId) return null;
-      const targetBookId = Number(body.bookId || body.book_id) || null;
+      let targetBookId = Number(body.bookId || body.book_id) || null;
       const actionType = body.actionType || body.action_type || 'view';
       const pageRead = Math.max(1, parseInt(body.last_page_read || body.lastPageRead || 1, 10));
       const details = body.details || (actionType === 'download' ? 'Downloaded eBook' : `Read up to page ${pageRead}`);
+
+      // Fallback book ID resolution by title if book_id is missing/null in the payload
+      if (!targetBookId) {
+        const titleCandidate = body.book_title || body.title || (() => {
+          const match = details.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i);
+          return match ? match[1] : null;
+        })();
+        if (titleCandidate) {
+          try {
+            const cleanTitle = titleCandidate.replace(/[:"']/g, '').trim();
+            const { data: matchedBk } = await supabase
+              .from('books')
+              .select('id, total_pages')
+              .ilike('title', `%${cleanTitle.slice(0, 30)}%`)
+              .limit(1)
+              .maybeSingle();
+            if (matchedBk) targetBookId = matchedBk.id;
+          } catch (e) {
+            console.warn('Notice resolving fallback book ID:', e);
+          }
+        }
+      }
 
       let logData = null;
       try {
@@ -1662,16 +1828,18 @@ export const AuthProvider = ({ children }) => {
       const bookAnalyticsFields = 'id, title, author, branch_id, category_id, priority, cover_url, description, total_pages, created_at, branch:branch_id(id, name), category:category_id(id, name)';
       const [
         { data: allBranches, error: brErr },
+        { count: exactBookCount, error: countErr },
         booksChunks,
         { data: allUsers, error: usrErr },
         { data: allProgress, error: prgErr },
         { data: logsData, error: logErr }
       ] = await Promise.all([
         supabase.from('branches').select('id, name').order('name', { ascending: true }),
+        supabase.from('books').select('*', { count: 'exact', head: true }),
         Promise.all([
-          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(0, 999),
-          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(1000, 1999),
-          supabase.from('books').select(bookAnalyticsFields).order('title', { ascending: true }).range(2000, 2999)
+          supabase.from('books').select(bookAnalyticsFields).order('created_at', { ascending: false }).range(0, 999),
+          supabase.from('books').select(bookAnalyticsFields).order('created_at', { ascending: false }).range(1000, 1999),
+          supabase.from('books').select(bookAnalyticsFields).order('created_at', { ascending: false }).range(2000, 2999)
         ]),
         supabase.from('users').select('id, full_name, roll_number, branch_name, role, status, is_blocked, created_at, avatar_url, year, semester, bt_number').order('full_name', { ascending: true }),
         supabase.from('user_book_progress').select('id, user_id, book_id, accessed_count, downloaded_count, is_downloaded, last_page_read, total_pages, session_count, reading_time_minutes, progress_percentage, status, last_accessed_at, last_active_at'),
@@ -1682,6 +1850,7 @@ export const AuthProvider = ({ children }) => {
       const bkErr = booksChunks.find(res => res.error)?.error || null;
 
       if (brErr) console.warn('Notice loading branches:', brErr.message);
+      if (countErr) console.warn('Notice getting exact book count:', countErr.message);
       if (bkErr) console.warn('Notice loading books:', bkErr.message);
       if (usrErr) console.warn('Notice loading users:', usrErr.message);
       if (prgErr) console.warn('Notice loading progress:', prgErr.message);
@@ -1709,8 +1878,8 @@ export const AuthProvider = ({ children }) => {
         const progAcc = bookProg.reduce((acc, p) => acc + (p.accessed_count || 0), 0);
         const progDwn = bookProg.reduce((acc, p) => acc + (p.downloaded_count || (p.is_downloaded ? 1 : 0)), 0);
 
-        const logAcc = viewLogs.filter(l => l.book_id === b.id).length;
-        const logDwn = downloadLogs.filter(l => l.book_id === b.id).length;
+        const logAcc = viewLogs.filter(l => l.book_id === b.id || (b.title && l.details && l.details.toLowerCase().includes(b.title.toLowerCase()))).length;
+        const logDwn = downloadLogs.filter(l => l.book_id === b.id || (b.title && l.details && l.details.toLowerCase().includes(b.title.toLowerCase()))).length;
 
         const totalAcc = Math.max(progAcc, logAcc);
         const totalDwn = Math.max(progDwn, logDwn);
@@ -1893,7 +2062,7 @@ export const AuthProvider = ({ children }) => {
 
       return {
         stats: {
-          books: booksListRaw.length,
+          books: Math.max(exactBookCount || 0, booksListRaw.length),
           students: approvedStudents.length,
           views: viewLogs.length,
           downloads: downloadLogs.length,
@@ -1939,9 +2108,10 @@ export const AuthProvider = ({ children }) => {
         return (logsData || []).map(l => {
           const prog = progressMap.get(l.book_id) || (l.book?.title ? progressByTitle.get(l.book.title) : null);
           const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
+          const fallbackTitle = l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null;
           return {
             ...l,
-            book_title: l.book ? l.book.title : null,
+            book_title: l.book ? l.book.title : fallbackTitle,
             book_author: l.book ? l.book.author : null,
             last_page_read: prog ? (prog.last_page_read || 1) : parsedPage,
             total_pages: prog?.total_pages || prog?.book?.total_pages || 100,
@@ -1962,7 +2132,7 @@ export const AuthProvider = ({ children }) => {
           ...l,
           user_name: l.user ? l.user.full_name : null,
           user_role: l.user ? l.user.role : null,
-          book_title: l.book ? l.book.title : null
+          book_title: l.book ? l.book.title : (l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null)
         })),
         pagination: { page: 1, limit: 50, total: count || 0, totalPages: 1 }
       };

@@ -5,7 +5,7 @@ import {
   Search, Bookmark,
   History, Laptop, UserCheck, UserX, User,
   Download, Activity, Eye, FileDown, CheckCircle2,
-  Radio
+  Radio, Edit3, Save, Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -28,12 +28,26 @@ const relativeTime = (iso) => {
 
 const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook }) => {
   const { apiCall } = useAuth();
+  const [localStudent, setLocalStudent] = useState(student);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activityData, setActivityData] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'ebooks', 'permissions', 'logs'
   const [bookSearch, setBookSearch] = useState('');
   const [logFilter, setLogFilter] = useState('all'); // 'all', 'reads', 'downloads', 'auth'
   const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    if (student) setLocalStudent(student);
+  }, [student]);
+
+  useEffect(() => {
+    if (activityData?.student) {
+      setLocalStudent(prev => ({ ...prev, ...activityData.student }));
+    }
+  }, [activityData?.student]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -137,7 +151,38 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
 
   // Print Student Activity Report (Certified Library Transcript)
   const handlePrintReport = () => {
-    printStudentTranscript({ student, activityData });
+    printStudentTranscript({ student: localStudent, activityData });
+  };
+
+  const handleStartEdit = () => {
+    setEditFormData({
+      full_name: localStudent.full_name || '',
+      roll_number: localStudent.roll_number || '',
+      bt_number: localStudent.bt_number || '',
+      branch_name: localStudent.branch_name || 'CSE (Computer Science & Engineering)',
+      year: localStudent.year || '3rd Year',
+      semester: localStudent.semester || '6th Semester'
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e?.preventDefault();
+    try {
+      setSavingEdit(true);
+      await apiCall(`/auth/users/${localStudent.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editFormData)
+      });
+      setLocalStudent(prev => ({ ...prev, ...editFormData }));
+      setIsEditing(false);
+      const refreshed = await apiCall(`/students/${localStudent.id}/activity`);
+      if (refreshed) setActivityData(refreshed);
+    } catch (err) {
+      alert(err.message || 'Failed to update student academic record');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -358,14 +403,14 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           <div className="sam-header-top">
             <div className="sam-student-profile">
               <div className="sam-avatar">
-                {(student.full_name || 'S').charAt(0).toUpperCase()}
+                {(localStudent.full_name || localStudent.username || 'S').charAt(0).toUpperCase()}
               </div>
               <div className="sam-student-meta">
-                <div className="sam-student-name">{student.full_name}</div>
+                <div className="sam-student-name">{localStudent.full_name || localStudent.username || 'Student'}</div>
                 <div className="sam-student-sub">
-                  <span>Roll: <strong>{student.roll_number || 'N/A'}</strong></span>
+                  <span>Roll: <strong>{localStudent.roll_number || 'N/A'}</strong></span>
                   <span>·</span>
-                  <span>{student.branch_name || 'General Branch'}</span>
+                  <span>{localStudent.branch_name || 'General Branch'}</span>
                   <span>·</span>
                   <span>·</span>
                   <span style={{
@@ -389,10 +434,10 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
                     }} />
                     Live 100%
                   </span>
-                  {student.created_at && (
+                  {localStudent.created_at && (
                     <>
                       <span>·</span>
-                      <span>Joined {new Date(student.created_at).toLocaleDateString()}</span>
+                      <span>Joined {new Date(localStudent.created_at).toLocaleDateString()}</span>
                     </>
                   )}
                 </div>
@@ -401,6 +446,15 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
 
             {/* Desktop Action buttons */}
             <div className="sam-actions-desktop">
+              <button
+                onClick={handleStartEdit}
+                className="btn btn-secondary"
+                style={{ padding: '7px 12px', fontSize: '0.8rem', gap: '5px' }}
+                title="Edit student academic profile details"
+              >
+                <Edit3 size={14} /> Edit Profile
+              </button>
+
               <button
                 onClick={handlePrintReport}
                 className="btn btn-secondary"
@@ -412,17 +466,17 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
 
               {onToggleBlock && (
                 <button
-                  onClick={() => onToggleBlock(student.id, student.is_blocked !== 1)}
+                  onClick={() => onToggleBlock(localStudent.id, localStudent.is_blocked !== 1)}
                   className="btn btn-secondary"
                   style={{
                     padding: '7px 12px',
                     fontSize: '0.8rem',
                     gap: '5px',
-                    color: student.is_blocked === 1 ? 'var(--success)' : 'var(--warning)',
-                    borderColor: student.is_blocked === 1 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'
+                    color: localStudent.is_blocked === 1 ? 'var(--success)' : 'var(--warning)',
+                    borderColor: localStudent.is_blocked === 1 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'
                   }}
                 >
-                  {student.is_blocked === 1 ? (
+                  {localStudent.is_blocked === 1 ? (
                     <><UserCheck size={14} /> Unblock</>
                   ) : (
                     <><UserX size={14} /> Block</>
@@ -445,22 +499,34 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
           {/* Mobile Action Buttons Row */}
           <div className="sam-actions-mobile">
             <button
+              onClick={handleStartEdit}
+              className="btn btn-secondary"
+              style={{ flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px', minHeight: '40px' }}
+            >
+              <Edit3 size={14} /> Edit
+            </button>
+            <button
               onClick={handlePrintReport}
               className="btn btn-secondary"
               style={{ flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px', minHeight: '40px' }}
             >
-              <Printer size={14} /> Print Transcript
+              <Printer size={14} /> Print
             </button>
             {onToggleBlock && (
               <button
-                onClick={() => onToggleBlock(student.id, student.is_blocked !== 1)}
+                onClick={() => onToggleBlock(localStudent.id, localStudent.is_blocked !== 1)}
                 className="btn btn-secondary"
                 style={{
-                  flex: 1, padding: '8px 10px', fontSize: '0.78rem', gap: '5px', minHeight: '40px',
-                  color: student.is_blocked === 1 ? 'var(--success)' : 'var(--warning)'
+                  flex: 1,
+                  padding: '8px 10px',
+                  fontSize: '0.78rem',
+                  gap: '5px',
+                  minHeight: '40px',
+                  color: localStudent.is_blocked === 1 ? 'var(--success)' : 'var(--warning)',
+                  borderColor: localStudent.is_blocked === 1 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'
                 }}
               >
-                {student.is_blocked === 1 ? (
+                {localStudent.is_blocked === 1 ? (
                   <><UserCheck size={14} /> Unblock</>
                 ) : (
                   <><UserX size={14} /> Block</>
@@ -468,6 +534,117 @@ const StudentActivityModal = ({ student, onClose, onToggleBlock, onSelectBook })
               </button>
             )}
           </div>
+
+          {/* Inline Profile Editor Dialog */}
+          {isEditing && (
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--primary)',
+              borderRadius: '12px',
+              padding: '16px',
+              marginTop: '12px',
+              animation: 'bam-fade-in 0.2s ease'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Edit3 size={15} color="var(--primary)" /> Edit Student Institutional Profile
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.1rem' }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Full Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.full_name || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                      required
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Enrollment / Roll No.</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.roll_number || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, roll_number: e.target.value }))}
+                      required
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>BT Code / Library Card No.</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.bt_number || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, bt_number: e.target.value }))}
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Department / Branch</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.branch_name || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, branch_name: e.target.value }))}
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Academic Year</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.year || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, year: e.target.value }))}
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Semester</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editFormData.semester || ''}
+                      onChange={e => setEditFormData(prev => ({ ...prev, semester: e.target.value }))}
+                      style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={savingEdit}
+                    style={{ padding: '6px 16px', fontSize: '0.8rem', gap: '6px' }}
+                  >
+                    <Save size={14} /> {savingEdit ? 'Saving...' : 'Save Profile'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* ── KPI Stat Cards (E-Book Monitoring) ── */}
           <div className="sam-kpi-grid">
