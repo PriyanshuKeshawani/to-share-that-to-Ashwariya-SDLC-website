@@ -3361,13 +3361,43 @@ body.dark .st-page-footer,
 
 .book-stage-viewport.is-zoomed {
   overflow: hidden !important;
+  cursor: grab;
+}
+
+.book-stage-viewport.is-zoomed.is-dragging {
+  cursor: grabbing;
+}
+
+/* While zoomed in, shut off all corner-curl hints, corner dragging, and page flip hit-testing */
+.book-stage-viewport.is-zoomed .st-page::after,
+.book-stage-viewport.is-zoomed .st-page:hover::after,
+.book-stage-viewport.is-zoomed .st-page.--right:hover::after,
+.book-stage-viewport.is-zoomed .st-page.--left:hover::after {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.book-stage-viewport.is-zoomed .page-turn-trigger,
+.book-stage-viewport.is-zoomed .page-turn-arrow-badge {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+.book-stage-viewport.is-zoomed .stf__parent,
+.book-stage-viewport.is-zoomed .st-flipbook-wrapper,
+.book-stage-viewport.is-zoomed .st-page {
+  pointer-events: none !important;
 }
 
 .st-pan-overlay {
   position: absolute;
   inset: 0;
-  z-index: 22;
+  z-index: 35;
   cursor: grab;
+  touch-action: none;
 }
 
 .st-pan-overlay.is-dragging {

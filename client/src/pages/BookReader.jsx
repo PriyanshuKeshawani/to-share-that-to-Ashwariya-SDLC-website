@@ -2053,18 +2053,6 @@ const BookReader = ({ book, onClose }) => {
                     minHeight: isMobile ? 'auto' : '72vh'
                   }}
                 >
-                  {/* Transparent pan overlay active during zoom to prevent accidental page flips */}
-                  {(isMobile ? mobileZoom : scale) > 1.05 && (
-                    <div
-                      className={`st-pan-overlay ${isDragging ? 'is-dragging' : ''}`}
-                      onDoubleClick={() => {
-                        if (isMobile) handleMobileZoomReset();
-                        else handleDesktopZoomReset();
-                      }}
-                      title="Drag to pan • Double click to reset zoom"
-                    />
-                  )}
-
                   {/* Silk Ribbon Bookmark indicator hanging on active page */}
                   {viewMode === 'spread' && !isMobile ? (
                     <>
@@ -2123,6 +2111,18 @@ const BookReader = ({ book, onClose }) => {
                       alignItems: 'center'
                     }}
                   />
+
+                  {/* Transparent pan overlay active during zoom: blocks accidental corner flips and allows smooth panning */}
+                  {(isMobile ? mobileZoom : scale) > 1.05 && (
+                    <div
+                      className={`st-pan-overlay ${isDragging ? 'is-dragging' : ''}`}
+                      onDoubleClick={() => {
+                        if (isMobile) handleMobileZoomReset();
+                        else handleDesktopZoomReset();
+                      }}
+                      title="Drag to pan • Double click to reset zoom"
+                    />
+                  )}
 
                   {/* Right Interactive Page Turn Zone */}
                   {(!isMobile || mobileZoom <= 1.05) && (isMobile ? mobileZoom : scale) <= 1.05 && (
