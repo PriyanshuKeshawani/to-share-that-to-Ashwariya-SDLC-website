@@ -243,9 +243,6 @@ const NotificationBell = ({ variant = 'icon' }) => {
     const handleFocus = () => fetchNotifications();
     window.addEventListener('focus', handleFocus);
 
-    // 4. Periodic background sync (every 15s)
-    const interval = setInterval(fetchNotifications, 15000);
-
     return () => {
       isCancelled = true;
       if (channel) {
@@ -255,7 +252,6 @@ const NotificationBell = ({ variant = 'icon' }) => {
       }
       window.removeEventListener('library:notification-refresh', handleLocalRefresh);
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
     };
   }, [user, fetchNotifications, playChime]);
 

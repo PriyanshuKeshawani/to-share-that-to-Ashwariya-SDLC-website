@@ -361,13 +361,10 @@ const AdminDashboard = ({ onSelectBook }) => {
     const handleFocus = () => silentRefreshAdminData();
     window.addEventListener('focus', handleFocus);
 
-    const interval = setInterval(silentRefreshAdminData, 10000);
-
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
     };
   }, [silentRefreshAdminData, showFeedback]);
 

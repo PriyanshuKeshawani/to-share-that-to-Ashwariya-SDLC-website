@@ -223,12 +223,9 @@ const StudentDashboard = ({ onSelectBook }) => {
     const handleFocus = () => silentRefresh();
     window.addEventListener('focus', handleFocus);
 
-    const interval = setInterval(silentRefresh, 10000);
-
     return () => {
       if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
     };
   }, [user, silentRefresh, showFeedback]);
 
