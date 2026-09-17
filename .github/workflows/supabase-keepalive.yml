@@ -1,0 +1,36 @@
+name: Supabase Database Keep-Alive
+
+on:
+  schedule:
+    # Runs every 3 days at 06:00 UTC (11:30 AM IST)
+    - cron: '0 6 */3 * *'
+  workflow_dispatch:
+    # Allows manual trigger anytime from the GitHub Actions tab
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase PostgreSQL via REST
+        env:
+          SUPABASE_URL: 'https://ddjqajadhrwepcybfzam.supabase.co'
+          SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkanFhamFkaHJ3ZXBjeWJmemFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzOTY1NzksImV4cCI6MjEwMzk3MjU3OX0.XPWOh6OFmXKztLOE1f9UJrPdQhC5iJX6Z-CdzYCMV3o'
+        run: |
+          echo "Sending keep-alive health ping to Supabase PostgreSQL database..."
+          RESPONSE=$(curl -f -s -w "\nHTTP_STATUS:%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/branches?select=id,name&limit=1")
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+          
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ Supabase Keep-Alive Ping Successful!"
+            echo "Response: $BODY"
+            echo "🎉 Inactivity timer has been successfully reset. Database will remain active 24/7."
+          else
+            echo "❌ Keep-Alive Ping Failed with HTTP $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
