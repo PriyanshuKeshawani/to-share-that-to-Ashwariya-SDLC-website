@@ -1,3 +1,5 @@
+"use client";
+
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
 
@@ -106,21 +108,26 @@ const applyTheme = (mode, primary, secondary) => {
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [mode, setMode] = useState(() => localStorage.getItem('theme-mode') || 'dark');
-  const [paletteId, setPaletteId] = useState(() => localStorage.getItem('theme-palette') || 'sistec-navy');
-  const [customPrimary, setCustomPrimary] = useState(() => localStorage.getItem('theme-custom-primary') || '#3b82f6');
-  const [customSecondary, setCustomSecondary] = useState(() => localStorage.getItem('theme-custom-secondary') || '#06b6d4');
+  const [mode, setMode] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-mode') : null) || 'dark');
+  const [paletteId, setPaletteId] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-palette') : null) || 'sistec-navy');
+  const [customPrimary, setCustomPrimary] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-custom-primary') : null) || '#3b82f6');
+  const [customSecondary, setCustomSecondary] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-custom-secondary') : null) || '#06b6d4');
 
   const activePalette = COLOR_PALETTES.find(p => p.id === paletteId) || COLOR_PALETTES[0];
   const primary = paletteId === 'custom' ? customPrimary : activePalette.primary;
   const secondary = paletteId === 'custom' ? customSecondary : activePalette.secondary;
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     applyTheme(mode, primary, secondary);
-    localStorage.setItem('theme-mode', mode);
-    localStorage.setItem('theme-palette', paletteId);
-    localStorage.setItem('theme-custom-primary', customPrimary);
-    localStorage.setItem('theme-custom-secondary', customSecondary);
+    try {
+      localStorage.setItem('theme-mode', mode);
+      localStorage.setItem('theme-palette', paletteId);
+      localStorage.setItem('theme-custom-primary', customPrimary);
+      localStorage.setItem('theme-custom-secondary', customSecondary);
+    } catch {
+      // ignore
+    }
   }, [mode, primary, secondary, paletteId, customPrimary, customSecondary]);
 
   const toggleMode = () => setMode(prev => prev === 'dark' ? 'light' : 'dark');

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';

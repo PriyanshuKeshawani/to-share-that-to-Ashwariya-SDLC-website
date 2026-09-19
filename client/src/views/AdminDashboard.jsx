@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -27,13 +29,24 @@ const AdminDashboard = ({ onSelectBook }) => {
 
   // Google AI Studio style Collapsible Sidebar State (PC / Desktop users)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('admin-sidebar-collapsed') === 'true';
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('admin-sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarCollapsed(prev => {
       const next = !prev;
-      localStorage.setItem('admin-sidebar-collapsed', String(next));
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('admin-sidebar-collapsed', String(next));
+        } catch {
+          // ignore
+        }
+      }
       return next;
     });
   }, []);
@@ -51,6 +64,7 @@ const AdminDashboard = ({ onSelectBook }) => {
   }, [toggleSidebar]);
 
   const [activeTab, setActiveTabState] = useState(() => {
+    if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'branches', 'settings'];
@@ -565,7 +579,7 @@ const AdminDashboard = ({ onSelectBook }) => {
       year: student.year ? String(student.year) : '',
       semester: student.semester ? String(student.semester) : '',
       email: student.email || '',
-      status: student.status || 'approved'
+      status: student.status || 'pending'
     });
   };
 
@@ -2308,8 +2322,7 @@ const AdminDashboard = ({ onSelectBook }) => {
                         onChange={(e) => handleRegistrationPolicyChange(e.target.value)}
                         disabled={policyLoading}
                       >
-                        <option value="manual">Manual Review (Default)</option>
-                        <option value="auto_approve">Automatically Approve</option>
+                        <option value="manual">Manual Review (Default - Required)</option>
                         <option value="auto_reject">Automatically Reject</option>
                       </select>
                     </div>

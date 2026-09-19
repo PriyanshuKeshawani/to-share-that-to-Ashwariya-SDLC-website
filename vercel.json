@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build --prefix client",
-  "outputDirectory": "client/dist",
+  "framework": "nextjs",
+  "rootDirectory": "client",
   "headers": [
     {
       "source": "/.well-known/assetlinks.json",
@@ -14,12 +14,6 @@
           "value": "*"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }

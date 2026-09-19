@@ -1,9 +1,13 @@
+"use client";
+
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { resolveBookCover } from '../utils/bookCoverResolver';
 
-export const BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+export const BASE_URL =
+  (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL)) ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 
 // Canonical branch key identifier for 100% accurate branch matching across abbreviations, acronyms, and variations
 export const canonicalBranch = (name) => {
@@ -198,6 +202,7 @@ const sanitizeCustomUser = (u) => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
+      if (typeof window === 'undefined') return null;
       const saved = localStorage.getItem('lib_custom_user');
       return saved ? sanitizeCustomUser(JSON.parse(saved)) : null;
     } catch {
@@ -207,6 +212,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(() => {
     try {
+      if (typeof window === 'undefined') return true;
       return !localStorage.getItem('lib_custom_user');
     } catch {
       return true;
@@ -216,7 +222,13 @@ export const AuthProvider = ({ children }) => {
   const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
 
   const clearSession = () => {
-    localStorage.removeItem('lib_custom_user');
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('lib_custom_user');
+      }
+    } catch {
+      // ignore
+    }
     setUser(null);
     setSession(null);
     setNeedsProfile(false);
@@ -2529,7 +2541,7 @@ export const AuthProvider = ({ children }) => {
         semester: meta.semester || '1st Semester',
         bt_number: meta.bt_number || 'N/A',
         role: 'student',
-        status: 'approved',
+        status: 'pending',
         is_blocked: 0,
         auth_provider: 'password'
       };
@@ -2621,9 +2633,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Username is already taken');
     }
 
-    // Check active registration policy
-    const policy = await getSystemRegistrationPolicy();
-    const initialStatus = policy === 'auto_approve' ? 'approved' : policy === 'auto_reject' ? 'rejected' : 'pending';
+    // Institutional security: Students always require manual administrator approval
+    const initialStatus = 'pending';
 
     const userId = pendingGoogleUser.id;
     const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || pendingGoogleUser.identities?.[0]?.identity_data?.avatar_url || pendingGoogleUser.identities?.[0]?.identity_data?.picture || null;
@@ -2816,9 +2827,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Registration failed. Please try again.');
     }
 
-    // Check active registration policy
-    const policy = await getSystemRegistrationPolicy();
-    const initialStatus = policy === 'auto_approve' ? 'approved' : policy === 'auto_reject' ? 'rejected' : 'pending';
+    // Institutional security: Students always require manual administrator approval
+    const initialStatus = 'pending';
 
     const userId = authData.user.id;
 

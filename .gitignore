@@ -5,6 +5,11 @@ server/node_modules/
 
 # Production build outputs
 client/dist/
+dist/
+.next/
+client/.next/
+out/
+client/out/
 
 # SQLite database & Uploads
 server/db/*.db
@@ -35,6 +40,7 @@ Thumbs.db
 
 # Editor / Agent directories
 .kilo/
+.idea/
 
 # Local Data Feed & Large Books (excluded from git)
 data_feed/

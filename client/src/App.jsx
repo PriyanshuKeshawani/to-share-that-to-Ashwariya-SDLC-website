@@ -1,12 +1,14 @@
+"use client";
+
 import { useState, useEffect, useCallback, Component } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { supabase } from './supabaseClient';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import StudentDashboard from './pages/StudentDashboard';
-import BookReader from './pages/BookReader';
-import AdminDashboard from './pages/AdminDashboard';
+import Login from './views/Login';
+import Register from './views/Register';
+import StudentDashboard from './views/StudentDashboard';
+import BookReader from './views/BookReader';
+import AdminDashboard from './views/AdminDashboard';
 import GoogleProfileCompletion from './components/GoogleProfileCompletion';
 import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 
@@ -128,6 +130,7 @@ const AppContent = () => {
   const [selectedBook, setSelectedBook] = useState(null);
 
   const [isRegistering, setIsRegisteringState] = useState(() => {
+    if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname.replace(/^\/+/, '');
     return params.get('view') === 'register' || path === 'register';

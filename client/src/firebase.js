@@ -2,17 +2,31 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { supabase } from './supabaseClient';
 
-const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCJRCTpgdNwbrKO6VW2yEC-auqIGRsP5s0';
-const rawVapid = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BCJg4OePBub_inm9aF8U_0WzT1oo1c2EEgFHtYBOG6ZJ-pwekdQxJRKM3Dv5Fl2l6hzkbHTDsosWhyPgYm6j9rI';
+const getEnv = (key) => {
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key];
+  }
+  return '';
+};
+
+const rawApiKey =
+  getEnv('NEXT_PUBLIC_FIREBASE_API_KEY') ||
+  getEnv('VITE_FIREBASE_API_KEY') ||
+  'AIzaSyCJRCTpgdNwbrKO6VW2yEC-auqIGRsP5s0';
+
+const rawVapid =
+  getEnv('NEXT_PUBLIC_FIREBASE_VAPID_KEY') ||
+  getEnv('VITE_FIREBASE_VAPID_KEY') ||
+  'BCJg4OePBub_inm9aF8U_0WzT1oo1c2EEgFHtYBOG6ZJ-pwekdQxJRKM3Dv5Fl2l6hzkbHTDsosWhyPgYm6j9rI';
 
 // Firebase configuration using sanitized environment variables
 const firebaseConfig = {
   apiKey: String(rawApiKey).trim().split(/[\r\n]/)[0].trim(),
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'sistec-library-portal.firebaseapp.com').trim(),
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sistec-library-portal').trim(),
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'sistec-library-portal.firebasestorage.app').trim(),
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1076845729176').trim(),
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID || '1:1076845729176:web:8b35bc3b968dbd16cb07ed').trim()
+  authDomain: (getEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN') || getEnv('VITE_FIREBASE_AUTH_DOMAIN') || 'sistec-library-portal.firebaseapp.com').trim(),
+  projectId: (getEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID') || getEnv('VITE_FIREBASE_PROJECT_ID') || 'sistec-library-portal').trim(),
+  storageBucket: (getEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET') || getEnv('VITE_FIREBASE_STORAGE_BUCKET') || 'sistec-library-portal.firebasestorage.app').trim(),
+  messagingSenderId: (getEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID') || getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || '1076845729176').trim(),
+  appId: (getEnv('NEXT_PUBLIC_FIREBASE_APP_ID') || getEnv('VITE_FIREBASE_APP_ID') || '1:1076845729176:web:8b35bc3b968dbd16cb07ed').trim()
 };
 
 export const VAPID_KEY = String(rawVapid).trim().split(/[\r\n]/)[0].trim();

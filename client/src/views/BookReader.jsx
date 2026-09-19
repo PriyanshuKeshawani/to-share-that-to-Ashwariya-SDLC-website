@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { PageFlip } from 'page-flip';
 import { useAuth, BASE_URL, isSameBranch } from '../context/AuthContext';
@@ -33,7 +35,6 @@ import {
   RefreshCw
 } from 'lucide-react';
 import ShareBookModal from '../components/ShareBookModal';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Polyfills for modern TC39 proposals required by modern pdfjs-dist workers and range chunkers
 if (typeof Map !== 'undefined') {
@@ -59,13 +60,9 @@ if (typeof Uint8Array !== 'undefined' && !Uint8Array.prototype.toHex) {
   };
 }
 
-// Configure PDF.js worker reliably for Vite dev server and production bundle
+// Configure PDF.js worker reliably for Next.js production bundle
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-  } catch {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || '6.3.289'}/build/pdf.worker.min.mjs`;
 }
 
 const TAG_COLORS = {

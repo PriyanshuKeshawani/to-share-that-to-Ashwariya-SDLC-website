@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -39,13 +41,24 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   // Google AI Studio style Collapsible Sidebar State (PC / Desktop users)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('student-sidebar-collapsed') === 'true';
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('student-sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarCollapsed(prev => {
       const next = !prev;
-      localStorage.setItem('student-sidebar-collapsed', String(next));
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('student-sidebar-collapsed', String(next));
+        } catch {
+          // ignore
+        }
+      }
       return next;
     });
   }, []);
@@ -63,6 +76,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   }, [toggleSidebar]);
 
   const [activeTab, setActiveTabState] = useState(() => {
+    if (typeof window === 'undefined') return 'all';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     const validTabs = ['all', 'home', 'other', 'my-books', 'requests', 'history', 'settings'];

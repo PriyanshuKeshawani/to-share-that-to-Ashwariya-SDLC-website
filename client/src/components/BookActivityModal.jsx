@@ -432,6 +432,59 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
         }
         .bam-empty h4 { margin: 12px 0 6px; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
         .bam-empty p { font-size: 0.8rem; margin: 0; }
+        .bam-top-nav-mobile {
+          display: none;
+        }
+        .bam-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .bam-close-desktop {
+          display: flex;
+        }
+        .bam-action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 14px;
+          border-radius: 12px;
+          font-weight: 600;
+          font-size: 0.82rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        .bam-read-btn {
+          background: linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(5,150,105,0.3) 100%);
+          border: 1px solid rgba(16,185,129,0.4);
+          color: #34d399;
+        }
+        .bam-read-btn:hover {
+          background: linear-gradient(135deg, rgba(16,185,129,0.3) 0%, rgba(5,150,105,0.4) 100%);
+        }
+        .bam-print-btn {
+          background: rgba(59, 130, 246, 0.12);
+          border: 1px solid rgba(59, 130, 246, 0.28);
+          color: var(--primary, #3b82f6);
+        }
+        .bam-print-btn:hover {
+          background: rgba(59, 130, 246, 0.2);
+        }
+        .bam-print-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+        .bam-reader-main {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          flex: 1;
+          min-width: 0;
+        }
+
         @media (max-width: 768px) {
           .bam-overlay { padding: 0 !important; }
           .bam-modal {
@@ -440,11 +493,111 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
             height: 100dvh !important;
             border: none !important;
           }
-          .bam-header { padding: max(14px, env(safe-area-inset-top, 14px)) 14px 0; }
-          .bam-body { padding: 14px 14px max(16px, env(safe-area-inset-bottom, 16px)); }
-          .bam-book-title { font-size: 1.1rem; }
-          .bam-stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .bam-tab-btn { padding: 10px 12px; font-size: 0.76rem; }
+          .bam-top-nav-mobile {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 12px;
+          }
+          .bam-desktop-label {
+            display: none !important;
+          }
+          .bam-close-desktop {
+            display: none !important;
+          }
+          .bam-header {
+            padding: max(14px, env(safe-area-inset-top, 14px)) 16px 0;
+          }
+          .bam-header-top {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            margin-bottom: 14px;
+          }
+          .bam-book-info {
+            width: 100%;
+            min-width: 0;
+          }
+          .bam-book-title {
+            font-size: 1.18rem !important;
+            line-height: 1.35 !important;
+            margin: 0 0 6px 0 !important;
+            word-break: break-word !important;
+          }
+          .bam-book-meta {
+            font-size: 0.76rem !important;
+            gap: 6px !important;
+            line-height: 1.4 !important;
+          }
+          .bam-header-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 8px;
+            width: 100%;
+          }
+          .bam-action-btn {
+            width: 100%;
+            padding: 9px 12px;
+            font-size: 0.8rem;
+          }
+          .bam-body {
+            padding: 14px 16px max(18px, env(safe-area-inset-bottom, 18px));
+          }
+          .bam-stats-row {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+          }
+          .bam-stat-card:nth-child(5) {
+            grid-column: 1 / -1;
+          }
+          .bam-stat-card {
+            padding: 10px 12px;
+            gap: 8px;
+          }
+          .bam-stat-icon {
+            width: 28px;
+            height: 28px;
+          }
+          .bam-stat-val {
+            font-size: 1.05rem;
+          }
+          .bam-tab-btn {
+            flex: 1;
+            justify-content: center;
+            padding: 10px 8px;
+            font-size: 0.78rem;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .bam-reader-card {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 12px;
+            gap: 10px;
+          }
+          .bam-reader-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+          }
+          .bam-reader-name {
+            font-size: 0.86rem;
+          }
+          .bam-reader-meta {
+            font-size: 0.7rem;
+          }
+          .bam-reader-stats {
+            width: 100%;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-glass, rgba(255,255,255,0.06));
+          }
         }
       `}</style>
 
@@ -452,9 +605,17 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
         <div className="bam-modal">
           {/* Header */}
           <div className="bam-header">
+            {/* Mobile Top Navigation Bar */}
+            <div className="bam-top-nav-mobile">
+              <div className="bam-book-label" style={{ marginBottom: 0 }}>📖 Book Activity Monitor</div>
+              <button className="bam-close-btn" onClick={onClose} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+
             <div className="bam-header-top">
               <div className="bam-book-info">
-                <div className="bam-book-label">📖 Book Activity Monitor</div>
+                <div className="bam-book-label bam-desktop-label">📖 Book Activity Monitor</div>
                 <h2 className="bam-book-title">{bookInfo?.title || 'Book Activity'}</h2>
                 <div className="bam-book-meta">
                   <span>{bookInfo?.author || 'Unknown Author'}</span>
@@ -466,27 +627,14 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <div className="bam-header-actions">
                 {onSelectBook && (
                   <button
                     type="button"
+                    className="bam-action-btn bam-read-btn"
                     onClick={() => {
                       onClose?.();
                       onSelectBook(bookInfo);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(5,150,105,0.3) 100%)',
-                      border: '1px solid rgba(16,185,129,0.4)',
-                      color: '#34d399',
-                      fontWeight: 600,
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
                     }}
                     title="Directly Open and Read Book"
                   >
@@ -495,28 +643,15 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                   </button>
                 )}
                 <button
+                  className="bam-action-btn bam-print-btn"
                   onClick={() => printBookTranscript({ book: bookInfo, activityData: { stats, readers, logs } })}
                   disabled={loading}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '12px',
-                    background: 'rgba(59, 130, 246, 0.12)',
-                    border: '1px solid rgba(59, 130, 246, 0.28)',
-                    color: 'var(--primary, #3b82f6)',
-                    fontWeight: 600,
-                    fontSize: '0.82rem',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s',
-                  }}
                   title="Print or export certified book dossier and circulation audit"
                 >
                   <Printer size={15} />
                   <span>Print Dossier</span>
                 </button>
-                <button className="bam-close-btn" onClick={onClose} aria-label="Close">
+                <button className="bam-close-btn bam-close-desktop" onClick={onClose} aria-label="Close">
                   <X size={18} />
                 </button>
               </div>
@@ -636,25 +771,27 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                               }}
                               title={onSelectStudent ? "Click to inspect student profile and library dossier" : undefined}
                             >
-                              <div className="bam-avatar">{initials}</div>
-                              <div className="bam-reader-info">
-                                <div className="bam-reader-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span>{displayName}</span>
-                                  {onSelectStudent && (
-                                    <span style={{ fontSize: '0.68rem', color: 'var(--primary, #3b82f6)', fontWeight: 600 }}>
-                                      View Dossier ➔
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="bam-reader-meta">
-                                  Roll: <strong>{displayRoll}</strong>
-                                  {studentInfo.branch_name && <> · {studentInfo.branch_name}</>}
-                                  {studentInfo.year && <> · Year {studentInfo.year}, Sem {studentInfo.semester}</>}
-                                </div>
-                                <div className="bam-reader-meta" style={{ marginTop: 3 }}>
-                                  <Clock size={11} style={{ display: 'inline', marginRight: 3 }} />
-                                  Last read: <strong>{relativeTime(r.last_accessed_at)}</strong>
-                                  &nbsp;({formatDateTime(r.last_accessed_at)})
+                              <div className="bam-reader-main">
+                                <div className="bam-avatar">{initials}</div>
+                                <div className="bam-reader-info">
+                                  <div className="bam-reader-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>{displayName}</span>
+                                    {onSelectStudent && (
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--primary, #3b82f6)', fontWeight: 600 }}>
+                                        View Dossier ➔
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="bam-reader-meta">
+                                    Roll: <strong>{displayRoll}</strong>
+                                    {studentInfo.branch_name && <> · {studentInfo.branch_name}</>}
+                                    {studentInfo.year && <> · Year {studentInfo.year}, Sem {studentInfo.semester}</>}
+                                  </div>
+                                  <div className="bam-reader-meta" style={{ marginTop: 3 }}>
+                                    <Clock size={11} style={{ display: 'inline', marginRight: 3 }} />
+                                    Last read: <strong>{relativeTime(r.last_accessed_at)}</strong>
+                                    &nbsp;({formatDateTime(r.last_accessed_at)})
+                                  </div>
                                 </div>
                               </div>
                               <div className="bam-reader-stats">
