@@ -1,14 +1,12 @@
 {
-  "name": "library-management-system",
+  "name": "sistec-library-portal",
   "version": "1.0.0",
-  "description": "Library Management System with User and Admin Panels",
+  "private": true,
+  "description": "SISTEC Central Digital Library Portal",
   "scripts": {
-    "client": "npm run dev --prefix client",
-    "dev": "npm run client",
-    "install-all": "npm install --prefix client --include=dev --legacy-peer-deps",
-    "build": "npm run install-all && npm run build --prefix client"
-  },
-  "dependencies": {
-    "concurrently": "^8.2.2"
+    "dev": "npm run dev --prefix client",
+    "build": "npm run install-all && npm run build --prefix client",
+    "start": "npm run start --prefix client",
+    "install-all": "npm install --prefix client --legacy-peer-deps"
   }
 }

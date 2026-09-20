@@ -13,8 +13,8 @@ jobs:
     steps:
       - name: Ping Supabase PostgreSQL via REST
         env:
-          SUPABASE_URL: 'https://ddjqajadhrwepcybfzam.supabase.co'
-          SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkanFhamFkaHJ3ZXBjeWJmemFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzOTY1NzksImV4cCI6MjEwMzk3MjU3OX0.XPWOh6OFmXKztLOE1f9UJrPdQhC5iJX6Z-CdzYCMV3o'
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://ddjqajadhrwepcybfzam.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkanFhamFkaHJ3ZXBjeWJmemFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzOTY1NzksImV4cCI6MjEwMzk3MjU3OX0.XPWOh6OFmXKztLOE1f9UJrPdQhC5iJX6Z-CdzYCMV3o' }}
         run: |
           echo "Sending keep-alive health ping to Supabase PostgreSQL database..."
           RESPONSE=$(curl -f -s -w "\nHTTP_STATUS:%{http_code}" \

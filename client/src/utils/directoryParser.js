@@ -121,7 +121,7 @@ export function parseDirectoryFiles(fileList, availableBranches = [], availableC
 
   return files.map((file, index) => {
     const relPath = file.webkitRelativePath || file.name;
-    const segments = relPath.split(/[\/\\]/).map(s => s.trim()).filter(Boolean);
+    const segments = relPath.split(/[/\\]/).map(s => s.trim()).filter(Boolean);
 
     let detectedBranch = null;
     let detectedCategory = null;

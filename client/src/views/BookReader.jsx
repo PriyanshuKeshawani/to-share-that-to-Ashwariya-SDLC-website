@@ -1166,8 +1166,8 @@ const BookReader = ({ book, onClose }) => {
       if (isCancelled || !mount.contains(flipWrapper)) return;
 
       const isMobileViewport = window.innerWidth < 768;
-      let baseWidth = 550;
-      let baseHeight = 733;
+      let baseWidth;
+      let baseHeight;
 
       if (isMobileViewport) {
         const maxAvailWidth = Math.min(window.innerWidth - 12, 480);
