@@ -226,11 +226,11 @@ export default function SeniorMajorsMinorsModal({
       }}
     >
       <div
-        className="glass-panel animate-scale-up"
+        className="glass-panel animate-fade-in"
         style={{
           width: '100%',
           maxWidth: '680px',
-          maxHeight: 'min(90dvh, 850px)',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           borderRadius: '20px',
@@ -600,7 +600,6 @@ export default function SeniorMajorsMinorsModal({
             display: 'flex',
             justifyContent: 'flex-end',
             gap: '10px',
-            marginTop: '10px',
             borderTop: '1px solid var(--border-glass)',
             padding: '14px 24px',
             background: 'rgba(255, 255, 255, 0.02)',
