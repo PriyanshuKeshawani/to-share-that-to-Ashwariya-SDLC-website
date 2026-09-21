@@ -558,7 +558,34 @@ export const AuthProvider = ({ children }) => {
 
         const { data, error } = await query;
         if (error) throw error;
-        return data || [];
+
+        // Fetch user reactions if logged in
+        let userReactionsMap = {};
+        if (user && user.email) {
+          try {
+            const { data: votes } = await supabase
+              .from('project_reactions')
+              .select('project_id, reaction_type')
+              .eq('user_email', user.email.toLowerCase().trim());
+            if (votes && Array.isArray(votes)) {
+              votes.forEach(v => {
+                userReactionsMap[v.project_id] = v.reaction_type;
+              });
+            }
+          } catch (voteErr) {
+            console.warn('Could not fetch project reactions for user:', voteErr.message);
+          }
+        }
+
+        const enriched = (data || []).map(p => ({
+          ...p,
+          team_members: Array.isArray(p.team_members) ? p.team_members : [],
+          likes_count: typeof p.likes_count === 'number' ? p.likes_count : 0,
+          dislikes_count: typeof p.dislikes_count === 'number' ? p.dislikes_count : 0,
+          user_reaction: userReactionsMap[p.id] || null
+        }));
+
+        return enriched;
       }
 
       // GET /projects/:id
@@ -569,7 +596,111 @@ export const AuthProvider = ({ children }) => {
           .eq('id', secondPart)
           .single();
         if (error) throw error;
-        return data;
+
+        let userReaction = null;
+        if (user && user.email && data) {
+          try {
+            const { data: v } = await supabase
+              .from('project_reactions')
+              .select('reaction_type')
+              .eq('project_id', secondPart)
+              .eq('user_email', user.email.toLowerCase().trim())
+              .maybeSingle();
+            if (v) userReaction = v.reaction_type;
+          } catch (vErr) {
+            console.warn('Vote fetch error:', vErr.message);
+          }
+        }
+
+        return {
+          ...data,
+          team_members: Array.isArray(data.team_members) ? data.team_members : [],
+          likes_count: typeof data.likes_count === 'number' ? data.likes_count : 0,
+          dislikes_count: typeof data.dislikes_count === 'number' ? data.dislikes_count : 0,
+          user_reaction: userReaction
+        };
+      }
+
+      // POST /projects/:id/vote
+      if (method === 'POST' && secondPart && thirdPart === 'vote') {
+        const reaction = body?.reaction; // 'like' | 'dislike'
+        if (!reaction || !['like', 'dislike'].includes(reaction)) {
+          throw new Error('Invalid reaction type. Must be "like" or "dislike".');
+        }
+
+        const userEmail = (user?.email || body?.user_email || `user_${Date.now()}@library.local`).toLowerCase().trim();
+        const userId = user?.id || null;
+
+        // 1. Check existing reaction
+        const { data: existingVote } = await supabase
+          .from('project_reactions')
+          .select('id, reaction_type')
+          .eq('project_id', secondPart)
+          .eq('user_email', userEmail)
+          .maybeSingle();
+
+        // 2. Fetch current counts
+        const { data: currentProject, error: fetchErr } = await supabase
+          .from('projects')
+          .select('id, likes_count, dislikes_count')
+          .eq('id', secondPart)
+          .single();
+
+        if (fetchErr || !currentProject) {
+          throw new Error('Project not found');
+        }
+
+        let currentLikes = typeof currentProject.likes_count === 'number' ? currentProject.likes_count : 0;
+        let currentDislikes = typeof currentProject.dislikes_count === 'number' ? currentProject.dislikes_count : 0;
+        let nextReaction = reaction;
+
+        if (existingVote) {
+          if (existingVote.reaction_type === reaction) {
+            // Toggle off / remove vote
+            await supabase.from('project_reactions').delete().eq('id', existingVote.id);
+            if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
+            else currentDislikes = Math.max(0, currentDislikes - 1);
+            nextReaction = null;
+          } else {
+            // Switch reaction (e.g. like -> dislike)
+            await supabase
+              .from('project_reactions')
+              .update({ reaction_type: reaction, updated_at: new Date().toISOString() })
+              .eq('id', existingVote.id);
+
+            if (reaction === 'like') {
+              currentLikes = currentLikes + 1;
+              currentDislikes = Math.max(0, currentDislikes - 1);
+            } else {
+              currentDislikes = currentDislikes + 1;
+              currentLikes = Math.max(0, currentLikes - 1);
+            }
+          }
+        } else {
+          // Insert new vote
+          await supabase.from('project_reactions').insert([{
+            project_id: secondPart,
+            user_id: userId,
+            user_email: userEmail,
+            reaction_type: reaction
+          }]);
+
+          if (reaction === 'like') currentLikes = currentLikes + 1;
+          else currentDislikes = currentDislikes + 1;
+        }
+
+        // Update counts in projects table
+        await supabase
+          .from('projects')
+          .update({ likes_count: currentLikes, dislikes_count: currentDislikes })
+          .eq('id', secondPart);
+
+        return {
+          success: true,
+          user_reaction: nextReaction,
+          likes_count: currentLikes,
+          dislikes_count: currentDislikes
+        };
       }
 
       // POST /projects/bulk-import
@@ -579,13 +710,12 @@ export const AuthProvider = ({ children }) => {
         }
 
         const items = Array.isArray(body.items) ? body.items : [];
-        const duplicateResolution = body.duplicateResolution || 'skip'; // 'skip' | 'update' | 'insert'
+        const duplicateResolution = body.duplicateResolution || 'skip';
 
         if (items.length === 0) {
           return { total: 0, imported: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
         }
 
-        // Fetch existing projects for duplicate detection
         const { data: existingProjects } = await supabase
           .from('projects')
           .select('id, title, branch_name, batch');
@@ -613,7 +743,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             const branchName = String(rawItem.branch_name || rawItem.branch || '').trim();
-            const batch = String(rawItem.batch || '').trim();
+            const batch = String(rawItem.batch || rawItem.passout_year || '').trim();
             const key = `${title.toLowerCase()}|${branchName.toLowerCase()}|${batch.toLowerCase()}`;
             const existingId = existingMap.get(key);
 
@@ -622,26 +752,14 @@ export const AuthProvider = ({ children }) => {
               short_description: rawItem.short_description ? String(rawItem.short_description).trim().slice(0, 500) : null,
               description: rawItem.description ? String(rawItem.description).trim().slice(0, 5000) : null,
               project_type: rawItem.project_type ? String(rawItem.project_type).trim().slice(0, 100) : 'Academic Project',
-              department: rawItem.department ? String(rawItem.department).trim().slice(0, 150) : null,
               branch_name: branchName ? branchName.slice(0, 150) : null,
-              eligibility: rawItem.eligibility ? String(rawItem.eligibility).trim().slice(0, 500) : null,
-              required_skills: rawItem.required_skills ? String(rawItem.required_skills).trim().slice(0, 1000) : null,
-              major: rawItem.major ? String(rawItem.major).trim().slice(0, 150) : null,
-              minor: rawItem.minor ? String(rawItem.minor).trim().slice(0, 150) : null,
               batch: batch ? batch.slice(0, 50) : null,
-              team_size: rawItem.team_size ? String(rawItem.team_size).trim().slice(0, 50) : null,
-              mentor_name: rawItem.mentor_name ? String(rawItem.mentor_name).trim().slice(0, 150) : null,
-              organization: rawItem.organization ? String(rawItem.organization).trim().slice(0, 150) : null,
-              application_mode: rawItem.application_mode ? String(rawItem.application_mode).trim().slice(0, 50) : 'google_form',
-              application_deadline: rawItem.application_deadline ? new Date(rawItem.application_deadline).toISOString() : null,
+              image_url: rawItem.image_url ? String(rawItem.image_url).trim().slice(0, 1000) : null,
+              team_members: Array.isArray(rawItem.team_members) ? rawItem.team_members : [],
+              live_url: rawItem.live_url ? String(rawItem.live_url).trim().slice(0, 1000) : null,
+              github_url: rawItem.github_url ? String(rawItem.github_url).trim().slice(0, 1000) : null,
               google_form_url: rawItem.google_form_url ? String(rawItem.google_form_url).trim().slice(0, 1000) : null,
-              application_url: rawItem.application_url ? String(rawItem.application_url).trim().slice(0, 1000) : null,
-              resource_url: rawItem.resource_url ? String(rawItem.resource_url).trim().slice(0, 1000) : null,
-              contact_name: rawItem.contact_name ? String(rawItem.contact_name).trim().slice(0, 150) : null,
-              contact_email: rawItem.contact_email ? String(rawItem.contact_email).trim().slice(0, 150) : null,
-              source_type: rawItem.source_type ? String(rawItem.source_type).trim().slice(0, 50) : 'excel',
-              source_reference: rawItem.source_reference ? String(rawItem.source_reference).trim().slice(0, 500) : null,
-              is_published: rawItem.is_published !== undefined ? Boolean(rawItem.is_published) : false,
+              is_published: rawItem.is_published !== undefined ? Boolean(rawItem.is_published) : true,
               is_active: rawItem.is_active !== undefined ? Boolean(rawItem.is_active) : true,
               sort_order: typeof rawItem.sort_order === 'number' ? rawItem.sort_order : 0
             };
@@ -658,12 +776,9 @@ export const AuthProvider = ({ children }) => {
               }
             }
 
-            // Insert as new
             const { data: newProj, error: insErr } = await supabase.from('projects').insert([payload]).select('id').single();
             if (insErr) throw insErr;
-            if (newProj) {
-              existingMap.set(key, newProj.id);
-            }
+            if (newProj) existingMap.set(key, newProj.id);
             importedCount++;
           } catch (rowErr) {
             failedCount++;
@@ -683,40 +798,35 @@ export const AuthProvider = ({ children }) => {
 
       // POST /projects (Create single)
       if (method === 'POST' && !secondPart) {
-        if (!user || user.role !== 'admin') {
-          throw new Error('Unauthorized: Only administrators can create projects.');
-        }
+        const isAdmin = user && user.role === 'admin';
 
         const title = String(body.title || '').trim();
         if (!title) throw new Error('Project title is required.');
         if (title.length > 250) throw new Error('Project title cannot exceed 250 characters.');
+
+        // Extract branch and batch from first team member if not explicitly passed
+        const teamMembers = Array.isArray(body.team_members) ? body.team_members : [];
+        const firstMember = teamMembers[0] || {};
+        const branchName = body.branch_name || firstMember.branch || null;
+        const batch = body.batch || firstMember.passout_year || null;
 
         const insertPayload = {
           title,
           short_description: body.short_description ? String(body.short_description).trim().slice(0, 500) : null,
           description: body.description ? String(body.description).trim().slice(0, 5000) : null,
           project_type: body.project_type ? String(body.project_type).trim().slice(0, 100) : 'Academic Project',
-          department: body.department ? String(body.department).trim().slice(0, 150) : null,
-          branch_name: body.branch_name ? String(body.branch_name).trim().slice(0, 150) : null,
-          eligibility: body.eligibility ? String(body.eligibility).trim().slice(0, 500) : null,
-          required_skills: body.required_skills ? String(body.required_skills).trim().slice(0, 1000) : null,
-          major: body.major ? String(body.major).trim().slice(0, 150) : null,
-          minor: body.minor ? String(body.minor).trim().slice(0, 150) : null,
-          batch: body.batch ? String(body.batch).trim().slice(0, 50) : null,
-          team_size: body.team_size ? String(body.team_size).trim().slice(0, 50) : null,
-          mentor_name: body.mentor_name ? String(body.mentor_name).trim().slice(0, 150) : null,
-          organization: body.organization ? String(body.organization).trim().slice(0, 150) : null,
-          application_mode: body.application_mode ? String(body.application_mode).trim().slice(0, 50) : 'google_form',
-          application_deadline: body.application_deadline ? new Date(body.application_deadline).toISOString() : null,
+          branch_name: branchName ? String(branchName).trim().slice(0, 150) : null,
+          batch: batch ? String(batch).trim().slice(0, 50) : null,
+          image_url: body.image_url ? String(body.image_url).trim().slice(0, 1000) : null,
+          team_members: teamMembers,
+          live_url: body.live_url ? String(body.live_url).trim().slice(0, 1000) : null,
+          github_url: body.github_url ? String(body.github_url).trim().slice(0, 1000) : null,
           google_form_url: body.google_form_url ? String(body.google_form_url).trim().slice(0, 1000) : null,
-          application_url: body.application_url ? String(body.application_url).trim().slice(0, 1000) : null,
-          resource_url: body.resource_url ? String(body.resource_url).trim().slice(0, 1000) : null,
-          contact_name: body.contact_name ? String(body.contact_name).trim().slice(0, 150) : null,
-          contact_email: body.contact_email ? String(body.contact_email).trim().slice(0, 150) : null,
-          source_type: body.source_type ? String(body.source_type).trim().slice(0, 50) : 'manual',
-          source_reference: body.source_reference ? String(body.source_reference).trim().slice(0, 500) : null,
-          is_published: body.is_published !== undefined ? Boolean(body.is_published) : false,
-          is_active: body.is_active !== undefined ? Boolean(body.is_active) : true,
+          likes_count: 0,
+          dislikes_count: 0,
+          source_type: isAdmin ? 'manual' : 'student_submission',
+          is_published: isAdmin ? (body.is_published !== undefined ? Boolean(body.is_published) : true) : false,
+          is_active: true,
           sort_order: typeof body.sort_order === 'number' ? body.sort_order : 0
         };
 
@@ -800,24 +910,13 @@ export const AuthProvider = ({ children }) => {
         if (body.short_description !== undefined) updatePayload.short_description = body.short_description ? String(body.short_description).trim().slice(0, 500) : null;
         if (body.description !== undefined) updatePayload.description = body.description ? String(body.description).trim().slice(0, 5000) : null;
         if (body.project_type !== undefined) updatePayload.project_type = body.project_type ? String(body.project_type).trim().slice(0, 100) : 'Academic Project';
-        if (body.department !== undefined) updatePayload.department = body.department ? String(body.department).trim().slice(0, 150) : null;
+        if (body.image_url !== undefined) updatePayload.image_url = body.image_url ? String(body.image_url).trim().slice(0, 1000) : null;
+        if (body.team_members !== undefined) updatePayload.team_members = Array.isArray(body.team_members) ? body.team_members : [];
+        if (body.live_url !== undefined) updatePayload.live_url = body.live_url ? String(body.live_url).trim().slice(0, 1000) : null;
+        if (body.github_url !== undefined) updatePayload.github_url = body.github_url ? String(body.github_url).trim().slice(0, 1000) : null;
         if (body.branch_name !== undefined) updatePayload.branch_name = body.branch_name ? String(body.branch_name).trim().slice(0, 150) : null;
-        if (body.eligibility !== undefined) updatePayload.eligibility = body.eligibility ? String(body.eligibility).trim().slice(0, 500) : null;
-        if (body.required_skills !== undefined) updatePayload.required_skills = body.required_skills ? String(body.required_skills).trim().slice(0, 1000) : null;
-        if (body.major !== undefined) updatePayload.major = body.major ? String(body.major).trim().slice(0, 150) : null;
-        if (body.minor !== undefined) updatePayload.minor = body.minor ? String(body.minor).trim().slice(0, 150) : null;
         if (body.batch !== undefined) updatePayload.batch = body.batch ? String(body.batch).trim().slice(0, 50) : null;
-        if (body.team_size !== undefined) updatePayload.team_size = body.team_size ? String(body.team_size).trim().slice(0, 50) : null;
-        if (body.mentor_name !== undefined) updatePayload.mentor_name = body.mentor_name ? String(body.mentor_name).trim().slice(0, 150) : null;
-        if (body.organization !== undefined) updatePayload.organization = body.organization ? String(body.organization).trim().slice(0, 150) : null;
-        if (body.application_mode !== undefined) updatePayload.application_mode = body.application_mode ? String(body.application_mode).trim().slice(0, 50) : 'google_form';
-        if (body.application_deadline !== undefined) updatePayload.application_deadline = body.application_deadline ? new Date(body.application_deadline).toISOString() : null;
         if (body.google_form_url !== undefined) updatePayload.google_form_url = body.google_form_url ? String(body.google_form_url).trim().slice(0, 1000) : null;
-        if (body.application_url !== undefined) updatePayload.application_url = body.application_url ? String(body.application_url).trim().slice(0, 1000) : null;
-        if (body.resource_url !== undefined) updatePayload.resource_url = body.resource_url ? String(body.resource_url).trim().slice(0, 1000) : null;
-        if (body.contact_name !== undefined) updatePayload.contact_name = body.contact_name ? String(body.contact_name).trim().slice(0, 150) : null;
-        if (body.contact_email !== undefined) updatePayload.contact_email = body.contact_email ? String(body.contact_email).trim().slice(0, 150) : null;
-        if (body.source_type !== undefined) updatePayload.source_type = body.source_type ? String(body.source_type).trim().slice(0, 50) : 'manual';
         if (body.source_reference !== undefined) updatePayload.source_reference = body.source_reference ? String(body.source_reference).trim().slice(0, 500) : null;
         if (body.is_published !== undefined) updatePayload.is_published = Boolean(body.is_published);
         if (body.is_active !== undefined) updatePayload.is_active = Boolean(body.is_active);

@@ -71,14 +71,16 @@ const AdminDashboard = ({ onSelectBook }) => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'majors-minors', 'projects', 'settings', 'logs'];
+    if (tabParam === 'majors-minors') return 'projects';
+    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs'];
     return validTabs.includes(tabParam) ? tabParam : 'overview';
   });
 
   const setActiveTab = useCallback((tab) => {
-    setActiveTabState(tab);
+    const targetTab = tab === 'majors-minors' ? 'projects' : tab;
+    setActiveTabState(targetTab);
     const params = new URLSearchParams(window.location.search);
-    params.set('tab', tab);
+    params.set('tab', targetTab);
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, '', newUrl);
   }, []);
@@ -87,7 +89,11 @@ const AdminDashboard = ({ onSelectBook }) => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'majors-minors', 'projects', 'settings', 'logs'];
+      if (tabParam === 'majors-minors') {
+        setActiveTabState('projects');
+        return;
+      }
+      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs'];
       if (validTabs.includes(tabParam)) {
         setActiveTabState(tabParam);
       }
@@ -1182,18 +1188,11 @@ const AdminDashboard = ({ onSelectBook }) => {
               <GitBranch size={16} /> Branches ({branches.length})
             </button>
             <button 
-              onClick={() => switchTab('majors-minors')}
-              className={`btn ${activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-            >
-              <GraduationCap size={16} /> Majors & Minors
-            </button>
-            <button 
               onClick={() => switchTab('projects')}
-              className={`btn ${activeTab === 'projects' ? 'btn-primary' : 'btn-secondary'}`}
+              className={`btn ${activeTab === 'projects' || activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
             >
-              <Rocket size={16} /> Projects &amp; Opportunities
+              <Rocket size={16} /> Projects &amp; Innovations
             </button>
             <button 
               onClick={() => switchTab('settings')}
@@ -1256,8 +1255,7 @@ const AdminDashboard = ({ onSelectBook }) => {
                   activeTab === 'books' ? 'Book Inventory' :
                   activeTab === 'students' ? 'All Students' :
                   activeTab === 'branches' ? 'Branches' :
-                  activeTab === 'majors-minors' ? 'Majors & Minors' :
-                  activeTab === 'projects' ? 'Projects & Opportunities' :
+                  (activeTab === 'projects' || activeTab === 'majors-minors') ? 'Projects & Innovations' :
                   activeTab === 'settings' ? 'Settings' : 'System Logs'
                 }</span>
               </div>
@@ -3899,17 +3897,8 @@ const AdminDashboard = ({ onSelectBook }) => {
               </div>
             )}
 
-            {/* Senior Majors & Minors Directory Tab */}
-            {activeTab === 'majors-minors' && (
-              <SeniorMajorsMinorsAdminView
-                branches={branches}
-                students={students}
-                showFeedback={showFeedback}
-              />
-            )}
-
-            {/* Projects & Opportunities Management Tab */}
-            {activeTab === 'projects' && (
+            {/* Projects & Innovations Management Tab (Consolidates Majors, Minors & All Projects) */}
+            {(activeTab === 'projects' || activeTab === 'majors-minors') && (
               <ProjectManagement
                 branches={branches}
                 showFeedback={showFeedback}
@@ -4868,18 +4857,11 @@ const AdminDashboard = ({ onSelectBook }) => {
                 <GitBranch size={16} /> Academic Branches ({branches.length})
               </button>
               <button 
-                onClick={() => { switchTab('majors-minors'); setShowMenuDrawer(false); }}
-                className={`btn ${activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
-              >
-                <GraduationCap size={16} /> Majors & Minors Directory
-              </button>
-              <button 
                 onClick={() => { switchTab('projects'); setShowMenuDrawer(false); }}
-                className={`btn ${activeTab === 'projects' ? 'btn-primary' : 'btn-secondary'}`}
+                className={`btn ${activeTab === 'projects' || activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
               >
-                <Rocket size={16} /> Projects &amp; Opportunities
+                <Rocket size={16} /> Projects &amp; Innovations
               </button>
               <button 
                 onClick={() => { switchTab('logs'); setShowMenuDrawer(false); }}

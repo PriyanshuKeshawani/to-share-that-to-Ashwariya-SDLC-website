@@ -2,15 +2,13 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  Rocket, Plus, Upload, FileSpreadsheet, Search, 
-  Edit, Trash2, Copy, Eye, EyeOff, X, AlertTriangle, 
-  RefreshCw 
+  Rocket, Plus, Search, Edit, Trash2, Eye, EyeOff, X, 
+  AlertTriangle, RefreshCw, Sparkles, FileText, Globe, Github,
+  ThumbsUp, ThumbsDown, Users, Check, ExternalLink, Copy, CheckCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
-import ProjectFormModal from './ProjectFormModal';
-import GoogleFormTemplateModal from './GoogleFormTemplateModal';
-import ProjectImportWizard from './ProjectImportWizard';
+import ProjectFormModal, { PROJECT_TYPES } from './ProjectFormModal';
 import ProjectDetailsModal from './ProjectDetailsModal';
 import EmptyState from './EmptyState';
 
@@ -28,16 +26,14 @@ export default function ProjectManagement({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
-  const [selectedBatch, setSelectedBatch] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all'); // 'all' | 'published' | 'draft'
-  const [selectedActive, setSelectedActive] = useState('all'); // 'all' | 'active' | 'inactive'
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
-  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [viewingProject, setViewingProject] = useState(null);
+  const [isFormTemplateOpen, setIsFormTemplateOpen] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   // Deletion Confirmation
   const [deleteConfirmProject, setDeleteConfirmProject] = useState(null);
@@ -71,7 +67,7 @@ export default function ProjectManagement({
     fetchProjectsRef.current = fetchProjects;
   }, [fetchProjects]);
 
-  // Realtime Supabase Channel (subscribed once on mount)
+  // Realtime Supabase Channel
   useEffect(() => {
     let channel = null;
     try {
@@ -90,221 +86,203 @@ export default function ProjectManagement({
     };
   }, []);
 
-  // Extract unique batches and types for dropdowns
-  const availableBatches = useMemo(() => {
-    const set = new Set();
-    projects.forEach(p => {
-      if (p.batch && p.batch.trim()) set.add(p.batch.trim());
-    });
-    return Array.from(set).sort().reverse();
+  // Stats
+  const stats = useMemo(() => {
+    const total = projects.length;
+    const published = projects.filter(p => p.is_published).length;
+    const drafts = total - published;
+    const majorCount = projects.filter(p => (p.project_type || '').toLowerCase().includes('major')).length;
+    const minorCount = projects.filter(p => (p.project_type || '').toLowerCase().includes('minor')).length;
+    return { total, published, drafts, majorCount, minorCount };
   }, [projects]);
 
-  const availableTypes = useMemo(() => {
-    const set = new Set();
-    projects.forEach(p => {
-      if (p.project_type && p.project_type.trim()) set.add(p.project_type.trim());
-    });
-    return Array.from(set).sort();
-  }, [projects]);
-
+  // Available branches
   const availableBranches = useMemo(() => {
     const map = new Map();
     branches.forEach(b => {
-      if (b && b.name) map.set(b.name, b.name);
+      const name = b.name || b.code || b;
+      if (name) map.set(name, name);
     });
     projects.forEach(p => {
       if (p.branch_name && p.branch_name.trim()) map.set(p.branch_name.trim(), p.branch_name.trim());
+      if (Array.isArray(p.team_members)) {
+        p.team_members.forEach(m => {
+          if (m.branch && m.branch.trim()) map.set(m.branch.trim(), m.branch.trim());
+        });
+      }
     });
     return Array.from(map.values()).sort();
   }, [branches, projects]);
 
-  // Filtered List
+  // Filtered list
   const filteredProjects = useMemo(() => {
-    return projects.filter(item => {
-      if (selectedType !== 'all' && item.project_type !== selectedType) return false;
-      if (selectedBranch !== 'all' && item.branch_name !== selectedBranch) return false;
-      if (selectedBatch !== 'all' && item.batch !== selectedBatch) return false;
-      if (selectedStatus === 'published' && !item.is_published) return false;
-      if (selectedStatus === 'draft' && item.is_published) return false;
-      if (selectedActive === 'active' && !item.is_active) return false;
-      if (selectedActive === 'inactive' && item.is_active) return false;
-
+    return projects.filter(p => {
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase().trim();
-        const t = (item.title || '').toLowerCase();
-        const d = (item.description || '').toLowerCase();
-        const sd = (item.short_description || '').toLowerCase();
-        const br = (item.branch_name || '').toLowerCase();
-        const ba = (item.batch || '').toLowerCase();
-        const sk = (item.required_skills || '').toLowerCase();
-        const m = (item.mentor_name || '').toLowerCase();
-        const org = (item.organization || '').toLowerCase();
-        const pt = (item.project_type || '').toLowerCase();
+        const q = searchTerm.toLowerCase();
+        const titleMatch = (p.title || '').toLowerCase().includes(q);
+        const descMatch = (p.short_description || p.description || '').toLowerCase().includes(q);
+        const typeMatch = (p.project_type || '').toLowerCase().includes(q);
+        const branchMatch = (p.branch_name || '').toLowerCase().includes(q);
+        const batchMatch = (p.batch || '').toLowerCase().includes(q);
 
-        return (
-          t.includes(q) ||
-          d.includes(q) ||
-          sd.includes(q) ||
-          br.includes(q) ||
-          ba.includes(q) ||
-          sk.includes(q) ||
-          m.includes(q) ||
-          org.includes(q) ||
-          pt.includes(q)
+        const memberMatch = Array.isArray(p.team_members) && p.team_members.some(m => 
+          (m.name || '').toLowerCase().includes(q) ||
+          (m.branch || '').toLowerCase().includes(q) ||
+          (m.passout_year || '').toLowerCase().includes(q)
         );
+
+        if (!titleMatch && !descMatch && !typeMatch && !branchMatch && !batchMatch && !memberMatch) {
+          return false;
+        }
       }
+
+      if (selectedType !== 'all') {
+        if ((p.project_type || '').toLowerCase() !== selectedType.toLowerCase()) return false;
+      }
+
+      if (selectedBranch !== 'all') {
+        const matchesBranch = (p.branch_name || '').toLowerCase() === selectedBranch.toLowerCase();
+        const memberMatchesBranch = Array.isArray(p.team_members) && p.team_members.some(m =>
+          (m.branch || '').toLowerCase() === selectedBranch.toLowerCase()
+        );
+        if (!matchesBranch && !memberMatchesBranch) return false;
+      }
+
+      if (selectedStatus === 'published' && !p.is_published) return false;
+      if (selectedStatus === 'draft' && p.is_published) return false;
 
       return true;
     });
-  }, [projects, selectedType, selectedBranch, selectedBatch, selectedStatus, selectedActive, searchTerm]);
+  }, [projects, searchTerm, selectedType, selectedBranch, selectedStatus]);
 
-  // Handlers
-  const handleTogglePublish = async (proj) => {
-    if (statusLoadingId) return;
-    try {
-      setStatusLoadingId(proj.id);
-      const action = proj.is_published ? 'unpublish' : 'publish';
-      await apiCall(`/projects/${proj.id}/${action}`, { method: 'POST' });
-      setProjects(prev => prev.map(p => p.id === proj.id ? { ...p, is_published: !proj.is_published } : p));
-      if (showFeedback) {
-        showFeedback(`Project ${!proj.is_published ? 'published' : 'unpublished'} successfully`, 'success');
-      }
-    } catch (err) {
-      console.error('Failed to toggle publish:', err);
-      if (showFeedback) showFeedback(err.message || 'Error updating publish status', 'error');
-    } finally {
-      setStatusLoadingId(null);
-    }
-  };
-
-  const handleToggleActive = async (proj) => {
-    if (statusLoadingId) return;
-    try {
-      setStatusLoadingId(proj.id);
-      await apiCall(`/projects/${proj.id}/toggle-active`, {
-        method: 'POST',
-        body: { is_active: !proj.is_active }
+  // Actions
+  const handleSaveProject = async (payload) => {
+    if (editingProject && editingProject.id) {
+      await apiCall(`/projects/${editingProject.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
       });
-      setProjects(prev => prev.map(p => p.id === proj.id ? { ...p, is_active: !proj.is_active } : p));
+      if (showFeedback) showFeedback('Project updated successfully!', 'success');
+    } else {
+      await apiCall('/projects', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (showFeedback) showFeedback('Project created and published successfully!', 'success');
+    }
+    fetchProjects(true);
+  };
+
+  const handleTogglePublish = async (project) => {
+    const nextPublished = !project.is_published;
+    setStatusLoadingId(project.id);
+    try {
+      await apiCall(`/projects/${project.id}/${nextPublished ? 'publish' : 'unpublish'}`, {
+        method: 'POST'
+      });
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, is_published: nextPublished } : p));
       if (showFeedback) {
-        showFeedback(`Project marked ${!proj.is_active ? 'active' : 'inactive'}`, 'success');
+        showFeedback(`Project ${nextPublished ? 'published' : 'hidden from student view'}.`, 'success');
       }
     } catch (err) {
-      console.error('Failed to toggle active:', err);
-      if (showFeedback) showFeedback(err.message || 'Error updating active status', 'error');
+      console.error('Failed to toggle publication status:', err);
+      if (showFeedback) showFeedback(err.message || 'Status update failed', 'error');
     } finally {
       setStatusLoadingId(null);
     }
   };
 
-  const handleDuplicate = async (proj) => {
-    try {
-      const res = await apiCall(`/projects/${proj.id}/duplicate`, { method: 'POST' });
-      if (res.data) {
-        setProjects(prev => [res.data, ...prev]);
-      }
-      if (showFeedback) showFeedback('Project duplicated as draft', 'success');
-    } catch (err) {
-      console.error('Duplicate failed:', err);
-      if (showFeedback) showFeedback(err.message || 'Failed to duplicate project', 'error');
-    }
-  };
-
-  const handleDelete = async () => {
+  const handleDeleteProject = async () => {
     if (!deleteConfirmProject) return;
+    setDeleteLoading(true);
     try {
-      setDeleteLoading(true);
       await apiCall(`/projects/${deleteConfirmProject.id}`, { method: 'DELETE' });
       setProjects(prev => prev.filter(p => p.id !== deleteConfirmProject.id));
-      if (showFeedback) showFeedback('Project permanently deleted', 'success');
+      if (showFeedback) showFeedback('Project deleted successfully.', 'success');
       setDeleteConfirmProject(null);
     } catch (err) {
-      console.error('Failed to delete:', err);
+      console.error('Delete error:', err);
       if (showFeedback) showFeedback(err.message || 'Failed to delete project', 'error');
     } finally {
       setDeleteLoading(false);
     }
   };
 
-  const handleSaveSuccess = async (savedPayload, existingId) => {
-    if (existingId) {
-      const res = await apiCall(`/projects/${existingId}`, { method: 'PUT', body: savedPayload });
-      setProjects(prev => prev.map(p => p.id === existingId ? res.data : p));
-      if (showFeedback) showFeedback('Project updated successfully', 'success');
-    } else {
-      const res = await apiCall('/projects', { method: 'POST', body: savedPayload });
-      setProjects(prev => [res, ...prev]);
-      if (showFeedback) showFeedback('New project opportunity created', 'success');
-    }
-    setIsFormOpen(false);
-    setEditingProject(null);
+  const copyFormQuestions = () => {
+    const text = `SISTEC PROJECT SUBMISSION GOOGLE FORM QUESTIONS:
+1. Project Title (Short Answer - Required)
+2. Project Type (Dropdown - Required)
+   - Academic Project
+   - Major Project
+   - Minor Project
+   - Research Project
+   - Internship Project
+   - Hackathon / Competition
+   - Faculty Project
+   - Industry Project
+   - Open Source / Innovation
+   - Other
+3. Project Cover Image / Screenshot URL (Short Answer - Optional)
+4. Short Description / Overview (Paragraph - Required)
+5. Team Members (Paragraph - Required)
+   Format: Name, Branch, Passout Year, LinkedIn URL
+6. Live Deployment Link (Short Answer - Optional)
+7. GitHub Repository Link (Short Answer - Optional)`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2500);
   };
 
   return (
-    <div className="animate-section-enter">
+    <div style={{ paddingBottom: '40px' }}>
       {/* Top Header */}
       <div style={{
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '24px',
+        justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '16px'
+        gap: '16px',
+        marginBottom: '20px'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Projects & Opportunities
-            </h2>
-            <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-              <Rocket size={14} /> {projects.length} Total Projects
-            </span>
-          </div>
-          <p style={{ marginTop: '6px', color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '780px', lineHeight: 1.5 }}>
-            Manage academic projects, research topics, hackathons, and internships. Collect submissions via Google Forms or import directly from Excel/CSV/Google Sheets.
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Rocket size={24} style={{ color: 'var(--primary, #6366f1)' }} />
+            <span>Projects & Innovations Directory</span>
+          </h2>
+          <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+            Manage student Major & Minor projects, hackathon innovations, and academic showcase.
           </p>
         </div>
 
-        {/* Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => fetchProjects(true)}
+            onClick={() => setIsFormTemplateOpen(true)}
             className="btn btn-secondary"
-            disabled={refreshing || loading}
-            title="Sync Projects"
-            style={{ padding: '10px 14px', borderRadius: '10px' }}
+            style={{ padding: '8px 14px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Simplified Google Form instructions for collecting projects"
+          >
+            <FileText size={15} />
+            <span>Google Form Template</span>
+          </button>
+
+          <button
+            onClick={() => fetchProjects(true)}
+            disabled={refreshing}
+            className="btn btn-secondary"
+            style={{ padding: '8px 12px', fontSize: '0.84rem' }}
+            title="Refresh list"
           >
             <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-            <span className="hide-on-mobile">Sync</span>
           </button>
 
           <button
-            onClick={() => setIsTemplateOpen(true)}
-            className="btn btn-secondary"
-            style={{ padding: '10px 16px', borderRadius: '10px', gap: '8px', fontWeight: 600 }}
-            title="Generate Google Form questions template"
+            onClick={() => { setEditingProject(null); setIsFormOpen(true); }}
+            className="btn btn-primary"
+            style={{ padding: '8px 18px', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <FileSpreadsheet size={16} color="#10b981" /> Create Google Form
-          </button>
-
-          <button
-            onClick={() => setIsImportOpen(true)}
-            className="btn btn-secondary"
-            style={{ padding: '10px 16px', borderRadius: '10px', gap: '8px', fontWeight: 600 }}
-            title="Import from Excel, CSV, or Google Sheet"
-          >
-            <Upload size={16} color="#0ea5e9" /> Import Projects
-          </button>
-
-          <button
-            onClick={() => {
-              setEditingProject(null);
-              setIsFormOpen(true);
-            }}
-            className="btn btn-primary btn-shine"
-            style={{ padding: '10px 20px', borderRadius: '10px', fontWeight: 700, gap: '8px' }}
-          >
-            <Plus size={16} /> Add Project
+            <Plus size={16} />
+            <span>Add Project</span>
           </button>
         </div>
       </div>
@@ -313,107 +291,62 @@ export default function ProjectManagement({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: '12px',
+        gap: '14px',
         marginBottom: '20px'
       }}>
-        <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '12px' }}>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{projects.length}</div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Total Entries</div>
+        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Projects</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{stats.total}</div>
         </div>
-
-        <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '12px' }}>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>
-            {projects.filter(p => p.is_published && p.is_active).length}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Live to Students</div>
+        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Major Projects</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#818cf8', marginTop: '4px' }}>{stats.majorCount}</div>
         </div>
-
-        <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '12px' }}>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b' }}>
-            {projects.filter(p => !p.is_published).length}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Drafts / Unpublished</div>
+        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Minor Projects</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>{stats.minorCount}</div>
         </div>
-
-        <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '12px' }}>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444' }}>
-            {projects.filter(p => !p.is_active).length}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Archived / Inactive</div>
+        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Published</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>{stats.published}</div>
         </div>
       </div>
 
-      {/* Search & Filter Controls */}
-      <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '24px', borderRadius: '14px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-          alignItems: 'center'
-        }}>
-          {/* Search Box */}
+      {/* Filters & Search */}
+      <div className="glass-panel" style={{ padding: '16px', borderRadius: '18px', marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
           <div style={{ position: 'relative', gridColumn: 'span 2 / span 2' }}>
-            <Search 
-              size={16} 
-              style={{
-                position: 'absolute',
-                left: '14px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-muted)',
-                pointerEvents: 'none'
-              }} 
-            />
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               className="glass-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by title, skills, mentor, or organization..."
-              style={{ paddingLeft: '40px', paddingRight: searchTerm ? '38px' : '14px', width: '100%', height: '42px', fontSize: '0.88rem' }}
+              placeholder="Search by project title, student name, branch, batch..."
+              style={{ paddingLeft: '38px', width: '100%', height: '40px', fontSize: '0.86rem' }}
             />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                <X size={14} />
-              </button>
-            )}
           </div>
 
-          {/* Project Type Filter */}
           <div>
             <select
               className="glass-input"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.84rem' }}
+              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
             >
               <option value="all">All Project Types</option>
-              {availableTypes.map(t => (
+              {PROJECT_TYPES.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
           </div>
 
-          {/* Branch Filter */}
           <div>
             <select
               className="glass-input"
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.84rem' }}
+              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
             >
               <option value="all">All Branches</option>
               {availableBranches.map(br => (
@@ -422,436 +355,382 @@ export default function ProjectManagement({
             </select>
           </div>
 
-          {/* Batch Filter */}
-          <div>
-            <select
-              className="glass-input"
-              value={selectedBatch}
-              onChange={(e) => setSelectedBatch(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.84rem' }}
-            >
-              <option value="all">All Batches</option>
-              {availableBatches.map(b => (
-                <option key={b} value={b}>Batch {b}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
           <div>
             <select
               className="glass-input"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.84rem' }}
+              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
             >
-              <option value="all">All Status</option>
+              <option value="all">All Statuses</option>
               <option value="published">Published Only</option>
               <option value="draft">Drafts Only</option>
             </select>
           </div>
         </div>
-
-        {/* Filter Summary */}
-        {(searchTerm || selectedType !== 'all' || selectedBranch !== 'all' || selectedBatch !== 'all' || selectedStatus !== 'all') && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: '12px',
-            paddingTop: '10px',
-            borderTop: '1px solid var(--border-glass)',
-            fontSize: '0.78rem',
-            color: 'var(--text-secondary)',
-            flexWrap: 'wrap',
-            gap: '8px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span>Filtering {filteredProjects.length} of {projects.length} records:</span>
-              {searchTerm && <span className="badge badge-secondary">Keyword: "{searchTerm}"</span>}
-              {selectedType !== 'all' && <span className="badge badge-primary">{selectedType}</span>}
-              {selectedBranch !== 'all' && <span className="badge badge-secondary">{selectedBranch}</span>}
-              {selectedBatch !== 'all' && <span className="badge badge-gold">Batch {selectedBatch}</span>}
-              {selectedStatus !== 'all' && (
-                <span className={`badge ${selectedStatus === 'published' ? 'badge-success' : 'badge-warning'}`}>
-                  {selectedStatus === 'published' ? 'Published' : 'Drafts'}
-                </span>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedType('all');
-                setSelectedBranch('all');
-                setSelectedBatch('all');
-                setSelectedStatus('all');
-                setSelectedActive('all');
-              }}
-              className="btn btn-secondary"
-              style={{ padding: '4px 10px', fontSize: '0.74rem' }}
-            >
-              Reset Filters
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Main Content Area */}
+      {/* Projects Table / Cards */}
       {loading ? (
-        <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-          <RefreshCw size={28} className="animate-spin" style={{ color: 'var(--primary)', margin: '0 auto 14px' }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading projects directory...</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="glass-panel animate-pulse" style={{ height: '70px', borderRadius: '12px' }} />
+          ))}
         </div>
       ) : filteredProjects.length === 0 ? (
         <EmptyState
           icon={Rocket}
-          title={projects.length === 0 ? "No Projects or Opportunities Created Yet" : "No Matching Projects Found"}
-          description={
-            projects.length === 0
-              ? "Start adding projects manually, or import from Google Sheets/Excel to offer students research, hackathon, and internship opportunities."
-              : "Try adjusting your search query, department, or project type filters."
-          }
-          actionLabel={projects.length === 0 ? "Create First Project" : "Clear All Filters"}
-          onAction={projects.length === 0 ? () => setIsFormOpen(true) : () => {
-            setSearchTerm('');
-            setSelectedType('all');
-            setSelectedBranch('all');
-            setSelectedBatch('all');
-            setSelectedStatus('all');
-            setSelectedActive('all');
-          }}
+          title="No projects found"
+          message="No projects matched your criteria. Add a new project or adjust filters."
+          action={{ label: "Add New Project", onClick: () => { setEditingProject(null); setIsFormOpen(true); } }}
         />
       ) : (
-        <>
-          {/* Desktop Table */}
-          <div className="desktop-table-view" style={{ marginBottom: '24px' }}>
-            <div className="table-responsive-wrapper">
-              <table className="custom-table" style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', minWidth: '220px' }}>Project Opportunity</th>
-                    <th style={{ textAlign: 'left', minWidth: '130px' }}>Type</th>
-                    <th style={{ textAlign: 'left', minWidth: '140px' }}>Branch & Batch</th>
-                    <th style={{ textAlign: 'left', minWidth: '140px' }}>Mentor / Org</th>
-                    <th style={{ textAlign: 'center', minWidth: '90px' }}>Published</th>
-                    <th style={{ textAlign: 'center', minWidth: '90px' }}>Active</th>
-                    <th style={{ textAlign: 'right', minWidth: '160px' }} className="sticky-action-col">Actions</th>
-                  </tr>
-                </thead>
+        <div className="glass-panel" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-glass)' }}>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Project</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Category</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Branch / Batch</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Reactions</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Status</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {filteredProjects.map((item) => (
-                  <tr key={item.id}>
-                    {/* Title */}
-                    <td>
-                      <div>
-                        <div 
-                          onClick={() => setViewingProject(item)}
-                          style={{
-                            fontWeight: 700,
-                            color: 'var(--text-primary)',
-                            fontSize: '0.92rem',
-                            cursor: 'pointer',
-                            transition: 'color 0.2s'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-                        >
-                          {item.title}
-                        </div>
-                        {item.short_description && (
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px', maxHeight: '34px', overflow: 'hidden' }}>
-                            {item.short_description}
+                {filteredProjects.map((project) => {
+                  const members = Array.isArray(project.team_members) ? project.team_members : [];
+                  const likes = typeof project.likes_count === 'number' ? project.likes_count : 0;
+                  const dislikes = typeof project.dislikes_count === 'number' ? project.dislikes_count : 0;
+
+                  return (
+                    <tr 
+                      key={project.id}
+                      style={{ 
+                        borderBottom: '1px solid var(--border-glass, rgba(255,255,255,0.05))',
+                        transition: 'background 0.15s ease'
+                      }}
+                      className="table-row-hover"
+                    >
+                      {/* Project title and image */}
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                            background: 'rgba(255,255,255,0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '1px solid var(--border-glass)'
+                          }}>
+                            {project.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={project.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <Rocket size={18} style={{ color: 'var(--text-muted)' }} />
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Type */}
-                    <td>
-                      <span className="badge badge-primary" style={{ padding: '4px 10px', fontSize: '0.74rem', fontWeight: 600 }}>
-                        {item.project_type || 'Academic Project'}
-                      </span>
-                    </td>
-
-                    {/* Branch & Batch */}
-                    <td>
-                      <div style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                        {item.branch_name || 'General'}
-                      </div>
-                      {item.batch && (
-                        <span className="badge badge-gold" style={{ padding: '1px 6px', fontSize: '0.68rem', marginTop: '3px' }}>
-                          Batch {item.batch}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Mentor / Org */}
-                    <td>
-                      <div style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                        {item.mentor_name || item.organization || '—'}
-                      </div>
-                      {item.mentor_name && item.organization && (
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {item.organization}
+                          <div>
+                            <span 
+                              style={{ fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', display: 'block' }}
+                              onClick={() => setViewingProject(project)}
+                            >
+                              {project.title}
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                              {project.live_url && (
+                                <a href={project.live_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '0.74rem' }}>
+                                  Live Demo
+                                </a>
+                              )}
+                              {project.github_url && (
+                                <a href={project.github_url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                                  GitHub
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Published Toggle */}
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleTogglePublish(item)}
-                        disabled={statusLoadingId === item.id}
-                        className={`badge ${item.is_published ? 'badge-success' : 'badge-warning'}`}
-                        style={{ border: 'none', cursor: 'pointer', padding: '5px 10px' }}
-                        title={item.is_published ? 'Click to unpublish' : 'Click to publish'}
-                      >
-                        {statusLoadingId === item.id ? (
-                          <RefreshCw size={12} className="animate-spin" />
-                        ) : item.is_published ? (
-                          <><Eye size={12} /> Published</>
+                      {/* Category */}
+                      <td style={{ padding: '14px 18px' }}>
+                        <span className="badge badge-primary" style={{ fontSize: '0.74rem', padding: '3px 8px' }}>
+                          {project.project_type || 'Academic Project'}
+                        </span>
+                      </td>
+
+                      {/* Team */}
+                      <td style={{ padding: '14px 18px' }}>
+                        {members.length > 0 ? (
+                          <div style={{ fontSize: '0.82rem' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{members[0]?.name || 'Student'}</span>
+                            {members.length > 1 && (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem', display: 'block' }}>
+                                +{members.length - 1} other member{members.length > 2 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
                         ) : (
-                          <><EyeOff size={12} /> Draft</>
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }}>None listed</span>
                         )}
-                      </button>
-                    </td>
+                      </td>
 
-                    {/* Active Toggle */}
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleToggleActive(item)}
-                        disabled={statusLoadingId === item.id}
-                        className={`badge ${item.is_active ? 'badge-primary' : 'badge-danger'}`}
-                        style={{ border: 'none', cursor: 'pointer', padding: '5px 10px' }}
-                        title={item.is_active ? 'Click to deactivate' : 'Click to activate'}
-                      >
-                        {item.is_active ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
+                      {/* Branch / Batch */}
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          <div>{project.branch_name || members[0]?.branch || '—'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {project.batch ? `Batch ${project.batch}` : members[0]?.passout_year ? `Batch ${members[0]?.passout_year}` : ''}
+                          </div>
+                        </div>
+                      </td>
 
-                    {/* Action Buttons */}
-                    <td style={{ textAlign: 'right' }} className="sticky-action-col">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                      {/* Reactions */}
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#818cf8' }}>
+                            <ThumbsUp size={12} /> {likes}
+                          </span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--text-muted)' }}>
+                            <ThumbsDown size={12} /> {dislikes}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '14px 18px' }}>
                         <button
-                          onClick={() => setViewingProject(item)}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 9px', borderRadius: '8px' }}
-                          title="View Details"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingProject(item);
-                            setIsFormOpen(true);
+                          onClick={() => handleTogglePublish(project)}
+                          disabled={statusLoadingId === project.id}
+                          className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
+                          style={{
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: 'none',
+                            padding: '4px 10px',
+                            fontSize: '0.74rem'
                           }}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 9px', borderRadius: '8px' }}
-                          title="Edit Project"
+                          title="Click to toggle publish/unpublish"
                         >
-                          <Edit size={14} />
+                          {project.is_published ? <Eye size={12} /> : <EyeOff size={12} />}
+                          <span>{project.is_published ? 'Published' : 'Draft'}</span>
                         </button>
-                        <button
-                          onClick={() => handleDuplicate(item)}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 9px', borderRadius: '8px' }}
-                          title="Duplicate Project"
-                        >
-                          <Copy size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmProject(item)}
-                          className="btn btn-danger"
-                          style={{ padding: '6px 9px', borderRadius: '8px' }}
-                          title="Delete Project"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            onClick={() => setViewingProject(project)}
+                            style={{
+                              background: 'rgba(255,255,255,0.05)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              width: '32px',
+                              height: '32px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                            title="View Card Preview"
+                          >
+                            <Eye size={14} />
+                          </button>
+
+                          <button
+                            onClick={() => { setEditingProject(project); setIsFormOpen(true); }}
+                            style={{
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              width: '32px',
+                              height: '32px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--primary)',
+                              cursor: 'pointer'
+                            }}
+                            title="Edit Project"
+                          >
+                            <Edit size={14} />
+                          </button>
+
+                          <button
+                            onClick={() => setDeleteConfirmProject(project)}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              width: '32px',
+                              height: '32px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#f87171',
+                              cursor: 'pointer'
+                            }}
+                            title="Delete Project"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            </div>
           </div>
-
-          {/* Mobile Card List */}
-          <div className="mobile-cards-view" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
-            {filteredProjects.map((item) => (
-              <div
-                key={item.id}
-                className="mobile-data-card"
-                style={{ padding: '16px', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                  <div>
-                    <span className="badge badge-primary" style={{ fontSize: '0.7rem', marginBottom: '6px' }}>
-                      {item.project_type || 'Academic Project'}
-                    </span>
-                    <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-primary)' }}>
-                      {item.title}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                    <button
-                      onClick={() => handleTogglePublish(item)}
-                      className={`badge ${item.is_published ? 'badge-success' : 'badge-warning'}`}
-                      style={{ border: 'none', cursor: 'pointer', padding: '3px 8px', fontSize: '0.7rem' }}
-                    >
-                      {item.is_published ? 'Published' : 'Draft'}
-                    </button>
-                  </div>
-                </div>
-
-                {item.short_description && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                    {item.short_description}
-                  </p>
-                )}
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                  {item.branch_name && <span>{item.branch_name}</span>}
-                  {item.batch && <span className="badge badge-gold" style={{ fontSize: '0.68rem' }}>Batch {item.batch}</span>}
-                  {item.mentor_name && <span>Mentor: {item.mentor_name}</span>}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px solid var(--border-glass)', paddingTop: '10px' }}>
-                  <button
-                    onClick={() => setViewingProject(item)}
-                    className="btn btn-secondary"
-                    style={{ flex: 1, padding: '7px 10px', fontSize: '0.78rem', justifyContent: 'center' }}
-                  >
-                    <Eye size={13} /> View
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingProject(item);
-                      setIsFormOpen(true);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ flex: 1, padding: '7px 10px', fontSize: '0.78rem', justifyContent: 'center' }}
-                  >
-                    <Edit size={13} /> Edit
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(item)}
-                    className="btn btn-secondary"
-                    style={{ padding: '7px 10px', fontSize: '0.78rem' }}
-                    title="Duplicate"
-                  >
-                    <Copy size={13} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirmProject(item)}
-                    className="btn btn-danger"
-                    style={{ padding: '7px 10px', fontSize: '0.78rem' }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
+        </div>
       )}
-
-      {/* Modals */}
-      <ProjectFormModal
-        isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setEditingProject(null);
-        }}
-        project={editingProject}
-        branches={branches}
-        existingProjects={projects}
-        onSave={handleSaveSuccess}
-      />
-
-      <GoogleFormTemplateModal
-        isOpen={isTemplateOpen}
-        onClose={() => setIsTemplateOpen(false)}
-      />
-
-      <ProjectImportWizard
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-        existingProjects={projects}
-        onImportComplete={() => fetchProjects(true)}
-      />
-
-      <ProjectDetailsModal
-        isOpen={Boolean(viewingProject)}
-        onClose={() => setViewingProject(null)}
-        project={viewingProject}
-      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmProject && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 2000,
-          padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '440px',
-            padding: '30px',
-            textAlign: 'center',
-            border: '1px solid rgba(239,68,68,0.3)',
-            boxShadow: '0 0 40px rgba(239,68,68,0.15)'
-          }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              margin: '0 auto 16px',
-              background: 'rgba(239,68,68,0.12)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--danger)'
-            }}>
-              <AlertTriangle size={26} />
+        <div 
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+        >
+          <div className="glass-panel" style={{ maxWidth: '440px', width: '100%', borderRadius: '20px', padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(239,68,68,0.15)', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Delete Project?</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>This action cannot be undone.</span>
+              </div>
             </div>
 
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>
-              Delete Project Opportunity?
-            </h3>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
-              Are you sure you want to permanently delete <strong>"{deleteConfirmProject.title}"</strong>? Students will no longer be able to view or apply for this project.
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              Are you sure you want to permanently delete <strong style={{ color: 'var(--text-primary)' }}>"{deleteConfirmProject.title}"</strong>?
             </p>
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button
-                onClick={() => setDeleteConfirmProject(null)}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setDeleteConfirmProject(null)} 
                 className="btn btn-secondary"
-                style={{ padding: '10px 20px', flex: 1 }}
                 disabled={deleteLoading}
+                style={{ padding: '8px 16px' }}
               >
                 Cancel
               </button>
-              <button
-                onClick={handleDelete}
+              <button 
+                onClick={handleDeleteProject} 
                 className="btn btn-danger"
-                style={{ padding: '10px 20px', flex: 1 }}
                 disabled={deleteLoading}
+                style={{ padding: '8px 18px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                {deleteLoading ? 'Deleting...' : 'Yes, Delete'}
+                {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Simplified Google Form Template Modal */}
+      {isFormTemplateOpen && (
+        <div 
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setIsFormTemplateOpen(false); }}
+        >
+          <div className="glass-panel" style={{ maxWidth: '580px', width: '100%', borderRadius: '22px', padding: '26px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Google Form Setup Guide</h3>
+              </div>
+              <button onClick={() => setIsFormTemplateOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              If you prefer collecting student projects via a Google Form, create a form with these 6 simple fields:
+            </p>
+
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '12px',
+              padding: '16px',
+              fontSize: '0.82rem',
+              color: 'var(--text-primary)',
+              lineHeight: 1.7,
+              marginBottom: '18px',
+              fontFamily: 'monospace'
+            }}>
+              <div>1. <strong>Project Title</strong> (Short answer)</div>
+              <div>2. <strong>Project Type</strong> (Dropdown: Major, Minor, Academic, Hackathon, etc.)</div>
+              <div>3. <strong>Cover Image Link</strong> (Short answer - Optional)</div>
+              <div>4. <strong>Short Description</strong> (Paragraph)</div>
+              <div>5. <strong>Team Members</strong> (Paragraph - Name, Branch, Batch, LinkedIn)</div>
+              <div>6. <strong>Live Link & GitHub Link</strong> (Short answer - Optional)</div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={copyFormQuestions}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', fontSize: '0.86rem' }}
+              >
+                {copiedTemplate ? <CheckCheck size={16} /> : <Copy size={16} />}
+                <span>{copiedTemplate ? 'Copied Template!' : 'Copy Questions Template'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Project Modal */}
+      {isFormOpen && (
+        <ProjectFormModal
+          isOpen={isFormOpen}
+          onClose={() => { setIsFormOpen(false); setEditingProject(null); }}
+          project={editingProject}
+          branches={branches}
+          onSave={handleSaveProject}
+        />
+      )}
+
+      {/* Details Preview Modal */}
+      {viewingProject && (
+        <ProjectDetailsModal
+          project={viewingProject}
+          onClose={() => setViewingProject(null)}
+        />
       )}
     </div>
   );

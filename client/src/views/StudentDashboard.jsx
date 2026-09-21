@@ -83,14 +83,16 @@ const StudentDashboard = ({ onSelectBook }) => {
     if (typeof window === 'undefined') return 'all';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'majors-minors', 'projects', 'my-books', 'requests', 'history', 'settings'];
+    if (tabParam === 'majors-minors') return 'projects';
+    const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'projects', 'my-books', 'requests', 'history', 'settings'];
     return validTabs.includes(tabParam) ? tabParam : 'all';
   });
 
   const setActiveTab = useCallback((tab) => {
-    setActiveTabState(tab);
+    const targetTab = tab === 'majors-minors' ? 'projects' : tab;
+    setActiveTabState(targetTab);
     const params = new URLSearchParams(window.location.search);
-    params.set('tab', tab);
+    params.set('tab', targetTab);
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, '', newUrl);
   }, []);
@@ -99,7 +101,11 @@ const StudentDashboard = ({ onSelectBook }) => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'majors-minors', 'projects', 'my-books', 'requests', 'history', 'settings'];
+      if (tabParam === 'majors-minors') {
+        setActiveTabState('projects');
+        return;
+      }
+      const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'projects', 'my-books', 'requests', 'history', 'settings'];
       if (validTabs.includes(tabParam)) {
         setActiveTabState(tabParam);
       }
@@ -560,8 +566,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     { key: 'all', label: 'All Catalog', icon: Home },
     { key: 'home', label: 'Home Branch', icon: Library },
     { key: 'other', label: 'Other Branches', icon: Compass },
-    { key: 'majors-minors', label: 'Majors & Minors', icon: GraduationCap },
-    ...(publishedProjectsCount > 0 ? [{ key: 'projects', label: 'Projects', icon: Rocket }] : []),
+    { key: 'projects', label: 'Projects Showcase', icon: Rocket },
     { key: 'requests', label: 'My Requests', icon: BookMarked, badge: pendingRequestsCount },
     { key: 'history', label: 'Reading History', icon: Activity },
     { key: 'settings', label: 'Settings & Logout', icon: Settings }
@@ -775,7 +780,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                   activeTab === 'home' ? 'Home Branch' :
                   activeTab === 'other' ? 'Other Branches' :
                   activeTab === 'out_of_syllabus' ? 'Out of Syllabus' :
-                  activeTab === 'majors-minors' ? 'Majors & Minors' :
+                  (activeTab === 'projects' || activeTab === 'majors-minors') ? 'Projects Showcase' :
                   activeTab === 'requests' ? 'My Requests' :
                   activeTab === 'history' ? 'Reading History' : 'Settings & Theme'
                 }</span>
@@ -925,11 +930,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : activeTab === 'settings' ? (
           <div className="animate-section-enter"><SettingsView /></div>
-        ) : activeTab === 'majors-minors' ? (
-          <div className="animate-section-enter">
-            <SeniorMajorsMinorsStudentView branches={branches} />
-          </div>
-        ) : activeTab === 'projects' && publishedProjectsCount > 0 ? (
+        ) : (activeTab === 'projects' || activeTab === 'majors-minors') ? (
           <div className="animate-section-enter">
             <ProjectStudentView branches={branches} />
           </div>
@@ -1492,18 +1493,18 @@ const StudentDashboard = ({ onSelectBook }) => {
                       My Requests ({requests.length})
                     </button>
                     <button
-                      onClick={() => { setActiveTab('majors-minors'); }}
+                      onClick={() => { setActiveTab('projects'); }}
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'majors-minors' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                        color: activeTab === 'majors-minors' ? 'var(--primary)' : 'var(--text-secondary)',
-                        border: activeTab === 'majors-minors' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                        background: (activeTab === 'projects' || activeTab === 'majors-minors') ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: (activeTab === 'projects' || activeTab === 'majors-minors') ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: (activeTab === 'projects' || activeTab === 'majors-minors') ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '5px'
                       }}
                     >
-                      <GraduationCap size={12} />
-                      Majors & Minors
+                      <Rocket size={12} />
+                      Projects Showcase
                     </button>
                   </div>
                 </div>
