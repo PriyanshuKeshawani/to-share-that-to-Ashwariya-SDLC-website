@@ -367,12 +367,7 @@ export default function ProjectFormModal({
                 Project Cover Image / Screenshot
               </label>
               
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: imageUrl ? '160px 1fr' : '1fr',
-                gap: '16px',
-                alignItems: 'start'
-              }}>
+              <div className="project-cover-grid">
                 {imageUrl && (
                   <div style={{
                     position: 'relative',
@@ -384,59 +379,60 @@ export default function ProjectFormModal({
                     background: 'rgba(0,0,0,0.3)'
                   }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img 
-                      src={imageUrl} 
-                      alt="Project Preview" 
+                    <img
+                      src={imageUrl}
+                      alt="Project Cover Preview"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={() => setError('Image URL seems invalid or unreachable.')}
                     />
                     <button
                       type="button"
                       onClick={() => setImageUrl('')}
                       style={{
                         position: 'absolute',
-                        top: '4px',
-                        right: '4px',
-                        background: 'rgba(0,0,0,0.75)',
+                        top: '6px',
+                        right: '6px',
+                        background: 'rgba(0,0,0,0.7)',
                         border: 'none',
+                        color: 'white',
                         borderRadius: '50%',
                         width: '24px',
                         height: '24px',
-                        color: '#f87171',
-                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        cursor: 'pointer'
                       }}
                       title="Remove image"
                     >
-                      <X size={14} />
+                      <X size={13} />
                     </button>
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input
-                      type="url"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="Paste image URL (Supabase/Cloudflare/Imgur)..."
-                      className="glass-input"
-                      style={{ flex: 1, height: '42px', fontSize: '0.86rem' }}
-                    />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input
+                        type="url"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        placeholder="Paste image URL (https://...)"
+                        className="glass-input"
+                        style={{ width: '100%', height: '42px', fontSize: '0.85rem' }}
+                      />
+                    </div>
 
-                    <label 
+                    <label
                       className="btn btn-secondary"
                       style={{
-                        height: '42px',
                         padding: '0 16px',
-                        cursor: uploadingImage ? 'not-allowed' : 'pointer',
-                        display: 'flex',
+                        height: '42px',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
-                        fontSize: '0.84rem',
-                        whiteSpace: 'nowrap'
+                        cursor: uploadingImage ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.84rem'
                       }}
                     >
                       {uploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -493,18 +489,9 @@ export default function ProjectFormModal({
                 {teamMembers.map((member, index) => (
                   <div
                     key={index}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1.2fr 1fr 0.9fr 1.3fr auto',
-                      gap: '8px',
-                      alignItems: 'center',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid var(--border-glass, rgba(255,255,255,0.06))',
-                      borderRadius: '12px',
-                      padding: '10px 12px'
-                    }}
+                    className="project-member-input-row"
                   >
-                    <div>
+                    <div className="project-member-name-col">
                       <input
                         type="text"
                         value={member.name}
@@ -543,7 +530,7 @@ export default function ProjectFormModal({
                       />
                     </div>
 
-                    <div style={{ position: 'relative' }}>
+                    <div className="project-member-linkedin-col" style={{ position: 'relative' }}>
                       <Linkedin size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#0a66c2' }} />
                       <input
                         type="url"
@@ -555,7 +542,7 @@ export default function ProjectFormModal({
                       />
                     </div>
 
-                    <div>
+                    <div className="project-member-del-btn">
                       <button
                         type="button"
                         onClick={() => handleRemoveMember(index)}
@@ -578,7 +565,7 @@ export default function ProjectFormModal({
             </div>
 
             {/* Links Row (Live Demo & GitHub) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            <div className="project-links-grid">
               <div>
                 <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
                   <Globe size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle', color: 'var(--primary, #6366f1)' }} />

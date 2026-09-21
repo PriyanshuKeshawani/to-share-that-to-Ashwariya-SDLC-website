@@ -3441,3 +3441,192 @@ body.dark .st-page-footer,
   transform: translateZ(0);
   will-change: transform;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   STUDENT & ADMIN PROJECTS DIRECTORY RESPONSIVE STYLES
+   ═══════════════════════════════════════════════════════════ */
+.project-showcase-hero {
+  border-radius: 24px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(168, 85, 247, 0.11) 50%, rgba(6, 182, 212, 0.08) 100%);
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.project-hero-title {
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.project-filter-panel {
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border-glass);
+}
+
+.project-filter-grid {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.project-search-col {
+  position: relative;
+}
+
+.project-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 22px;
+}
+
+.project-card {
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.08));
+  background: var(--bg-card, #121622);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.22s ease;
+  cursor: pointer;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.55), 0 0 20px rgba(99, 102, 241, 0.12);
+}
+
+.project-type-pills-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.project-type-pills-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.project-type-pills-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.project-type-pills-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+@media (max-width: 900px) {
+  .project-filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .project-search-col {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-showcase-hero {
+    padding: 18px 16px !important;
+    border-radius: 16px !important;
+    margin-bottom: 18px !important;
+    gap: 14px !important;
+  }
+
+  .project-hero-title {
+    font-size: 1.32rem !important;
+  }
+
+  .project-filter-panel {
+    padding: 14px 12px !important;
+    border-radius: 16px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .project-filter-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .project-search-col {
+    grid-column: span 1 !important;
+  }
+
+  .project-card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+.project-cover-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.project-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.project-member-input-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr 1.3fr auto;
+  gap: 8px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+@media (max-width: 680px) {
+  .project-cover-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .project-links-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .project-member-input-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    position: relative;
+    padding-top: 38px !important;
+  }
+
+  .project-member-name-col {
+    grid-column: span 2 !important;
+  }
+
+  .project-member-linkedin-col {
+    grid-column: span 2 !important;
+  }
+
+  .project-member-del-btn {
+    position: absolute !important;
+    top: 6px !important;
+    right: 8px !important;
+  }
+}

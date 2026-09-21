@@ -654,46 +654,46 @@ export const AuthProvider = ({ children }) => {
         let currentDislikes = typeof currentProject.dislikes_count === 'number' ? currentProject.dislikes_count : 0;
         let nextReaction = reaction;
 
-        if (existingVote) {
-          if (existingVote.reaction_type === reaction) {
-            // Toggle off / remove vote
-            await supabase.from('project_reactions').delete().eq('id', existingVote.id);
-            if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
-            else currentDislikes = Math.max(0, currentDislikes - 1);
-            nextReaction = null;
-          } else {
-            // Switch reaction (e.g. like -> dislike)
-            await supabase
-              .from('project_reactions')
-              .update({ reaction_type: reaction, updated_at: new Date().toISOString() })
-              .eq('id', existingVote.id);
-
-            if (reaction === 'like') {
-              currentLikes = currentLikes + 1;
-              currentDislikes = Math.max(0, currentDislikes - 1);
+        try {
+          if (existingVote) {
+            if (existingVote.reaction_type === reaction) {
+              await supabase.from('project_reactions').delete().eq('id', existingVote.id);
+              if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
+              else currentDislikes = Math.max(0, currentDislikes - 1);
+              nextReaction = null;
             } else {
-              currentDislikes = currentDislikes + 1;
-              currentLikes = Math.max(0, currentLikes - 1);
+              await supabase
+                .from('project_reactions')
+                .update({ reaction_type: reaction, updated_at: new Date().toISOString() })
+                .eq('id', existingVote.id);
+
+              if (reaction === 'like') {
+                currentLikes = currentLikes + 1;
+                currentDislikes = Math.max(0, currentDislikes - 1);
+              } else {
+                currentDislikes = currentDislikes + 1;
+                currentLikes = Math.max(0, currentLikes - 1);
+              }
             }
+          } else {
+            await supabase.from('project_reactions').insert([{
+              project_id: secondPart,
+              user_id: userId,
+              user_email: userEmail,
+              reaction_type: reaction
+            }]);
+
+            if (reaction === 'like') currentLikes = currentLikes + 1;
+            else currentDislikes = currentDislikes + 1;
           }
-        } else {
-          // Insert new vote
-          await supabase.from('project_reactions').insert([{
-            project_id: secondPart,
-            user_id: userId,
-            user_email: userEmail,
-            reaction_type: reaction
-          }]);
 
-          if (reaction === 'like') currentLikes = currentLikes + 1;
-          else currentDislikes = currentDislikes + 1;
+          await supabase
+            .from('projects')
+            .update({ likes_count: currentLikes, dislikes_count: currentDislikes })
+            .eq('id', secondPart);
+        } catch (reactionErr) {
+          console.warn('Reaction write warning (run 20260922_simplify_and_unify_projects.sql in Supabase):', reactionErr.message);
         }
-
-        // Update counts in projects table
-        await supabase
-          .from('projects')
-          .update({ likes_count: currentLikes, dislikes_count: currentDislikes })
-          .eq('id', secondPart);
 
         return {
           success: true,
@@ -822,17 +822,30 @@ export const AuthProvider = ({ children }) => {
           live_url: body.live_url ? String(body.live_url).trim().slice(0, 1000) : null,
           github_url: body.github_url ? String(body.github_url).trim().slice(0, 1000) : null,
           google_form_url: body.google_form_url ? String(body.google_form_url).trim().slice(0, 1000) : null,
-          likes_count: 0,
-          dislikes_count: 0,
           source_type: isAdmin ? 'manual' : 'student_submission',
           is_published: isAdmin ? (body.is_published !== undefined ? Boolean(body.is_published) : true) : false,
           is_active: true,
           sort_order: typeof body.sort_order === 'number' ? body.sort_order : 0
         };
 
-        const { data, error } = await supabase.from('projects').insert([insertPayload]).select().single();
-        if (error) throw error;
-        return data;
+        let currentPayload = { ...insertPayload };
+        let insertedData = null;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const { data, error } = await supabase.from('projects').insert([currentPayload]).select().single();
+          if (!error) {
+            insertedData = data;
+            break;
+          }
+          const missingColMatch = error.message && error.message.match(/Could not find the '([^']+)' column of 'projects' in the schema cache/);
+          if (missingColMatch && missingColMatch[1] && currentPayload[missingColMatch[1]] !== undefined) {
+            const missingCol = missingColMatch[1];
+            console.warn(`[Auto-Schema Fallback] Column '${missingCol}' not in Supabase cache yet. Stripping and retrying insert...`);
+            delete currentPayload[missingCol];
+            continue;
+          }
+          throw error;
+        }
+        return insertedData;
       }
 
       // POST /projects/:id/publish or /unpublish
@@ -922,14 +935,29 @@ export const AuthProvider = ({ children }) => {
         if (body.is_active !== undefined) updatePayload.is_active = Boolean(body.is_active);
         if (body.sort_order !== undefined) updatePayload.sort_order = typeof body.sort_order === 'number' ? body.sort_order : 0;
 
-        const { data, error } = await supabase
-          .from('projects')
-          .update(updatePayload)
-          .eq('id', secondPart)
-          .select()
-          .single();
-        if (error) throw error;
-        return { message: 'Project updated successfully', data };
+        let currentUpdatePayload = { ...updatePayload };
+        let updatedData = null;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const { data, error } = await supabase
+            .from('projects')
+            .update(currentUpdatePayload)
+            .eq('id', secondPart)
+            .select()
+            .single();
+          if (!error) {
+            updatedData = data;
+            break;
+          }
+          const missingColMatch = error.message && error.message.match(/Could not find the '([^']+)' column of 'projects' in the schema cache/);
+          if (missingColMatch && missingColMatch[1] && currentUpdatePayload[missingColMatch[1]] !== undefined) {
+            const missingCol = missingColMatch[1];
+            console.warn(`[Auto-Schema Fallback] Column '${missingCol}' not in Supabase cache yet. Stripping and retrying update...`);
+            delete currentUpdatePayload[missingCol];
+            continue;
+          }
+          throw error;
+        }
+        return { message: 'Project updated successfully', data: updatedData };
       }
 
       // DELETE /projects/:id

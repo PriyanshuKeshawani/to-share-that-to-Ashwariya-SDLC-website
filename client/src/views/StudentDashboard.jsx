@@ -114,12 +114,6 @@ const StudentDashboard = ({ onSelectBook }) => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Zero-published-project rule: if student is on 'projects' tab but count is 0, redirect immediately to 'all'
-  useEffect(() => {
-    if (!loading && activeTab === 'projects' && publishedProjectsCount === 0) {
-      setActiveTab('all');
-    }
-  }, [loading, activeTab, publishedProjectsCount, setActiveTab]);
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
   const [requestSearch, setRequestSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -890,36 +884,19 @@ const StudentDashboard = ({ onSelectBook }) => {
               </div>
 
               <div
-                onClick={() => setActiveTab('majors-minors')}
+                onClick={() => setActiveTab('projects')}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-5"
                 style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-                title="Explore senior major and minor specializations"
+                title="Explore student projects, major/minor innovations"
               >
-                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(37, 99, 235, 0.14)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <GraduationCap size={18} />
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Rocket size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)' }}>Guidance</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Majors & Minors</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>Projects</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Showcase &amp; Minors</div>
                 </div>
               </div>
-
-              {publishedProjectsCount > 0 && (
-                <div
-                  onClick={() => setActiveTab('projects')}
-                  className="glass-panel motion-stat-card animate-stagger-in stagger-5"
-                  style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-                  title="Explore student projects & opportunities"
-                >
-                  <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Rocket size={18} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{publishedProjectsCount}</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Projects &amp; Opps</div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1462,22 +1439,6 @@ const StudentDashboard = ({ onSelectBook }) => {
                       <Sparkles size={12} />
                       Out of Syllabus ({outOfSyllabusBooksCount})
                     </button>
-                    {publishedProjectsCount > 0 && (
-                      <button
-                        onClick={() => { setSelectedBranch(''); setActiveTab('projects'); }}
-                        style={{
-                          padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          background: activeTab === 'projects' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
-                          color: activeTab === 'projects' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
-                          border: activeTab === 'projects' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
-                          display: 'flex', alignItems: 'center', gap: '5px'
-                        }}
-                      >
-                        <Rocket size={12} />
-                        Projects ({publishedProjectsCount})
-                      </button>
-                    )}
                     <button
                       onClick={() => { setActiveTab('requests'); }}
                       style={{

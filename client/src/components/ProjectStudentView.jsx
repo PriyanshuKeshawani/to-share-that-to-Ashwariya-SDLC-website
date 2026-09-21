@@ -252,26 +252,14 @@ export default function ProjectStudentView({
     <div style={{ paddingBottom: '40px' }}>
       {/* Hero Showcase Header */}
       <div 
-        className="glass-panel"
-        style={{
-          borderRadius: '24px',
-          padding: '32px',
-          marginBottom: '24px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.1) 50%, rgba(6, 182, 212, 0.08) 100%)',
-          border: '1px solid var(--border-glass, rgba(255, 255, 255, 0.1))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '20px'
-        }}
+        className="glass-panel project-showcase-hero"
       >
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', color: '#818cf8', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>
             <Sparkles size={13} />
             <span>SISTEC Innovation & Project Directory</span>
           </div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.25 }}>
+          <h1 className="project-hero-title">
             Projects Showcase
           </h1>
           <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', margin: '6px 0 0 0', maxWidth: '600px', lineHeight: 1.5 }}>
@@ -320,17 +308,11 @@ export default function ProjectStudentView({
 
       {/* Search & Category Filter Pills */}
       <div 
-        className="glass-panel"
-        style={{
-          borderRadius: '20px',
-          padding: '20px',
-          marginBottom: '24px',
-          border: '1px solid var(--border-glass)'
-        }}
+        className="glass-panel project-filter-panel"
       >
         {/* Search Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
-          <div style={{ position: 'relative', gridColumn: 'span 2 / span 2' }}>
+        <div className="project-filter-grid">
+          <div className="project-search-col">
             <Search 
               size={16} 
               style={{
@@ -401,7 +383,7 @@ export default function ProjectStudentView({
         </div>
 
         {/* Category Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div className="project-type-pills-scroll">
           <button
             onClick={() => setSelectedType('all')}
             style={{
@@ -459,11 +441,7 @@ export default function ProjectStudentView({
 
       {/* Projects Grid */}
       {loading ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '20px'
-        }}>
+        <div className="project-card-grid">
           {[1, 2, 3, 4, 5, 6].map(i => (
             <div key={i} className="glass-panel animate-pulse" style={{ height: '300px', borderRadius: '20px', padding: '16px' }}>
               <div style={{ height: '140px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', marginBottom: '14px' }} />
@@ -480,11 +458,7 @@ export default function ProjectStudentView({
           action={hasActiveFilters ? { label: "Clear Filters", onClick: resetFilters } : { label: "Submit First Project", onClick: () => setIsSubmitModalOpen(true) }}
         />
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
-          gap: '22px'
-        }}>
+        <div className="project-card-grid">
           {filteredProjects.map((project) => {
             const catStyle = getCategoryColor(project.project_type);
             const members = Array.isArray(project.team_members) ? project.team_members : [];
@@ -494,18 +468,7 @@ export default function ProjectStudentView({
             return (
               <div
                 key={project.id}
-                className="glass-panel hover-card"
-                style={{
-                  borderRadius: '20px',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  border: '1px solid var(--border-glass)',
-                  background: 'var(--bg-card, #121622)',
-                  transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                  cursor: 'pointer'
-                }}
+                className="glass-panel hover-card project-card"
                 onClick={() => setViewingProject(project)}
               >
                 <div>
