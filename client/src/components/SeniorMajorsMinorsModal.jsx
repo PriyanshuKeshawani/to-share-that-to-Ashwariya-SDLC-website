@@ -218,7 +218,8 @@ export default function SeniorMajorsMinorsModal({
         alignItems: 'center',
         justifyContent: 'center',
         padding: '16px',
-        animation: 'fadeIn 0.2s ease-out'
+        animation: 'fadeIn 0.2s ease-out',
+        overflowY: 'auto'
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !saving) onClose();
@@ -229,7 +230,7 @@ export default function SeniorMajorsMinorsModal({
         style={{
           width: '100%',
           maxWidth: '680px',
-          maxHeight: '90vh',
+          maxHeight: 'min(90dvh, 850px)',
           display: 'flex',
           flexDirection: 'column',
           borderRadius: '20px',
@@ -247,7 +248,8 @@ export default function SeniorMajorsMinorsModal({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, transparent 100%)'
+            background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, transparent 100%)',
+            flexShrink: 0
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -296,7 +298,8 @@ export default function SeniorMajorsMinorsModal({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} style={{ overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', padding: '0', gap: '0' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {error && (
             <div
               style={{
@@ -589,18 +592,21 @@ export default function SeniorMajorsMinorsModal({
               </span>
             </label>
           </div>
+        </div>
 
-          {/* Modal Footer */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '10px',
-              marginTop: '10px',
-              borderTop: '1px solid var(--border-glass)',
-              paddingTop: '18px'
-            }}
-          >
+        {/* Modal Footer */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '10px',
+            marginTop: '10px',
+            borderTop: '1px solid var(--border-glass)',
+            padding: '14px 24px',
+            background: 'rgba(255, 255, 255, 0.02)',
+            flexShrink: 0
+          }}
+        >
             <button
               type="button"
               onClick={onClose}
