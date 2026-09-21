@@ -435,7 +435,7 @@ export default function SeniorMajorsMinorsModal({
                 Branch / Department
               </label>
               <select
-                className="glass-input"
+                className="glass-input glass-select"
                 value={formData.branch_name}
                 onChange={(e) => handleChange('branch_name', e.target.value)}
                 style={{ width: '100%' }}

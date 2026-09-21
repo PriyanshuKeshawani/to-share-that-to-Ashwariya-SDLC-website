@@ -269,41 +269,44 @@ export default function ProjectFormModal({
         </div>
 
         {/* Tab Switcher for Clean Organization */}
-        <div style={{
-          display: 'flex',
-          gap: '6px',
-          padding: '10px 24px',
-          borderBottom: '1px solid var(--border-glass)',
-          background: 'rgba(255, 255, 255, 0.01)',
-          overflowX: 'auto'
-        }}>
-          {[
-            { id: 'basic', label: '1. Basic Info' },
-            { id: 'requirements', label: '2. Skills & Criteria' },
-            { id: 'application', label: '3. Application & Links' },
-            { id: 'settings', label: '4. Status & Order' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveFormTab(tab.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                background: activeFormTab === tab.id ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                color: activeFormTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+<div style={{
+           display: 'flex',
+           gap: '6px',
+           padding: '10px 24px',
+           borderBottom: '1px solid var(--border-glass)',
+           background: 'rgba(255, 255, 255, 0.01)',
+           overflowX: 'auto'
+         }}>
+           {[
+             { id: 'basic', label: '1. Basic Info', icon: Rocket },
+             { id: 'requirements', label: '2. Skills & Criteria' },
+             { id: 'application', label: '3. Application & Links' },
+             { id: 'settings', label: '4. Status & Order' }
+           ].map(tab => (
+             <button
+               key={tab.id}
+               type="button"
+               onClick={() => setActiveFormTab(tab.id)}
+               style={{
+                 padding: '8px 16px',
+                 borderRadius: '10px',
+                 fontSize: '0.82rem',
+                 fontWeight: 600,
+                 border: '1px solid transparent',
+                 cursor: 'pointer',
+                 background: activeFormTab === tab.id ? 'var(--primary)' : 'transparent',
+                 color: activeFormTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
+                 transition: 'all 0.25s var(--ease-out-expo)',
+                 whiteSpace: 'nowrap',
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '6px'
+               }}
+             >
+               {tab.label}
+             </button>
+           ))}
+         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -376,12 +379,12 @@ export default function ProjectFormModal({
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Project Type
                     </label>
-                    <select
-                      className="glass-input"
-                      value={formData.project_type}
-                      onChange={(e) => setFormData({ ...formData, project_type: e.target.value })}
-                      style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
-                    >
+<select
+                       className="glass-input glass-select"
+                       value={formData.project_type}
+                       onChange={(e) => setFormData({ ...formData, project_type: e.target.value })}
+                       style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
+                     >
                       {COMMON_PROJECT_TYPES.map(type => (
                         <option key={type} value={type}>{type}</option>
                       ))}
@@ -603,12 +606,12 @@ export default function ProjectFormModal({
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Application Mode
                     </label>
-                    <select
-                      className="glass-input"
-                      value={formData.application_mode}
-                      onChange={(e) => setFormData({ ...formData, application_mode: e.target.value })}
-                      style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
-                    >
+<select
+                       className="glass-input glass-select"
+                       value={formData.application_mode}
+                       onChange={(e) => setFormData({ ...formData, application_mode: e.target.value })}
+                       style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
+                     >
                       <option value="google_form">Google Form (Recommended)</option>
                       <option value="external_link">External Portal / Web Link</option>
                       <option value="direct_email">Direct Email Submission</option>
@@ -727,63 +730,65 @@ export default function ProjectFormModal({
                   flexDirection: 'column',
                   gap: '14px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
-                        Publish to Student Catalog
-                      </div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                        When enabled and active, students can see this project in the student directory.
-                      </div>
-                    </div>
-                    <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '46px', height: '24px' }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.is_published}
-                        onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
-                        style={{ opacity: 0, width: 0, height: 0 }}
-                      />
-                      <span style={{
-                        position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: formData.is_published ? 'var(--primary)' : 'rgba(255, 255, 255, 0.15)',
-                        borderRadius: '24px', transition: '0.3s'
-                      }}>
-                        <span style={{
-                          position: 'absolute', height: '18px', width: '18px', left: formData.is_published ? '25px' : '3px',
-                          bottom: '3px', backgroundColor: '#fff', borderRadius: '50%', transition: '0.3s'
-                        }} />
-                      </span>
-                    </label>
-                  </div>
+<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                     <div>
+                       <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                         Publish to Student Catalog
+                       </div>
+                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                         When enabled and active, students can see this project in the student directory.
+                       </div>
+                     </div>
+                     <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
+                       <input
+                         type="checkbox"
+                         checked={formData.is_published}
+                         onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
+                         style={{ opacity: 0, width: 0, height: 0 }}
+                       />
+                       <span style={{
+                         position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                         backgroundColor: formData.is_published ? 'var(--primary)' : 'rgba(255, 255, 255, 0.15)',
+                         borderRadius: '28px', transition: '0.3s var(--ease-spring)'
+                       }}>
+                         <span style={{
+                           position: 'absolute', height: '22px', width: '22px', left: formData.is_published ? '27px' : '3px',
+                           bottom: '3px', backgroundColor: '#fff', borderRadius: '50%', transition: '0.3s var(--ease-spring)',
+                           boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                         }} />
+                       </span>
+                     </label>
+                   </div>
 
-                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
-                        Active Status
-                      </div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                        Deactivating a project archives it without deleting it. Inactive projects are hidden from students.
-                      </div>
-                    </div>
-                    <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '46px', height: '24px' }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        style={{ opacity: 0, width: 0, height: 0 }}
-                      />
-                      <span style={{
-                        position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: formData.is_active ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
-                        borderRadius: '24px', transition: '0.3s'
-                      }}>
-                        <span style={{
-                          position: 'absolute', height: '18px', width: '18px', left: formData.is_active ? '25px' : '3px',
-                          bottom: '3px', backgroundColor: '#fff', borderRadius: '50%', transition: '0.3s'
-                        }} />
-                      </span>
-                    </label>
-                  </div>
+                   <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                     <div>
+                       <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                         Active Status
+                       </div>
+                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                         Deactivating a project archives it without deleting it. Inactive projects are hidden from students.
+                       </div>
+                     </div>
+                     <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
+                       <input
+                         type="checkbox"
+                         checked={formData.is_active}
+                         onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                         style={{ opacity: 0, width: 0, height: 0 }}
+                       />
+                       <span style={{
+                         position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                         backgroundColor: formData.is_active ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
+                         borderRadius: '28px', transition: '0.3s var(--ease-spring)'
+                       }}>
+                         <span style={{
+                           position: 'absolute', height: '22px', width: '22px', left: formData.is_active ? '27px' : '3px',
+                           bottom: '3px', backgroundColor: '#fff', borderRadius: '50%', transition: '0.3s var(--ease-spring)',
+                           boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                         }} />
+                       </span>
+                     </label>
+                   </div>
                 </div>
 
                 {/* Display Sort Order */}

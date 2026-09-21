@@ -234,8 +234,8 @@ export default function SeniorMajorsMinorsAdminView({
         gap: '16px'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, background: 'linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #93c5fd 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
               Majors & Minors Directory
             </h2>
             <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
@@ -278,51 +278,55 @@ export default function SeniorMajorsMinorsAdminView({
           alignItems: 'center'
         }}>
           {/* Search Box */}
-          <div style={{ position: 'relative', gridColumn: 'span 2 / span 2' }} className="majors-search-col">
-            <Search 
-              size={16} 
-              style={{
-                position: 'absolute',
-                left: '14px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-muted)',
-                pointerEvents: 'none'
-              }} 
-            />
-            <input
-              type="text"
-              className="glass-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by student name, roll number, major, or minor..."
-              style={{ paddingLeft: '40px', paddingRight: searchTerm ? '38px' : '14px', width: '100%', height: '42px', fontSize: '0.88rem' }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
+          <div style={{ position: 'relative', gridColumn: '1 / -1' }} className="majors-search-col">
+            <div style={{ position: 'relative' }}>
+              <Search 
+                size={16} 
                 style={{
                   position: 'absolute',
-                  right: '12px',
+                  left: '14px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
                   color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-                title="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
+                  pointerEvents: 'none',
+                  zIndex: 2
+                }} 
+              />
+              <input
+                type="text"
+                className="glass-input has-search-icon"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by student name, roll number, major, or minor..."
+                style={{ paddingLeft: '42px', paddingRight: searchTerm ? '38px' : '14px', width: '100%', height: '42px', fontSize: '0.88rem' }}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    zIndex: 2
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Branch Filter */}
           <div>
             <select
-              className="glass-input"
+              className="glass-input glass-select"
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
               style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
@@ -337,7 +341,7 @@ export default function SeniorMajorsMinorsAdminView({
           {/* Batch Filter */}
           <div>
             <select
-              className="glass-input"
+              className="glass-input glass-select"
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
               style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
@@ -352,7 +356,7 @@ export default function SeniorMajorsMinorsAdminView({
           {/* Status Filter */}
           <div>
             <select
-              className="glass-input"
+              className="glass-input glass-select"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
@@ -432,150 +436,152 @@ export default function SeniorMajorsMinorsAdminView({
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="table-container hide-on-mobile" style={{ marginBottom: '24px' }}>
-            <table className="glass-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', minWidth: '180px' }}>Senior Student</th>
-                  <th style={{ textAlign: 'left', minWidth: '120px' }}>Roll / BT No.</th>
-                  <th style={{ textAlign: 'left', minWidth: '140px' }}>Branch & Batch</th>
-                  <th style={{ textAlign: 'left', minWidth: '160px' }}>Major Specialization</th>
-                  <th style={{ textAlign: 'left', minWidth: '160px' }}>Minor Specialization</th>
-                  <th style={{ textAlign: 'center', minWidth: '100px' }}>Status</th>
-                  <th style={{ textAlign: 'right', minWidth: '130px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProfiles.map((item) => (
-                  <tr key={item.id} style={{ transition: 'background 0.2s' }}>
-                    {/* Student Name */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '36px', height: '36px', borderRadius: '10px',
-                          background: 'linear-gradient(135deg, rgba(37,99,235,0.2), rgba(14,165,233,0.15))',
-                          border: '1px solid rgba(37,99,235,0.3)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#60a5fa', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
-                        }}>
-                          {item.full_name ? item.full_name.charAt(0).toUpperCase() : 'S'}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
-                            {item.full_name}
+          <div className="desktop-table-view" style={{ marginBottom: '24px' }}>
+            <div className="table-responsive-wrapper">
+              <table className="custom-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', minWidth: '180px' }}>Senior Student</th>
+                    <th style={{ textAlign: 'left', minWidth: '120px' }}>Roll / BT No.</th>
+                    <th style={{ textAlign: 'left', minWidth: '140px' }}>Branch & Batch</th>
+                    <th style={{ textAlign: 'left', minWidth: '160px' }}>Major Specialization</th>
+                    <th style={{ textAlign: 'left', minWidth: '160px' }}>Minor Specialization</th>
+                    <th style={{ textAlign: 'center', minWidth: '100px' }}>Status</th>
+                    <th style={{ textAlign: 'right', minWidth: '130px' }} className="sticky-action-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProfiles.map((item) => (
+                    <tr key={item.id} style={{ transition: 'background 0.2s' }}>
+                      {/* Student Name */}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '10px',
+                            background: 'linear-gradient(135deg, rgba(37,99,235,0.2), rgba(14,165,233,0.15))',
+                            border: '1px solid rgba(37,99,235,0.3)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#60a5fa', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                          }}>
+                            {item.full_name ? item.full_name.charAt(0).toUpperCase() : 'S'}
                           </div>
-                          {item.student_user_id ? (
-                            <span style={{ fontSize: '0.72rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              <UserCheck size={11} /> Linked User
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              Manual Entry
-                            </span>
+                          <div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                              {item.full_name}
+                            </div>
+                            {item.student_user_id ? (
+                              <span style={{ fontSize: '0.72rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <UserCheck size={11} /> Linked User
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                Manual Entry
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Roll Number */}
+                      <td>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                          {item.roll_number || '—'}
+                        </div>
+                      </td>
+
+                      {/* Branch & Batch */}
+                      <td>
+                        <div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {item.branch_name || 'General'}
+                          </div>
+                          {item.batch && (
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              Batch {item.batch}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Roll Number */}
-                    <td>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                        {item.roll_number || '—'}
-                      </div>
-                    </td>
+                      {/* Major Specialization */}
+                      <td>
+                        <span className="badge badge-primary" style={{ padding: '4px 10px', fontSize: '0.78rem', fontWeight: 700 }}>
+                          <Sparkles size={12} /> {item.major}
+                        </span>
+                      </td>
 
-                    {/* Branch & Batch */}
-                    <td>
-                      <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {item.branch_name || 'General'}
+                      {/* Minor Specialization */}
+                      <td>
+                        <span className="badge badge-secondary" style={{ padding: '4px 10px', fontSize: '0.78rem', fontWeight: 700 }}>
+                          <Layers size={12} /> {item.minor}
+                        </span>
+                      </td>
+
+                      {/* Published Status */}
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleTogglePublish(item)}
+                          disabled={statusLoadingId === item.id}
+                          className={`badge ${item.is_published ? 'badge-success' : 'badge-warning'}`}
+                          style={{
+                            cursor: 'pointer',
+                            border: 'none',
+                            padding: '5px 10px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            transition: 'transform 0.15s ease'
+                          }}
+                          title={item.is_published ? 'Click to unpublish (hide from students)' : 'Click to publish (make visible to students)'}
+                        >
+                          {statusLoadingId === item.id ? (
+                            <RefreshCw size={12} className="animate-spin" />
+                          ) : item.is_published ? (
+                            <>
+                              <Eye size={12} /> Published
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff size={12} /> Draft
+                            </>
+                          )}
+                        </button>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ textAlign: 'right' }} className="sticky-action-col">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                          <button
+                            onClick={() => handleOpenEdit(item)}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 10px', borderRadius: '8px' }}
+                            title="Edit Profile"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmProfile(item)}
+                            className="btn btn-danger"
+                            style={{ padding: '6px 10px', borderRadius: '8px' }}
+                            title="Delete Record"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
-                        {item.batch && (
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            Batch {item.batch}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Major Specialization */}
-                    <td>
-                      <span className="badge badge-primary" style={{ padding: '4px 10px', fontSize: '0.78rem', fontWeight: 700 }}>
-                        <Sparkles size={12} /> {item.major}
-                      </span>
-                    </td>
-
-                    {/* Minor Specialization */}
-                    <td>
-                      <span className="badge badge-secondary" style={{ padding: '4px 10px', fontSize: '0.78rem', fontWeight: 700 }}>
-                        <Layers size={12} /> {item.minor}
-                      </span>
-                    </td>
-
-                    {/* Published Status */}
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleTogglePublish(item)}
-                        disabled={statusLoadingId === item.id}
-                        className={`badge ${item.is_published ? 'badge-success' : 'badge-warning'}`}
-                        style={{
-                          cursor: 'pointer',
-                          border: 'none',
-                          padding: '5px 10px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          transition: 'transform 0.15s ease'
-                        }}
-                        title={item.is_published ? 'Click to unpublish (hide from students)' : 'Click to publish (make visible to students)'}
-                      >
-                        {statusLoadingId === item.id ? (
-                          <RefreshCw size={12} className="animate-spin" />
-                        ) : item.is_published ? (
-                          <>
-                            <Eye size={12} /> Published
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff size={12} /> Draft
-                          </>
-                        )}
-                      </button>
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
-                        <button
-                          onClick={() => handleOpenEdit(item)}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 10px', borderRadius: '8px' }}
-                          title="Edit Profile"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmProfile(item)}
-                          className="btn btn-danger"
-                          style={{ padding: '6px 10px', borderRadius: '8px' }}
-                          title="Delete Record"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Mobile Cards View */}
-          <div className="show-on-mobile" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+          <div className="mobile-cards-view" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
             {filteredProfiles.map((item) => (
               <div
                 key={item.id}
-                className="glass-panel"
+                className="mobile-data-card"
                 style={{
                   padding: '16px',
                   borderRadius: '14px',
@@ -586,7 +592,7 @@ export default function SeniorMajorsMinorsAdminView({
                 }}
               >
                 {/* Header: Name + Status */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                <div className="mobile-card-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{
                       width: '38px', height: '38px', borderRadius: '10px',
@@ -597,10 +603,10 @@ export default function SeniorMajorsMinorsAdminView({
                       {item.full_name ? item.full_name.charAt(0).toUpperCase() : 'S'}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.96rem', color: 'var(--text-primary)' }}>
+                      <div className="mobile-card-title">
                         {item.full_name}
                       </div>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      <div className="mobile-card-subtitle">
                         {item.branch_name || 'General Branch'} {item.batch ? `• Batch ${item.batch}` : ''}
                       </div>
                     </div>
@@ -668,7 +674,7 @@ export default function SeniorMajorsMinorsAdminView({
                 )}
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <div className="mobile-card-actions">
                   <button
                     onClick={() => handleOpenEdit(item)}
                     className="btn btn-secondary"

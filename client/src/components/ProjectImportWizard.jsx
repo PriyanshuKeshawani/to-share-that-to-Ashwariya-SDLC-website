@@ -585,17 +585,17 @@ export default function ProjectImportWizard({
                             {sampleVal || '—'}
                           </td>
                           <td style={{ padding: '8px 14px' }}>
-                            <select
-                              className="glass-input"
-                              value={currentVal}
-                              onChange={(e) => setColumnMappings({ ...columnMappings, [idx]: e.target.value })}
-                              style={{
-                                height: '36px',
-                                fontSize: '0.82rem',
-                                color: currentVal === 'ignore' ? 'var(--text-muted)' : 'var(--primary)',
-                                fontWeight: currentVal === 'ignore' ? 400 : 700
-                              }}
-                            >
+<select
+                               className="glass-input glass-select"
+                               value={currentVal}
+                               onChange={(e) => setColumnMappings({ ...columnMappings, [idx]: e.target.value })}
+                               style={{
+                                 height: '36px',
+                                 fontSize: '0.82rem',
+                                 color: currentVal === 'ignore' ? 'var(--text-muted)' : 'var(--primary)',
+                                 fontWeight: currentVal === 'ignore' ? 400 : 700
+                               }}
+                             >
                               {DB_TARGET_FIELDS.map(f => (
                                 <option key={f.value} value={f.value}>{f.label}</option>
                               ))}

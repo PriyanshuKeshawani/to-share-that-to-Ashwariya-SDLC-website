@@ -520,19 +520,20 @@ export default function ProjectManagement({
       ) : (
         <>
           {/* Desktop Table */}
-          <div className="table-container hide-on-mobile" style={{ marginBottom: '24px' }}>
-            <table className="glass-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', minWidth: '220px' }}>Project Opportunity</th>
-                  <th style={{ textAlign: 'left', minWidth: '130px' }}>Type</th>
-                  <th style={{ textAlign: 'left', minWidth: '140px' }}>Branch & Batch</th>
-                  <th style={{ textAlign: 'left', minWidth: '140px' }}>Mentor / Org</th>
-                  <th style={{ textAlign: 'center', minWidth: '90px' }}>Published</th>
-                  <th style={{ textAlign: 'center', minWidth: '90px' }}>Active</th>
-                  <th style={{ textAlign: 'right', minWidth: '160px' }}>Actions</th>
-                </tr>
-              </thead>
+          <div className="desktop-table-view" style={{ marginBottom: '24px' }}>
+            <div className="table-responsive-wrapper">
+              <table className="custom-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', minWidth: '220px' }}>Project Opportunity</th>
+                    <th style={{ textAlign: 'left', minWidth: '130px' }}>Type</th>
+                    <th style={{ textAlign: 'left', minWidth: '140px' }}>Branch & Batch</th>
+                    <th style={{ textAlign: 'left', minWidth: '140px' }}>Mentor / Org</th>
+                    <th style={{ textAlign: 'center', minWidth: '90px' }}>Published</th>
+                    <th style={{ textAlign: 'center', minWidth: '90px' }}>Active</th>
+                    <th style={{ textAlign: 'right', minWidth: '160px' }} className="sticky-action-col">Actions</th>
+                  </tr>
+                </thead>
               <tbody>
                 {filteredProjects.map((item) => (
                   <tr key={item.id}>
@@ -625,7 +626,7 @@ export default function ProjectManagement({
                     </td>
 
                     {/* Action Buttons */}
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right' }} className="sticky-action-col">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                         <button
                           onClick={() => setViewingProject(item)}
@@ -668,14 +669,15 @@ export default function ProjectManagement({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Mobile Card List */}
-          <div className="show-on-mobile" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+          <div className="mobile-cards-view" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
             {filteredProjects.map((item) => (
               <div
                 key={item.id}
-                className="glass-panel"
+                className="mobile-data-card"
                 style={{ padding: '16px', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
