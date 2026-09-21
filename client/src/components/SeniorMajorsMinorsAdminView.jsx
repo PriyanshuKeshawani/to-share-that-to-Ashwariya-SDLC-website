@@ -202,24 +202,30 @@ export default function SeniorMajorsMinorsAdminView({
     }
   };
 
-  const handleSaveSuccess = (savedItem) => {
-    setProfiles(prev => {
-      const idx = prev.findIndex(p => p.id === savedItem.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = savedItem;
-        return next;
+  const handleSaveProfile = async (savedPayload, existingId) => {
+    if (existingId) {
+      const res = await apiCall(`/academic/majors-minors/${existingId}`, {
+        method: 'PUT',
+        body: savedPayload
+      });
+      const updatedItem = res?.data || res;
+      setProfiles(prev => prev.map(p => (p.id === existingId ? updatedItem : p)));
+      if (showFeedback) {
+        showFeedback('Senior record updated successfully in Supabase', 'success');
       }
-      return [savedItem, ...prev];
-    });
+    } else {
+      const res = await apiCall('/academic/majors-minors', {
+        method: 'POST',
+        body: savedPayload
+      });
+      const newItem = res?.data || res;
+      setProfiles(prev => [newItem, ...prev]);
+      if (showFeedback) {
+        showFeedback('New senior specialization profile saved to Supabase', 'success');
+      }
+    }
     setIsModalOpen(false);
     setEditingProfile(null);
-    if (showFeedback) {
-      showFeedback(
-        editingProfile ? 'Senior record updated successfully' : 'New senior specialization profile created',
-        'success'
-      );
-    }
   };
 
   return (
@@ -708,7 +714,7 @@ export default function SeniorMajorsMinorsAdminView({
         branches={branches}
         students={students}
         existingProfiles={profiles}
-        onSave={handleSaveSuccess}
+        onSave={handleSaveProfile}
       />
 
       {/* Delete Confirmation Modal */}

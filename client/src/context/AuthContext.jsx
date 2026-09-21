@@ -294,7 +294,7 @@ export const AuthProvider = ({ children }) => {
       const recordId = pathParts.length >= 3 ? pathParts[2] : null;
       const action = pathParts.length >= 4 ? pathParts[3] : null;
 
-      // GET /academic/majors-minors (Fetch directory)
+      // GET /academic/majors-minors (Fetch directory directly from Supabase)
       if (method === 'GET' && !recordId) {
         let query = supabase
           .from('senior_academic_profiles')
@@ -306,19 +306,42 @@ export const AuthProvider = ({ children }) => {
           query = query.eq('is_published', true);
         }
 
-        const { data, error } = await query;
-        if (error) throw error;
+        let { data, error } = await query;
+        if (error && (error.message?.includes('relationship') || error.message?.includes('schema cache') || error.code === 'PGRST200')) {
+          let fallback = supabase
+            .from('senior_academic_profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!user || user.role !== 'admin') {
+            fallback = fallback.eq('is_published', true);
+          }
+          const res = await fallback;
+          if (res.error) throw res.error;
+          data = res.data;
+        } else if (error) {
+          throw error;
+        }
         return data || [];
       }
 
       // GET single record: /academic/majors-minors/:id
       if (method === 'GET' && recordId) {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('senior_academic_profiles')
           .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .eq('id', recordId)
           .single();
-        if (error) throw error;
+        if (error && (error.message?.includes('relationship') || error.message?.includes('schema cache') || error.code === 'PGRST200')) {
+          const res = await supabase
+            .from('senior_academic_profiles')
+            .select('*')
+            .eq('id', recordId)
+            .single();
+          if (res.error) throw res.error;
+          data = res.data;
+        } else if (error) {
+          throw error;
+        }
         return data;
       }
 
@@ -362,13 +385,23 @@ export const AuthProvider = ({ children }) => {
           student_user_id: studentUserId
         };
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('senior_academic_profiles')
           .insert([insertPayload])
           .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
-        if (error) throw error;
+        if (error && (error.message?.includes('relationship') || error.message?.includes('schema cache') || error.code === 'PGRST200')) {
+          const fallbackRes = await supabase
+            .from('senior_academic_profiles')
+            .insert([insertPayload])
+            .select('*')
+            .single();
+          if (fallbackRes.error) throw fallbackRes.error;
+          data = fallbackRes.data;
+        } else if (error) {
+          throw error;
+        }
         return data;
       }
 
@@ -379,14 +412,25 @@ export const AuthProvider = ({ children }) => {
         }
 
         const isPublished = action === 'publish';
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('senior_academic_profiles')
           .update({ is_published: isPublished })
           .eq('id', recordId)
           .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
-        if (error) throw error;
+        if (error && (error.message?.includes('relationship') || error.message?.includes('schema cache') || error.code === 'PGRST200')) {
+          const fallbackRes = await supabase
+            .from('senior_academic_profiles')
+            .update({ is_published: isPublished })
+            .eq('id', recordId)
+            .select('*')
+            .single();
+          if (fallbackRes.error) throw fallbackRes.error;
+          data = fallbackRes.data;
+        } else if (error) {
+          throw error;
+        }
         return { message: `Profile ${isPublished ? 'published' : 'unpublished'} successfully`, data };
       }
 
@@ -442,14 +486,25 @@ export const AuthProvider = ({ children }) => {
           updatePayload.student_user_id = body.student_user_id && isValidUuid(body.student_user_id) ? body.student_user_id : null;
         }
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('senior_academic_profiles')
           .update(updatePayload)
           .eq('id', recordId)
           .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
-        if (error) throw error;
+        if (error && (error.message?.includes('relationship') || error.message?.includes('schema cache') || error.code === 'PGRST200')) {
+          const fallbackRes = await supabase
+            .from('senior_academic_profiles')
+            .update(updatePayload)
+            .eq('id', recordId)
+            .select('*')
+            .single();
+          if (fallbackRes.error) throw fallbackRes.error;
+          data = fallbackRes.data;
+        } else if (error) {
+          throw error;
+        }
         return { message: 'Profile updated successfully', data };
       }
 

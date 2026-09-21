@@ -196,11 +196,11 @@ export default function SeniorMajorsMinorsModal({
         branch_name: formData.branch_name.trim(),
         batch: formData.batch.trim(),
         description: formData.description.trim()
-      });
+      }, isEditing ? profile.id : null);
       onClose();
     } catch (err) {
-      console.error('Error saving senior profile:', err);
-      setError(err.message || 'Failed to save senior academic profile. Please try again.');
+      console.error('Error saving senior profile to Supabase:', err);
+      setError(err.message || 'Failed to save senior academic profile to Supabase. Please try again.');
     } finally {
       setSaving(false);
     }
