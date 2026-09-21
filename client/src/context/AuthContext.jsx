@@ -282,6 +282,519 @@ export const AuthProvider = ({ children }) => {
       throw new Error(`Unsupported method ${method} for ${endpoint}`);
     }
 
+    // 1c. Senior Majors & Minors Directory (/academic/majors-minors)
+    if (endpoint === '/academic/majors-minors' || endpoint.startsWith('/academic/majors-minors')) {
+      const cleanEndpoint = endpoint.split('?')[0];
+      const pathParts = cleanEndpoint.split('/').filter(Boolean);
+      // Path variations:
+      // ['academic', 'majors-minors'] -> collection
+      // ['academic', 'majors-minors', ':id'] -> single record
+      // ['academic', 'majors-minors', ':id', 'publish'] -> publish action
+      // ['academic', 'majors-minors', ':id', 'unpublish'] -> unpublish action
+      const recordId = pathParts.length >= 3 ? pathParts[2] : null;
+      const action = pathParts.length >= 4 ? pathParts[3] : null;
+
+      // GET /academic/majors-minors (Fetch directory)
+      if (method === 'GET' && !recordId) {
+        let query = supabase
+          .from('senior_academic_profiles')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .order('created_at', { ascending: false });
+
+        // Non-admin students should strictly only see published records
+        if (!user || user.role !== 'admin') {
+          query = query.eq('is_published', true);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      }
+
+      // GET single record: /academic/majors-minors/:id
+      if (method === 'GET' && recordId) {
+        const { data, error } = await supabase
+          .from('senior_academic_profiles')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .eq('id', recordId)
+          .single();
+        if (error) throw error;
+        return data;
+      }
+
+      // POST /academic/majors-minors (Create new senior profile)
+      if (method === 'POST' && !recordId) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can create senior academic profiles.');
+        }
+
+        const fullName = String(body.full_name || body.fullName || '').trim();
+        const major = String(body.major || '').trim();
+        const minor = String(body.minor || '').trim();
+        const rollNumber = String(body.roll_number || body.rollNumber || '').trim();
+        const branchName = String(body.branch_name || body.branchName || '').trim();
+        const batch = String(body.batch || '').trim();
+        const description = String(body.description || '').trim();
+        const isPublished = body.is_published !== undefined ? Boolean(body.is_published) : true;
+        const studentUserId = body.student_user_id && isValidUuid(body.student_user_id) ? body.student_user_id : null;
+
+        if (!fullName) throw new Error('Senior student name is required.');
+        if (!major) throw new Error('Major specialization is required.');
+        if (!minor) throw new Error('Minor specialization is required.');
+
+        if (fullName.length > 150) throw new Error('Senior name cannot exceed 150 characters.');
+        if (major.length > 150) throw new Error('Major specialization cannot exceed 150 characters.');
+        if (minor.length > 150) throw new Error('Minor specialization cannot exceed 150 characters.');
+        if (rollNumber.length > 50) throw new Error('Roll number cannot exceed 50 characters.');
+        if (branchName.length > 150) throw new Error('Branch cannot exceed 150 characters.');
+        if (batch.length > 50) throw new Error('Batch cannot exceed 50 characters.');
+        if (description.length > 1000) throw new Error('Description cannot exceed 1000 characters.');
+
+        const insertPayload = {
+          full_name: fullName,
+          major,
+          minor,
+          roll_number: rollNumber || null,
+          branch_name: branchName || null,
+          batch: batch || null,
+          description: description || null,
+          is_published: isPublished,
+          student_user_id: studentUserId
+        };
+
+        const { data, error } = await supabase
+          .from('senior_academic_profiles')
+          .insert([insertPayload])
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      // POST /academic/majors-minors/:id/publish or /unpublish
+      if (method === 'POST' && recordId && (action === 'publish' || action === 'unpublish')) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can modify publish status.');
+        }
+
+        const isPublished = action === 'publish';
+        const { data, error } = await supabase
+          .from('senior_academic_profiles')
+          .update({ is_published: isPublished })
+          .eq('id', recordId)
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .single();
+
+        if (error) throw error;
+        return { message: `Profile ${isPublished ? 'published' : 'unpublished'} successfully`, data };
+      }
+
+      // PUT /academic/majors-minors/:id (Update senior profile)
+      if (method === 'PUT' && recordId) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can update senior profiles.');
+        }
+
+        const updatePayload = {};
+        if (body.full_name !== undefined || body.fullName !== undefined) {
+          const fn = String(body.full_name || body.fullName || '').trim();
+          if (!fn) throw new Error('Senior student name is required.');
+          if (fn.length > 150) throw new Error('Senior name cannot exceed 150 characters.');
+          updatePayload.full_name = fn;
+        }
+        if (body.major !== undefined) {
+          const m = String(body.major || '').trim();
+          if (!m) throw new Error('Major specialization is required.');
+          if (m.length > 150) throw new Error('Major specialization cannot exceed 150 characters.');
+          updatePayload.major = m;
+        }
+        if (body.minor !== undefined) {
+          const mi = String(body.minor || '').trim();
+          if (!mi) throw new Error('Minor specialization is required.');
+          if (mi.length > 150) throw new Error('Minor specialization cannot exceed 150 characters.');
+          updatePayload.minor = mi;
+        }
+        if (body.roll_number !== undefined || body.rollNumber !== undefined) {
+          const rn = String(body.roll_number || body.rollNumber || '').trim();
+          if (rn.length > 50) throw new Error('Roll number cannot exceed 50 characters.');
+          updatePayload.roll_number = rn || null;
+        }
+        if (body.branch_name !== undefined || body.branchName !== undefined) {
+          const bn = String(body.branch_name || body.branchName || '').trim();
+          if (bn.length > 150) throw new Error('Branch cannot exceed 150 characters.');
+          updatePayload.branch_name = bn || null;
+        }
+        if (body.batch !== undefined) {
+          const b = String(body.batch || '').trim();
+          if (b.length > 50) throw new Error('Batch cannot exceed 50 characters.');
+          updatePayload.batch = b || null;
+        }
+        if (body.description !== undefined) {
+          const d = String(body.description || '').trim();
+          if (d.length > 1000) throw new Error('Description cannot exceed 1000 characters.');
+          updatePayload.description = d || null;
+        }
+        if (body.is_published !== undefined) {
+          updatePayload.is_published = Boolean(body.is_published);
+        }
+        if (body.student_user_id !== undefined) {
+          updatePayload.student_user_id = body.student_user_id && isValidUuid(body.student_user_id) ? body.student_user_id : null;
+        }
+
+        const { data, error } = await supabase
+          .from('senior_academic_profiles')
+          .update(updatePayload)
+          .eq('id', recordId)
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .single();
+
+        if (error) throw error;
+        return { message: 'Profile updated successfully', data };
+      }
+
+      // DELETE /academic/majors-minors/:id
+      if (method === 'DELETE' && recordId) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can delete senior profiles.');
+        }
+
+        const { error } = await supabase
+          .from('senior_academic_profiles')
+          .delete()
+          .eq('id', recordId);
+
+        if (error) throw error;
+        return { message: 'Profile deleted successfully' };
+      }
+
+      throw new Error(`Unsupported method ${method} for ${endpoint}`);
+    }
+
+    // 1d. Projects & Opportunities Directory (/projects)
+    if (endpoint === '/projects' || endpoint.startsWith('/projects')) {
+      const cleanEndpoint = endpoint.split('?')[0];
+      const pathParts = cleanEndpoint.split('/').filter(Boolean);
+      const secondPart = pathParts.length >= 2 ? pathParts[1] : null;
+      const thirdPart = pathParts.length >= 3 ? pathParts[2] : null;
+
+      // GET /projects/count-published
+      if (method === 'GET' && secondPart === 'count-published') {
+        const { count, error } = await supabase
+          .from('projects')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_published', true)
+          .eq('is_active', true);
+        if (error) throw error;
+        return { count: count || 0 };
+      }
+
+      // GET /projects (List all for admin, published+active for students)
+      if (method === 'GET' && !secondPart) {
+        let query = supabase
+          .from('projects')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (!user || user.role !== 'admin') {
+          query = query.eq('is_published', true).eq('is_active', true);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      }
+
+      // GET /projects/:id
+      if (method === 'GET' && secondPart && secondPart !== 'count-published' && secondPart !== 'bulk-import') {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', secondPart)
+          .single();
+        if (error) throw error;
+        return data;
+      }
+
+      // POST /projects/bulk-import
+      if (method === 'POST' && secondPart === 'bulk-import') {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can bulk import projects.');
+        }
+
+        const items = Array.isArray(body.items) ? body.items : [];
+        const duplicateResolution = body.duplicateResolution || 'skip'; // 'skip' | 'update' | 'insert'
+
+        if (items.length === 0) {
+          return { total: 0, imported: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
+        }
+
+        // Fetch existing projects for duplicate detection
+        const { data: existingProjects } = await supabase
+          .from('projects')
+          .select('id, title, branch_name, batch');
+
+        const existingMap = new Map();
+        (existingProjects || []).forEach(p => {
+          const key = `${(p.title || '').trim().toLowerCase()}|${(p.branch_name || '').trim().toLowerCase()}|${(p.batch || '').trim().toLowerCase()}`;
+          existingMap.set(key, p.id);
+        });
+
+        let importedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+        let failedCount = 0;
+        const rowErrors = [];
+
+        for (let i = 0; i < items.length; i++) {
+          const rawItem = items[i];
+          try {
+            const title = String(rawItem.title || rawItem.project_title || '').trim();
+            if (!title) {
+              failedCount++;
+              rowErrors.push({ row: i + 1, error: 'Project title is required' });
+              continue;
+            }
+
+            const branchName = String(rawItem.branch_name || rawItem.branch || '').trim();
+            const batch = String(rawItem.batch || '').trim();
+            const key = `${title.toLowerCase()}|${branchName.toLowerCase()}|${batch.toLowerCase()}`;
+            const existingId = existingMap.get(key);
+
+            const payload = {
+              title: title.slice(0, 250),
+              short_description: rawItem.short_description ? String(rawItem.short_description).trim().slice(0, 500) : null,
+              description: rawItem.description ? String(rawItem.description).trim().slice(0, 5000) : null,
+              project_type: rawItem.project_type ? String(rawItem.project_type).trim().slice(0, 100) : 'Academic Project',
+              department: rawItem.department ? String(rawItem.department).trim().slice(0, 150) : null,
+              branch_name: branchName ? branchName.slice(0, 150) : null,
+              eligibility: rawItem.eligibility ? String(rawItem.eligibility).trim().slice(0, 500) : null,
+              required_skills: rawItem.required_skills ? String(rawItem.required_skills).trim().slice(0, 1000) : null,
+              major: rawItem.major ? String(rawItem.major).trim().slice(0, 150) : null,
+              minor: rawItem.minor ? String(rawItem.minor).trim().slice(0, 150) : null,
+              batch: batch ? batch.slice(0, 50) : null,
+              team_size: rawItem.team_size ? String(rawItem.team_size).trim().slice(0, 50) : null,
+              mentor_name: rawItem.mentor_name ? String(rawItem.mentor_name).trim().slice(0, 150) : null,
+              organization: rawItem.organization ? String(rawItem.organization).trim().slice(0, 150) : null,
+              application_mode: rawItem.application_mode ? String(rawItem.application_mode).trim().slice(0, 50) : 'google_form',
+              application_deadline: rawItem.application_deadline ? new Date(rawItem.application_deadline).toISOString() : null,
+              google_form_url: rawItem.google_form_url ? String(rawItem.google_form_url).trim().slice(0, 1000) : null,
+              application_url: rawItem.application_url ? String(rawItem.application_url).trim().slice(0, 1000) : null,
+              resource_url: rawItem.resource_url ? String(rawItem.resource_url).trim().slice(0, 1000) : null,
+              contact_name: rawItem.contact_name ? String(rawItem.contact_name).trim().slice(0, 150) : null,
+              contact_email: rawItem.contact_email ? String(rawItem.contact_email).trim().slice(0, 150) : null,
+              source_type: rawItem.source_type ? String(rawItem.source_type).trim().slice(0, 50) : 'excel',
+              source_reference: rawItem.source_reference ? String(rawItem.source_reference).trim().slice(0, 500) : null,
+              is_published: rawItem.is_published !== undefined ? Boolean(rawItem.is_published) : false,
+              is_active: rawItem.is_active !== undefined ? Boolean(rawItem.is_active) : true,
+              sort_order: typeof rawItem.sort_order === 'number' ? rawItem.sort_order : 0
+            };
+
+            if (existingId) {
+              if (duplicateResolution === 'skip') {
+                skippedCount++;
+                continue;
+              } else if (duplicateResolution === 'update') {
+                const { error: updErr } = await supabase.from('projects').update(payload).eq('id', existingId);
+                if (updErr) throw updErr;
+                updatedCount++;
+                continue;
+              }
+            }
+
+            // Insert as new
+            const { data: newProj, error: insErr } = await supabase.from('projects').insert([payload]).select('id').single();
+            if (insErr) throw insErr;
+            if (newProj) {
+              existingMap.set(key, newProj.id);
+            }
+            importedCount++;
+          } catch (rowErr) {
+            failedCount++;
+            rowErrors.push({ row: i + 1, error: rowErr.message || 'Insert error' });
+          }
+        }
+
+        return {
+          total: items.length,
+          imported: importedCount,
+          updated: updatedCount,
+          skipped: skippedCount,
+          failed: failedCount,
+          errors: rowErrors
+        };
+      }
+
+      // POST /projects (Create single)
+      if (method === 'POST' && !secondPart) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can create projects.');
+        }
+
+        const title = String(body.title || '').trim();
+        if (!title) throw new Error('Project title is required.');
+        if (title.length > 250) throw new Error('Project title cannot exceed 250 characters.');
+
+        const insertPayload = {
+          title,
+          short_description: body.short_description ? String(body.short_description).trim().slice(0, 500) : null,
+          description: body.description ? String(body.description).trim().slice(0, 5000) : null,
+          project_type: body.project_type ? String(body.project_type).trim().slice(0, 100) : 'Academic Project',
+          department: body.department ? String(body.department).trim().slice(0, 150) : null,
+          branch_name: body.branch_name ? String(body.branch_name).trim().slice(0, 150) : null,
+          eligibility: body.eligibility ? String(body.eligibility).trim().slice(0, 500) : null,
+          required_skills: body.required_skills ? String(body.required_skills).trim().slice(0, 1000) : null,
+          major: body.major ? String(body.major).trim().slice(0, 150) : null,
+          minor: body.minor ? String(body.minor).trim().slice(0, 150) : null,
+          batch: body.batch ? String(body.batch).trim().slice(0, 50) : null,
+          team_size: body.team_size ? String(body.team_size).trim().slice(0, 50) : null,
+          mentor_name: body.mentor_name ? String(body.mentor_name).trim().slice(0, 150) : null,
+          organization: body.organization ? String(body.organization).trim().slice(0, 150) : null,
+          application_mode: body.application_mode ? String(body.application_mode).trim().slice(0, 50) : 'google_form',
+          application_deadline: body.application_deadline ? new Date(body.application_deadline).toISOString() : null,
+          google_form_url: body.google_form_url ? String(body.google_form_url).trim().slice(0, 1000) : null,
+          application_url: body.application_url ? String(body.application_url).trim().slice(0, 1000) : null,
+          resource_url: body.resource_url ? String(body.resource_url).trim().slice(0, 1000) : null,
+          contact_name: body.contact_name ? String(body.contact_name).trim().slice(0, 150) : null,
+          contact_email: body.contact_email ? String(body.contact_email).trim().slice(0, 150) : null,
+          source_type: body.source_type ? String(body.source_type).trim().slice(0, 50) : 'manual',
+          source_reference: body.source_reference ? String(body.source_reference).trim().slice(0, 500) : null,
+          is_published: body.is_published !== undefined ? Boolean(body.is_published) : false,
+          is_active: body.is_active !== undefined ? Boolean(body.is_active) : true,
+          sort_order: typeof body.sort_order === 'number' ? body.sort_order : 0
+        };
+
+        const { data, error } = await supabase.from('projects').insert([insertPayload]).select().single();
+        if (error) throw error;
+        return data;
+      }
+
+      // POST /projects/:id/publish or /unpublish
+      if (method === 'POST' && secondPart && (thirdPart === 'publish' || thirdPart === 'unpublish')) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can update project publication status.');
+        }
+
+        const isPublished = thirdPart === 'publish';
+        const { data, error } = await supabase
+          .from('projects')
+          .update({ is_published: isPublished })
+          .eq('id', secondPart)
+          .select()
+          .single();
+        if (error) throw error;
+        return { message: `Project ${isPublished ? 'published' : 'unpublished'} successfully`, data };
+      }
+
+      // POST /projects/:id/toggle-active
+      if (method === 'POST' && secondPart && thirdPart === 'toggle-active') {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can update project active status.');
+        }
+
+        const currentActive = body.is_active !== undefined ? Boolean(body.is_active) : true;
+        const { data, error } = await supabase
+          .from('projects')
+          .update({ is_active: currentActive })
+          .eq('id', secondPart)
+          .select()
+          .single();
+        if (error) throw error;
+        return { message: `Project ${currentActive ? 'activated' : 'deactivated'} successfully`, data };
+      }
+
+      // POST /projects/:id/duplicate
+      if (method === 'POST' && secondPart && thirdPart === 'duplicate') {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can duplicate projects.');
+        }
+
+        const { data: original, error: fetchErr } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', secondPart)
+          .single();
+        if (fetchErr) throw fetchErr;
+
+        const { id: _origId, created_at: _cAt, updated_at: _uAt, ...cloneData } = original;
+        cloneData.title = `${cloneData.title} (Copy)`.slice(0, 250);
+        cloneData.is_published = false;
+
+        const { data: duplicated, error: insErr } = await supabase
+          .from('projects')
+          .insert([cloneData])
+          .select()
+          .single();
+        if (insErr) throw insErr;
+        return { message: 'Project duplicated successfully', data: duplicated };
+      }
+
+      // PUT /projects/:id
+      if (method === 'PUT' && secondPart) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can update projects.');
+        }
+
+        const updatePayload = {};
+        if (body.title !== undefined) {
+          const t = String(body.title).trim();
+          if (!t) throw new Error('Project title cannot be empty.');
+          updatePayload.title = t.slice(0, 250);
+        }
+        if (body.short_description !== undefined) updatePayload.short_description = body.short_description ? String(body.short_description).trim().slice(0, 500) : null;
+        if (body.description !== undefined) updatePayload.description = body.description ? String(body.description).trim().slice(0, 5000) : null;
+        if (body.project_type !== undefined) updatePayload.project_type = body.project_type ? String(body.project_type).trim().slice(0, 100) : 'Academic Project';
+        if (body.department !== undefined) updatePayload.department = body.department ? String(body.department).trim().slice(0, 150) : null;
+        if (body.branch_name !== undefined) updatePayload.branch_name = body.branch_name ? String(body.branch_name).trim().slice(0, 150) : null;
+        if (body.eligibility !== undefined) updatePayload.eligibility = body.eligibility ? String(body.eligibility).trim().slice(0, 500) : null;
+        if (body.required_skills !== undefined) updatePayload.required_skills = body.required_skills ? String(body.required_skills).trim().slice(0, 1000) : null;
+        if (body.major !== undefined) updatePayload.major = body.major ? String(body.major).trim().slice(0, 150) : null;
+        if (body.minor !== undefined) updatePayload.minor = body.minor ? String(body.minor).trim().slice(0, 150) : null;
+        if (body.batch !== undefined) updatePayload.batch = body.batch ? String(body.batch).trim().slice(0, 50) : null;
+        if (body.team_size !== undefined) updatePayload.team_size = body.team_size ? String(body.team_size).trim().slice(0, 50) : null;
+        if (body.mentor_name !== undefined) updatePayload.mentor_name = body.mentor_name ? String(body.mentor_name).trim().slice(0, 150) : null;
+        if (body.organization !== undefined) updatePayload.organization = body.organization ? String(body.organization).trim().slice(0, 150) : null;
+        if (body.application_mode !== undefined) updatePayload.application_mode = body.application_mode ? String(body.application_mode).trim().slice(0, 50) : 'google_form';
+        if (body.application_deadline !== undefined) updatePayload.application_deadline = body.application_deadline ? new Date(body.application_deadline).toISOString() : null;
+        if (body.google_form_url !== undefined) updatePayload.google_form_url = body.google_form_url ? String(body.google_form_url).trim().slice(0, 1000) : null;
+        if (body.application_url !== undefined) updatePayload.application_url = body.application_url ? String(body.application_url).trim().slice(0, 1000) : null;
+        if (body.resource_url !== undefined) updatePayload.resource_url = body.resource_url ? String(body.resource_url).trim().slice(0, 1000) : null;
+        if (body.contact_name !== undefined) updatePayload.contact_name = body.contact_name ? String(body.contact_name).trim().slice(0, 150) : null;
+        if (body.contact_email !== undefined) updatePayload.contact_email = body.contact_email ? String(body.contact_email).trim().slice(0, 150) : null;
+        if (body.source_type !== undefined) updatePayload.source_type = body.source_type ? String(body.source_type).trim().slice(0, 50) : 'manual';
+        if (body.source_reference !== undefined) updatePayload.source_reference = body.source_reference ? String(body.source_reference).trim().slice(0, 500) : null;
+        if (body.is_published !== undefined) updatePayload.is_published = Boolean(body.is_published);
+        if (body.is_active !== undefined) updatePayload.is_active = Boolean(body.is_active);
+        if (body.sort_order !== undefined) updatePayload.sort_order = typeof body.sort_order === 'number' ? body.sort_order : 0;
+
+        const { data, error } = await supabase
+          .from('projects')
+          .update(updatePayload)
+          .eq('id', secondPart)
+          .select()
+          .single();
+        if (error) throw error;
+        return { message: 'Project updated successfully', data };
+      }
+
+      // DELETE /projects/:id
+      if (method === 'DELETE' && secondPart) {
+        if (!user || user.role !== 'admin') {
+          throw new Error('Unauthorized: Only administrators can delete projects.');
+        }
+
+        const { error } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', secondPart);
+        if (error) throw error;
+        return { message: 'Project deleted successfully' };
+      }
+
+      throw new Error(`Unsupported method ${method} for ${endpoint}`);
+    }
+
     // 2. Categories
     if (endpoint === '/books/categories') {
       const { data, error } = await supabase.from('categories').select('*, parent:parent_category_id(name)');

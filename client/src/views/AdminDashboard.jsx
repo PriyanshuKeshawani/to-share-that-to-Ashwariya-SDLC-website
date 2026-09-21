@@ -10,7 +10,9 @@ import { supabase } from '../supabaseClient';
     UserCheck, UserX, AlertTriangle, User,
     Menu, Settings, UploadCloud, Activity, Image, FolderUp, CheckCircle2, Sparkles,
     ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
-    Sun, Moon, PanelLeftClose, PanelLeftOpen
+    Sun, Moon, PanelLeftClose, PanelLeftOpen,
+    GraduationCap,
+    Rocket
   } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -21,6 +23,8 @@ import { parseDirectoryFiles } from '../utils/directoryParser';
 import { extractFirstPageAsCover } from '../utils/pdfCoverExtractor';
 import { resolveBookCover } from '../utils/bookCoverResolver';
 import NotificationBell from '../components/NotificationBell';
+import SeniorMajorsMinorsAdminView from '../components/SeniorMajorsMinorsAdminView';
+import ProjectManagement from '../components/ProjectManagement';
 
 const AdminDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -67,7 +71,7 @@ const AdminDashboard = ({ onSelectBook }) => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'branches', 'settings'];
+    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'majors-minors', 'projects', 'settings', 'logs'];
     return validTabs.includes(tabParam) ? tabParam : 'overview';
   });
 
@@ -83,7 +87,7 @@ const AdminDashboard = ({ onSelectBook }) => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'branches', 'settings'];
+      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'majors-minors', 'projects', 'settings', 'logs'];
       if (validTabs.includes(tabParam)) {
         setActiveTabState(tabParam);
       }
@@ -367,6 +371,7 @@ const AdminDashboard = ({ onSelectBook }) => {
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, triggerDebouncedRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'senior_academic_profiles' }, triggerDebouncedRefresh)
         .subscribe();
     } catch (e) {
       console.warn('Realtime admin channel subscribe note:', e.message);
@@ -1169,6 +1174,20 @@ const AdminDashboard = ({ onSelectBook }) => {
               <GitBranch size={16} /> Branches ({branches.length})
             </button>
             <button 
+              onClick={() => switchTab('majors-minors')}
+              className={`btn ${activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+            >
+              <GraduationCap size={16} /> Majors & Minors
+            </button>
+            <button 
+              onClick={() => switchTab('projects')}
+              className={`btn ${activeTab === 'projects' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+            >
+              <Rocket size={16} /> Projects &amp; Opportunities
+            </button>
+            <button 
               onClick={() => switchTab('settings')}
               className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
@@ -1229,6 +1248,8 @@ const AdminDashboard = ({ onSelectBook }) => {
                   activeTab === 'books' ? 'Book Inventory' :
                   activeTab === 'students' ? 'All Students' :
                   activeTab === 'branches' ? 'Branches' :
+                  activeTab === 'majors-minors' ? 'Majors & Minors' :
+                  activeTab === 'projects' ? 'Projects & Opportunities' :
                   activeTab === 'settings' ? 'Settings' : 'System Logs'
                 }</span>
               </div>
@@ -3870,6 +3891,23 @@ const AdminDashboard = ({ onSelectBook }) => {
               </div>
             )}
 
+            {/* Senior Majors & Minors Directory Tab */}
+            {activeTab === 'majors-minors' && (
+              <SeniorMajorsMinorsAdminView
+                branches={branches}
+                students={students}
+                showFeedback={showFeedback}
+              />
+            )}
+
+            {/* Projects & Opportunities Management Tab */}
+            {activeTab === 'projects' && (
+              <ProjectManagement
+                branches={branches}
+                showFeedback={showFeedback}
+              />
+            )}
+
           </>
         )}
       </main>
@@ -4820,6 +4858,20 @@ const AdminDashboard = ({ onSelectBook }) => {
                 style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
               >
                 <GitBranch size={16} /> Academic Branches ({branches.length})
+              </button>
+              <button 
+                onClick={() => { switchTab('majors-minors'); setShowMenuDrawer(false); }}
+                className={`btn ${activeTab === 'majors-minors' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+              >
+                <GraduationCap size={16} /> Majors & Minors Directory
+              </button>
+              <button 
+                onClick={() => { switchTab('projects'); setShowMenuDrawer(false); }}
+                className={`btn ${activeTab === 'projects' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
+              >
+                <Rocket size={16} /> Projects &amp; Opportunities
               </button>
               <button 
                 onClick={() => { switchTab('logs'); setShowMenuDrawer(false); }}

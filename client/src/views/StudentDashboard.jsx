@@ -9,7 +9,8 @@ import {
   Search, Lock, Unlock,
   Clock, BookMarked, Home, Library, Compass,
   Activity, X, Settings, RefreshCw, Printer, FileText,
-  Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen, Sparkles
+  Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen, Sparkles,
+  GraduationCap, Rocket
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -20,6 +21,8 @@ import { printStudentTranscript } from '../components/StudentActivityModal';
 import ShareBookModal from '../components/ShareBookModal';
 import BookOverviewModal from '../components/BookOverviewModal';
 import NotificationBell from '../components/NotificationBell';
+import SeniorMajorsMinorsStudentView from '../components/SeniorMajorsMinorsStudentView';
+import ProjectStudentView from '../components/ProjectStudentView';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -30,6 +33,7 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [branches, setBranches] = useState([]);
   const [requests, setRequests] = useState([]);
   const [history, setHistory] = useState([]);
+  const [publishedProjectsCount, setPublishedProjectsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
@@ -79,7 +83,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     if (typeof window === 'undefined') return 'all';
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    const validTabs = ['all', 'home', 'other', 'my-books', 'requests', 'history', 'settings'];
+    const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'majors-minors', 'projects', 'my-books', 'requests', 'history', 'settings'];
     return validTabs.includes(tabParam) ? tabParam : 'all';
   });
 
@@ -95,7 +99,7 @@ const StudentDashboard = ({ onSelectBook }) => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      const validTabs = ['all', 'home', 'other', 'my-books', 'requests', 'history', 'settings'];
+      const validTabs = ['all', 'home', 'other', 'out_of_syllabus', 'majors-minors', 'projects', 'my-books', 'requests', 'history', 'settings'];
       if (validTabs.includes(tabParam)) {
         setActiveTabState(tabParam);
       }
@@ -103,6 +107,13 @@ const StudentDashboard = ({ onSelectBook }) => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Zero-published-project rule: if student is on 'projects' tab but count is 0, redirect immediately to 'all'
+  useEffect(() => {
+    if (!loading && activeTab === 'projects' && publishedProjectsCount === 0) {
+      setActiveTab('all');
+    }
+  }, [loading, activeTab, publishedProjectsCount, setActiveTab]);
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
   const [requestSearch, setRequestSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -140,12 +151,13 @@ const StudentDashboard = ({ onSelectBook }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [booksData, catsData, branchesData, reqsData, histData] = await Promise.all([
+      const [booksData, catsData, branchesData, reqsData, histData, projCount] = await Promise.all([
         apiCall('/books').catch(() => []),
         apiCall('/books/categories').catch(() => []),
         apiCall('/books/branches').catch(() => []),
         apiCall('/permissions/my-requests').catch(() => []),
-        apiCall('/analytics/my-history').catch(() => [])
+        apiCall('/analytics/my-history').catch(() => []),
+        apiCall('/projects/count-published').catch(() => ({ count: 0 }))
       ]);
 
       setBooks(booksData || []);
@@ -153,6 +165,7 @@ const StudentDashboard = ({ onSelectBook }) => {
       setBranches(branchesData || []);
       setRequests(reqsData || []);
       setHistory(histData || []);
+      setPublishedProjectsCount(projCount?.count || 0);
     } catch (err) {
       showFeedback(err.message || 'Failed to retrieve library data', 'error');
     } finally {
@@ -162,16 +175,18 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   const silentRefresh = useCallback(async () => {
     try {
-      const [booksData, reqsData, histData, branchesData] = await Promise.all([
+      const [booksData, reqsData, histData, branchesData, projCount] = await Promise.all([
         apiCall('/books').catch(() => null),
         apiCall('/permissions/my-requests').catch(() => null),
         apiCall('/analytics/my-history').catch(() => null),
-        apiCall('/books/branches').catch(() => null)
+        apiCall('/books/branches').catch(() => null),
+        apiCall('/projects/count-published').catch(() => null)
       ]);
       if (booksData) setBooks(booksData);
       if (reqsData) setRequests(reqsData);
       if (histData) setHistory(histData);
       if (branchesData) setBranches(branchesData);
+      if (projCount && typeof projCount.count === 'number') setPublishedProjectsCount(projCount.count);
     } catch (e) {
       console.warn('Silent student realtime refresh note:', e);
     }
@@ -208,6 +223,12 @@ const StudentDashboard = ({ onSelectBook }) => {
           silentRefresh();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, () => {
+          silentRefresh();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'senior_academic_profiles' }, () => {
+          silentRefresh();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
           silentRefresh();
         })
         .on(
@@ -532,6 +553,8 @@ const StudentDashboard = ({ onSelectBook }) => {
     { key: 'all', label: 'All Catalog', icon: Home },
     { key: 'home', label: 'Home Branch', icon: Library },
     { key: 'other', label: 'Other Branches', icon: Compass },
+    { key: 'majors-minors', label: 'Majors & Minors', icon: GraduationCap },
+    ...(publishedProjectsCount > 0 ? [{ key: 'projects', label: 'Projects', icon: Rocket }] : []),
     { key: 'requests', label: 'My Requests', icon: BookMarked, badge: pendingRequestsCount },
     { key: 'history', label: 'Reading History', icon: Activity },
     { key: 'settings', label: 'Settings & Logout', icon: Settings }
@@ -745,6 +768,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                   activeTab === 'home' ? 'Home Branch' :
                   activeTab === 'other' ? 'Other Branches' :
                   activeTab === 'out_of_syllabus' ? 'Out of Syllabus' :
+                  activeTab === 'majors-minors' ? 'Majors & Minors' :
                   activeTab === 'requests' ? 'My Requests' :
                   activeTab === 'history' ? 'Reading History' : 'Settings & Theme'
                 }</span>
@@ -852,6 +876,38 @@ const StudentDashboard = ({ onSelectBook }) => {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Reading Activity</div>
                 </div>
               </div>
+
+              <div
+                onClick={() => setActiveTab('majors-minors')}
+                className="glass-panel motion-stat-card animate-stagger-in stagger-5"
+                style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                title="Explore senior major and minor specializations"
+              >
+                <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(37, 99, 235, 0.14)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <GraduationCap size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)' }}>Guidance</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Majors & Minors</div>
+                </div>
+              </div>
+
+              {publishedProjectsCount > 0 && (
+                <div
+                  onClick={() => setActiveTab('projects')}
+                  className="glass-panel motion-stat-card animate-stagger-in stagger-5"
+                  style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                  title="Explore student projects & opportunities"
+                >
+                  <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Rocket size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{publishedProjectsCount}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Projects &amp; Opps</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -862,6 +918,14 @@ const StudentDashboard = ({ onSelectBook }) => {
           </div>
         ) : activeTab === 'settings' ? (
           <div className="animate-section-enter"><SettingsView /></div>
+        ) : activeTab === 'majors-minors' ? (
+          <div className="animate-section-enter">
+            <SeniorMajorsMinorsStudentView branches={branches} />
+          </div>
+        ) : activeTab === 'projects' && publishedProjectsCount > 0 ? (
+          <div className="animate-section-enter">
+            <ProjectStudentView branches={branches} />
+          </div>
         ) : activeTab === 'history' ? (
           <div className="animate-section-enter">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
@@ -1390,6 +1454,22 @@ const StudentDashboard = ({ onSelectBook }) => {
                       <Sparkles size={12} />
                       Out of Syllabus ({outOfSyllabusBooksCount})
                     </button>
+                    {publishedProjectsCount > 0 && (
+                      <button
+                        onClick={() => { setSelectedBranch(''); setActiveTab('projects'); }}
+                        style={{
+                          padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          background: activeTab === 'projects' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                          color: activeTab === 'projects' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
+                          border: activeTab === 'projects' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                          display: 'flex', alignItems: 'center', gap: '5px'
+                        }}
+                      >
+                        <Rocket size={12} />
+                        Projects ({publishedProjectsCount})
+                      </button>
+                    )}
                     <button
                       onClick={() => { setActiveTab('requests'); }}
                       style={{
@@ -1403,6 +1483,20 @@ const StudentDashboard = ({ onSelectBook }) => {
                     >
                       <BookMarked size={12} />
                       My Requests ({requests.length})
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('majors-minors'); }}
+                      style={{
+                        padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: activeTab === 'majors-minors' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        color: activeTab === 'majors-minors' ? 'var(--primary)' : 'var(--text-secondary)',
+                        border: activeTab === 'majors-minors' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
+                        display: 'flex', alignItems: 'center', gap: '5px'
+                      }}
+                    >
+                      <GraduationCap size={12} />
+                      Majors & Minors
                     </button>
                   </div>
                 </div>

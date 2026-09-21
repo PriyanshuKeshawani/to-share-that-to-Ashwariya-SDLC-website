@@ -322,3 +322,246 @@ BEGIN
   END;
 END $$;
 
+-- =========================================================
+-- 15. Senior Majors & Minors Directory (Academic Profiles)
+-- =========================================================
+CREATE TABLE IF NOT EXISTS public.senior_academic_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL,
+  roll_number TEXT,
+  branch_name TEXT,
+  batch TEXT,
+  major TEXT NOT NULL,
+  minor TEXT NOT NULL,
+  description TEXT,
+  is_published BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_branch ON public.senior_academic_profiles(branch_name);
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_batch ON public.senior_academic_profiles(batch);
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_major ON public.senior_academic_profiles(major);
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_minor ON public.senior_academic_profiles(minor);
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_student ON public.senior_academic_profiles(student_user_id);
+CREATE INDEX IF NOT EXISTS idx_senior_profiles_published ON public.senior_academic_profiles(is_published);
+
+CREATE OR REPLACE FUNCTION public.update_senior_profiles_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_senior_profiles_updated_at ON public.senior_academic_profiles;
+CREATE TRIGGER trigger_senior_profiles_updated_at
+  BEFORE UPDATE ON public.senior_academic_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_senior_profiles_updated_at();
+
+ALTER TABLE public.senior_academic_profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public and students can view published senior profiles" ON public.senior_academic_profiles;
+CREATE POLICY "Public and students can view published senior profiles"
+  ON public.senior_academic_profiles
+  FOR SELECT
+  USING (
+    is_published = true 
+    OR 
+    EXISTS (
+      SELECT 1 FROM public.users 
+      WHERE public.users.id = auth.uid() 
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can insert senior profiles" ON public.senior_academic_profiles;
+CREATE POLICY "Admins can insert senior profiles"
+  ON public.senior_academic_profiles
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users 
+      WHERE public.users.id = auth.uid() 
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can update senior profiles" ON public.senior_academic_profiles;
+CREATE POLICY "Admins can update senior profiles"
+  ON public.senior_academic_profiles
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users 
+      WHERE public.users.id = auth.uid() 
+      AND public.users.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users 
+      WHERE public.users.id = auth.uid() 
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can delete senior profiles" ON public.senior_academic_profiles;
+CREATE POLICY "Admins can delete senior profiles"
+  ON public.senior_academic_profiles
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users 
+      WHERE public.users.id = auth.uid() 
+      AND public.users.role = 'admin'
+    )
+  );
+
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.senior_academic_profiles;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN others THEN NULL;
+  END;
+END $$;
+
+-- ==============================================================================
+-- 16. PROJECTS & OPPORTUNITIES DIRECTORY
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  short_description TEXT,
+  description TEXT,
+  project_type TEXT DEFAULT 'Academic Project',
+  department TEXT,
+  branch_name TEXT,
+  eligibility TEXT,
+  required_skills TEXT,
+  major TEXT,
+  minor TEXT,
+  batch TEXT,
+  team_size TEXT,
+  mentor_name TEXT,
+  organization TEXT,
+
+  application_mode TEXT DEFAULT 'google_form',
+  application_deadline TIMESTAMP WITH TIME ZONE,
+
+  google_form_url TEXT,
+  application_url TEXT,
+  resource_url TEXT,
+
+  contact_name TEXT,
+  contact_email TEXT,
+
+  source_type TEXT DEFAULT 'manual',
+  source_reference TEXT,
+
+  is_published BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  sort_order INTEGER DEFAULT 0,
+
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_published_active ON public.projects(is_published, is_active);
+CREATE INDEX IF NOT EXISTS idx_projects_branch ON public.projects(branch_name);
+CREATE INDEX IF NOT EXISTS idx_projects_type ON public.projects(project_type);
+CREATE INDEX IF NOT EXISTS idx_projects_batch ON public.projects(batch);
+CREATE INDEX IF NOT EXISTS idx_projects_major ON public.projects(major);
+CREATE INDEX IF NOT EXISTS idx_projects_minor ON public.projects(minor);
+CREATE INDEX IF NOT EXISTS idx_projects_deadline ON public.projects(application_deadline);
+CREATE INDEX IF NOT EXISTS idx_projects_sort_order ON public.projects(sort_order);
+
+CREATE OR REPLACE FUNCTION public.update_projects_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_projects_updated_at ON public.projects;
+CREATE TRIGGER trigger_projects_updated_at
+  BEFORE UPDATE ON public.projects
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_projects_updated_at();
+
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public and students can view published active projects" ON public.projects;
+CREATE POLICY "Public and students can view published active projects"
+  ON public.projects
+  FOR SELECT
+  USING (
+    (is_published = true AND is_active = true)
+    OR
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE public.users.id = auth.uid()
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can insert projects" ON public.projects;
+CREATE POLICY "Admins can insert projects"
+  ON public.projects
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE public.users.id = auth.uid()
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can update projects" ON public.projects;
+CREATE POLICY "Admins can update projects"
+  ON public.projects
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE public.users.id = auth.uid()
+      AND public.users.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE public.users.id = auth.uid()
+      AND public.users.role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can delete projects" ON public.projects;
+CREATE POLICY "Admins can delete projects"
+  ON public.projects
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE public.users.id = auth.uid()
+      AND public.users.role = 'admin'
+    )
+  );
+
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN others THEN NULL;
+  END;
+END $$;
+
+
+
