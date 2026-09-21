@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
@@ -211,35 +211,42 @@ const StudentDashboard = ({ onSelectBook }) => {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const silentRefreshRef = useRef(silentRefresh);
+  const showFeedbackRef = useRef(showFeedback);
+  useEffect(() => {
+    silentRefreshRef.current = silentRefresh;
+    showFeedbackRef.current = showFeedback;
+  }, [silentRefresh, showFeedback]);
+
   // Full Realtime WebSocket subscription: books, permissions, and progress update automatically
   useEffect(() => {
-    if (!user) return;
+    if (!user || !user.id) return;
 
     let channel = null;
     try {
       channel = supabase
-        .channel(`student-live-portal-${user.id}-${Date.now()}`)
+        .channel(`student-live-portal-${user.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
-          silentRefresh();
+          silentRefreshRef.current?.();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, () => {
-          silentRefresh();
+          silentRefreshRef.current?.();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'senior_academic_profiles' }, () => {
-          silentRefresh();
+          silentRefreshRef.current?.();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-          silentRefresh();
+          silentRefreshRef.current?.();
         })
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'permissions', filter: `user_id=eq.${user.id}` },
           (payload) => {
-            silentRefresh();
+            silentRefreshRef.current?.();
             if (payload.new?.status === 'approved') {
-              showFeedback('Your cross-department book access request was approved by the librarian!', 'success');
+              showFeedbackRef.current?.('Your cross-department book access request was approved by the librarian!', 'success');
             } else if (payload.new?.status === 'rejected') {
-              showFeedback('An access request was declined by the administrator.', 'error');
+              showFeedbackRef.current?.('An access request was declined by the administrator.', 'error');
             }
           }
         )
@@ -247,7 +254,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_book_progress', filter: `user_id=eq.${user.id}` },
           () => {
-            silentRefresh();
+            silentRefreshRef.current?.();
           }
         )
         .subscribe();
@@ -255,14 +262,14 @@ const StudentDashboard = ({ onSelectBook }) => {
       console.warn('Realtime student channel subscribe note:', e.message);
     }
 
-    const handleFocus = () => silentRefresh();
+    const handleFocus = () => silentRefreshRef.current?.();
     window.addEventListener('focus', handleFocus);
 
     return () => {
       if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, silentRefresh, showFeedback]);
+  }, [user?.id]);
 
   // Auto-open Book Overview Modal when URL contains shared book parameter (?book=<id> or #...book=<id>)
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Rocket, Plus, Upload, FileSpreadsheet, Search, 
   Edit, Trash2, Copy, Eye, EyeOff, X, AlertTriangle, 
@@ -66,14 +66,19 @@ export default function ProjectManagement({
     fetchProjects();
   }, [fetchProjects]);
 
-  // Realtime Supabase Channel
+  const fetchProjectsRef = useRef(fetchProjects);
+  useEffect(() => {
+    fetchProjectsRef.current = fetchProjects;
+  }, [fetchProjects]);
+
+  // Realtime Supabase Channel (subscribed once on mount)
   useEffect(() => {
     let channel = null;
     try {
       channel = supabase
-        .channel(`admin-projects-sync-${Date.now()}`)
+        .channel('admin-projects-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-          fetchProjects(true);
+          fetchProjectsRef.current?.(true);
         })
         .subscribe();
     } catch (e) {
@@ -83,7 +88,7 @@ export default function ProjectManagement({
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchProjects]);
+  }, []);
 
   // Extract unique batches and types for dropdowns
   const availableBatches = useMemo(() => {

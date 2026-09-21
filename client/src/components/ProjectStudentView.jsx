@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Rocket, Search, X, Calendar, MapPin, Building2, 
   ExternalLink, User, Clock
@@ -41,17 +41,22 @@ export default function ProjectStudentView({
     fetchProjects();
   }, [fetchProjects]);
 
-  // Realtime updates: if admin publishes or modifies projects, student sees it immediately
+  const fetchProjectsRef = useRef(fetchProjects);
+  useEffect(() => {
+    fetchProjectsRef.current = fetchProjects;
+  }, [fetchProjects]);
+
+  // Realtime updates: subscribed once on mount with stable channel
   useEffect(() => {
     let channel = null;
     try {
       channel = supabase
-        .channel(`student-projects-sync-${Date.now()}`)
+        .channel('student-projects-sync')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'projects' },
           () => {
-            fetchProjects(true);
+            fetchProjectsRef.current?.(true);
           }
         )
         .subscribe();
@@ -62,7 +67,7 @@ export default function ProjectStudentView({
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchProjects]);
+  }, []);
 
   // Unique options for filters
   const availableTypes = useMemo(() => {

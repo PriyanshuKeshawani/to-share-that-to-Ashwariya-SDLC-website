@@ -107,10 +107,27 @@ const applyTheme = (mode, primary, secondary) => {
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [mode, setMode] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-mode') : null) || 'dark');
-  const [paletteId, setPaletteId] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-palette') : null) || 'sistec-navy');
-  const [customPrimary, setCustomPrimary] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-custom-primary') : null) || '#3b82f6');
-  const [customSecondary, setCustomSecondary] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('theme-custom-secondary') : null) || '#06b6d4');
+  const [mode, setMode] = useState('dark');
+  const [paletteId, setPaletteId] = useState('sistec-navy');
+  const [customPrimary, setCustomPrimary] = useState('#3b82f6');
+  const [customSecondary, setCustomSecondary] = useState('#06b6d4');
+
+  // Sync saved preferences from localStorage on client mount only
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedMode = localStorage.getItem('theme-mode');
+      if (savedMode) setMode(savedMode);
+      const savedPalette = localStorage.getItem('theme-palette');
+      if (savedPalette) setPaletteId(savedPalette);
+      const savedPri = localStorage.getItem('theme-custom-primary');
+      if (savedPri) setCustomPrimary(savedPri);
+      const savedSec = localStorage.getItem('theme-custom-secondary');
+      if (savedSec) setCustomSecondary(savedSec);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const activePalette = COLOR_PALETTES.find(p => p.id === paletteId) || COLOR_PALETTES[0];
   const primary = paletteId === 'custom' ? customPrimary : activePalette.primary;

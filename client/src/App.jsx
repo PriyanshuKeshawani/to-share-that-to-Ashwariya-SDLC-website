@@ -129,12 +129,16 @@ const AppContent = () => {
   const { user, loading, needsProfile, logout } = useAuth();
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const [isRegistering, setIsRegisteringState] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [isRegistering, setIsRegisteringState] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname.replace(/^\/+/, '');
-    return params.get('view') === 'register' || path === 'register';
-  });
+    if (params.get('view') === 'register' || path === 'register') {
+      setIsRegisteringState(true);
+    }
+  }, []);
 
   const setIsRegistering = useCallback((val) => {
     setIsRegisteringState(val);
@@ -439,13 +443,9 @@ const AppContent = () => {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <GlobalErrorBoundary>
-          <AppContent />
-        </GlobalErrorBoundary>
-      </AuthProvider>
-    </ThemeProvider>
+    <GlobalErrorBoundary>
+      <AppContent />
+    </GlobalErrorBoundary>
   );
 }
 

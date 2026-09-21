@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   GraduationCap, Plus, Search, Edit, Trash2, 
   Eye, EyeOff, X, AlertTriangle, RefreshCw, 
@@ -55,17 +55,22 @@ export default function SeniorMajorsMinorsAdminView({
     fetchProfiles();
   }, [fetchProfiles]);
 
-  // Supabase Realtime Subscription for instant synchronization
+  const fetchProfilesRef = useRef(fetchProfiles);
+  useEffect(() => {
+    fetchProfilesRef.current = fetchProfiles;
+  }, [fetchProfiles]);
+
+  // Supabase Realtime Subscription for instant synchronization (subscribed once on mount)
   useEffect(() => {
     let channel = null;
     try {
       channel = supabase
-        .channel(`admin-senior-profiles-sync-${Date.now()}`)
+        .channel('admin-senior-profiles-sync')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'senior_academic_profiles' },
           () => {
-            fetchProfiles(true);
+            fetchProfilesRef.current?.(true);
           }
         )
         .subscribe();
@@ -76,7 +81,7 @@ export default function SeniorMajorsMinorsAdminView({
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchProfiles]);
+  }, []);
 
   // Collect unique batches for filtering
   const availableBatches = useMemo(() => {

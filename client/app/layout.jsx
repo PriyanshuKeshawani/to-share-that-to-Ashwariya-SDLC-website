@@ -5,8 +5,12 @@ export const metadata = {
   title: 'SISTEC Central Digital Library Portal',
   description: 'Digital Library Management System for Sagar Institute of Science & Technology',
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.png',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.png', type: 'image/png' }
+    ],
+    shortcut: '/favicon.ico',
     apple: '/favicon.png',
   },
 };
@@ -29,7 +33,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>

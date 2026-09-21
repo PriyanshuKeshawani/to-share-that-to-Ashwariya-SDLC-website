@@ -341,43 +341,51 @@ const AdminDashboard = ({ onSelectBook }) => {
     }
   }, [apiCall, selectedAdminBranch, analyticsTimeframe]);
 
-  // Realtime Supabase subscription for instant live updates across all admin modules
+  const silentRefreshRef = useRef(silentRefreshAdminData);
+  const showFeedbackRef = useRef(showFeedback);
+  useEffect(() => {
+    silentRefreshRef.current = silentRefreshAdminData;
+    showFeedbackRef.current = showFeedback;
+  }, [silentRefreshAdminData, showFeedback]);
+
+  // Realtime Supabase subscription for instant live updates across all admin modules (subscribed once on mount)
   useEffect(() => {
     let debounceTimer = null;
     const triggerDebouncedRefresh = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        silentRefreshAdminData();
+        silentRefreshRef.current?.();
       }, 500);
     };
 
     let channel = null;
     try {
       channel = supabase
-        .channel(`admin-realtime-all-sync-${Date.now()}`)
+        .channel('admin-realtime-all-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, triggerDebouncedRefresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'user_book_progress' }, triggerDebouncedRefresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
           triggerDebouncedRefresh();
           if (payload.eventType === 'INSERT' && payload.new?.role === 'student' && payload.new?.status === 'pending') {
-            showFeedback(`New registration pending approval: ${payload.new.full_name || payload.new.username}`, 'info');
+            showFeedbackRef.current?.(`New registration pending approval: ${payload.new.full_name || payload.new.username}`, 'info');
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'permissions' }, (payload) => {
           triggerDebouncedRefresh();
           if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
-            showFeedback('New cross-department book access request received.', 'info');
+            showFeedbackRef.current?.('New cross-department book access request received.', 'info');
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, triggerDebouncedRefresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'senior_academic_profiles' }, triggerDebouncedRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, triggerDebouncedRefresh)
         .subscribe();
     } catch (e) {
       console.warn('Realtime admin channel subscribe note:', e.message);
     }
 
-    const handleFocus = () => silentRefreshAdminData();
+    const handleFocus = () => silentRefreshRef.current?.();
     window.addEventListener('focus', handleFocus);
 
     return () => {
@@ -385,7 +393,7 @@ const AdminDashboard = ({ onSelectBook }) => {
       if (channel) supabase.removeChannel(channel);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [silentRefreshAdminData, showFeedback]);
+  }, []);
 
   // Delete student account
   const handleDeleteStudent = async () => {
