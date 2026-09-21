@@ -298,7 +298,7 @@ export const AuthProvider = ({ children }) => {
       if (method === 'GET' && !recordId) {
         let query = supabase
           .from('senior_academic_profiles')
-          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .order('created_at', { ascending: false });
 
         // Non-admin students should strictly only see published records
@@ -315,7 +315,7 @@ export const AuthProvider = ({ children }) => {
       if (method === 'GET' && recordId) {
         const { data, error } = await supabase
           .from('senior_academic_profiles')
-          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .eq('id', recordId)
           .single();
         if (error) throw error;
@@ -365,7 +365,7 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await supabase
           .from('senior_academic_profiles')
           .insert([insertPayload])
-          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
         if (error) throw error;
@@ -383,7 +383,7 @@ export const AuthProvider = ({ children }) => {
           .from('senior_academic_profiles')
           .update({ is_published: isPublished })
           .eq('id', recordId)
-          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
         if (error) throw error;
@@ -446,7 +446,7 @@ export const AuthProvider = ({ children }) => {
           .from('senior_academic_profiles')
           .update(updatePayload)
           .eq('id', recordId)
-          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, email)')
+          .select('*, student_user:student_user_id(id, full_name, roll_number, branch_name, avatar_url, username)')
           .single();
 
         if (error) throw error;
