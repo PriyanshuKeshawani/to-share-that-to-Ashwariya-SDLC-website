@@ -238,142 +238,131 @@ export default function ProjectManagement({
   };
 
   return (
-    <div style={{ paddingBottom: '40px' }}>
+    <div className="admin-proj-container">
       {/* Top Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '16px',
-        marginBottom: '20px'
-      }}>
-        <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Rocket size={24} style={{ color: 'var(--primary, #6366f1)' }} />
+      <div className="admin-proj-header">
+        <div className="admin-proj-title-block">
+          <h2 className="admin-proj-main-title">
+            <Rocket size={24} style={{ color: 'var(--primary, #6366f1)', flexShrink: 0 }} />
             <span>Projects & Innovations Directory</span>
           </h2>
-          <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+          <p className="admin-proj-subtitle">
             Manage student Major & Minor projects, hackathon innovations, and academic showcase.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setIsFormTemplateOpen(true)}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Create & configure Google Form for student submissions"
-          >
-            <FileText size={15} style={{ color: 'var(--primary, #6366f1)' }} />
-            <span>Google Form Setup</span>
-          </button>
+        {/* Action Controls */}
+        <div className="admin-proj-actions-container">
+          {/* Primary Action Row: Refresh + Add Project */}
+          <div className="admin-proj-primary-row">
+            <button
+              onClick={() => fetchProjects(true)}
+              disabled={refreshing}
+              className="btn btn-secondary admin-proj-btn admin-proj-refresh-btn"
+              title="Refresh list"
+              aria-label="Refresh project list"
+            >
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+              <span className="admin-proj-refresh-text">Refresh</span>
+            </button>
 
-          <button
-            onClick={() => setIsImportWizardOpen(true)}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Import projects from Google Sheet responses, CSV, or Excel"
-          >
-            <Upload size={15} style={{ color: '#10b981' }} />
-            <span>Import from Google Form</span>
-          </button>
+            <button
+              onClick={() => { setEditingProject(null); setIsFormOpen(true); }}
+              className="btn btn-primary btn-shine admin-proj-btn admin-proj-add-btn"
+              title="Add New Project"
+            >
+              <Plus size={16} />
+              <span>Add Project</span>
+            </button>
+          </div>
 
-          <button
-            onClick={() => fetchProjects(true)}
-            disabled={refreshing}
-            className="btn btn-secondary"
-            style={{ padding: '8px 12px', fontSize: '0.84rem' }}
-            title="Refresh list"
-          >
-            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-          </button>
+          {/* Secondary Utility Actions */}
+          <div className="admin-proj-utility-row">
+            <button
+              onClick={() => setIsFormTemplateOpen(true)}
+              className="btn btn-secondary admin-proj-util-btn"
+              title="Create & configure Google Form for student submissions"
+            >
+              <FileText size={14} style={{ color: 'var(--primary, #6366f1)' }} />
+              <span>Google Form Setup</span>
+            </button>
 
-          <button
-            onClick={() => { setEditingProject(null); setIsFormOpen(true); }}
-            className="btn btn-primary btn-shine"
-            style={{ padding: '8px 18px', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Plus size={16} />
-            <span>Add Project</span>
-          </button>
+            <button
+              onClick={() => setIsImportWizardOpen(true)}
+              className="btn btn-secondary admin-proj-util-btn"
+              title="Import projects from Google Sheet responses, CSV, or Excel"
+            >
+              <Upload size={14} style={{ color: '#10b981' }} />
+              <span>Import from Form</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stats Counter Bar */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: '14px',
-        marginBottom: '20px'
-      }}>
-        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Projects</span>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{stats.total}</div>
+      <div className="admin-proj-stats-grid">
+        <div className="glass-panel admin-proj-stat-card">
+          <span className="admin-proj-stat-label">Total Projects</span>
+          <div className="admin-proj-stat-val" style={{ color: 'var(--text-primary)' }}>{stats.total}</div>
         </div>
-        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Major Projects</span>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#818cf8', marginTop: '4px' }}>{stats.majorCount}</div>
+        <div className="glass-panel admin-proj-stat-card">
+          <span className="admin-proj-stat-label">Major Projects</span>
+          <div className="admin-proj-stat-val" style={{ color: '#818cf8' }}>{stats.majorCount}</div>
         </div>
-        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Minor Projects</span>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>{stats.minorCount}</div>
+        <div className="glass-panel admin-proj-stat-card">
+          <span className="admin-proj-stat-label">Minor Projects</span>
+          <div className="admin-proj-stat-val" style={{ color: '#c084fc' }}>{stats.minorCount}</div>
         </div>
-        <div className="glass-panel" style={{ padding: '16px', borderRadius: '16px' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Published</span>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>{stats.published}</div>
+        <div className="glass-panel admin-proj-stat-card">
+          <span className="admin-proj-stat-label">Published</span>
+          <div className="admin-proj-stat-val" style={{ color: '#34d399' }}>{stats.published}</div>
         </div>
       </div>
 
       {/* Filters & Search */}
-      <div className="glass-panel" style={{ padding: '16px', borderRadius: '18px', marginBottom: '20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-          <div style={{ position: 'relative', gridColumn: 'span 2 / span 2' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+      <div className="glass-panel admin-proj-filters-panel">
+        <div className="admin-proj-filters-grid">
+          <div className="admin-proj-search-wrapper">
+            <Search size={16} className="admin-proj-search-icon" />
             <input
               type="text"
-              className="glass-input"
+              className="glass-input admin-proj-search-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by project title, student name, branch, batch..."
-              style={{ paddingLeft: '38px', width: '100%', height: '40px', fontSize: '0.86rem' }}
+              placeholder="Search projects, students, branch..."
             />
           </div>
 
-          <div>
+          <div className="admin-proj-filter-select-group">
             <select
-              className="glass-input"
+              className="glass-input admin-proj-select"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
+              aria-label="Filter by project type"
             >
               <option value="all">All Project Types</option>
               {PROJECT_TYPES.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
-          </div>
 
-          <div>
             <select
-              className="glass-input"
+              className="glass-input admin-proj-select"
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
+              aria-label="Filter by branch"
             >
               <option value="all">All Branches</option>
               {availableBranches.map(br => (
                 <option key={br} value={br}>{br}</option>
               ))}
             </select>
-          </div>
 
-          <div>
             <select
-              className="glass-input"
+              className="glass-input admin-proj-select"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              style={{ width: '100%', height: '40px', fontSize: '0.84rem' }}
+              aria-label="Filter by status"
             >
               <option value="all">All Statuses</option>
               <option value="published">Published Only</option>
@@ -383,7 +372,7 @@ export default function ProjectManagement({
         </div>
       </div>
 
-      {/* Projects Table / Cards */}
+      {/* Projects Table & Mobile Cards */}
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {[1, 2, 3, 4].map(i => (
@@ -398,211 +387,356 @@ export default function ProjectManagement({
           action={{ label: "Add New Project", onClick: () => { setEditingProject(null); setIsFormOpen(true); } }}
         />
       ) : (
-        <div className="glass-panel" style={{ borderRadius: '20px', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-glass)' }}>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Project</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Category</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Branch / Batch</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Likes</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => {
-                  const members = Array.isArray(project.team_members) ? project.team_members : [];
-                  const likes = typeof project.likes_count === 'number' ? project.likes_count : 0;
-                  const dislikes = typeof project.dislikes_count === 'number' ? project.dislikes_count : 0;
+        <>
+          {/* DESKTOP TABLE VIEW (Visible on tablet/desktop >= 860px) */}
+          <div className="admin-projects-desktop-table glass-panel" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-glass)' }}>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Project</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Category</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Branch / Batch</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Likes</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Status</th>
+                    <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProjects.map((project) => {
+                    const members = Array.isArray(project.team_members) ? project.team_members : [];
+                    const likes = typeof project.likes_count === 'number' ? project.likes_count : 0;
 
-                  return (
-                    <tr 
-                      key={project.id}
-                      style={{ 
-                        borderBottom: '1px solid var(--border-glass, rgba(255,255,255,0.05))',
-                        transition: 'background 0.15s ease'
-                      }}
-                      className="table-row-hover"
-                    >
-                      {/* Project title and image */}
-                      <td style={{ padding: '14px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '10px',
-                            overflow: 'hidden',
-                            flexShrink: 0,
-                            background: 'rgba(255,255,255,0.05)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid var(--border-glass)'
-                          }}>
-                            {project.image_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={project.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <Rocket size={18} style={{ color: 'var(--text-muted)' }} />
-                            )}
-                          </div>
-                          <div>
-                            <span 
-                              style={{ fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', display: 'block' }}
-                              onClick={() => setViewingProject(project)}
-                            >
-                              {project.title}
-                            </span>
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
-                              {project.live_url && (
-                                <a href={project.live_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '0.74rem' }}>
-                                  Live Demo
-                                </a>
-                              )}
-                              {project.github_url && (
-                                <a href={project.github_url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
-                                  GitHub
-                                </a>
+                    return (
+                      <tr 
+                        key={`table-${project.id}`}
+                        style={{ 
+                          borderBottom: '1px solid var(--border-glass, rgba(255,255,255,0.05))',
+                          transition: 'background 0.15s ease'
+                        }}
+                        className="table-row-hover"
+                      >
+                        {/* Project title and image */}
+                        <td style={{ padding: '14px 18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '10px',
+                              overflow: 'hidden',
+                              flexShrink: 0,
+                              background: 'rgba(255,255,255,0.05)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: '1px solid var(--border-glass)'
+                            }}>
+                              {project.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={project.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <Rocket size={18} style={{ color: 'var(--text-muted)' }} />
                               )}
                             </div>
+                            <div>
+                              <span 
+                                style={{ fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', display: 'block' }}
+                                onClick={() => setViewingProject(project)}
+                              >
+                                {project.title}
+                              </span>
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                                {project.live_url && (
+                                  <a href={project.live_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '0.74rem' }}>
+                                    Live Demo
+                                  </a>
+                                )}
+                                {project.github_url && (
+                                  <a href={project.github_url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                                    GitHub
+                                  </a>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Category */}
-                      <td style={{ padding: '14px 18px' }}>
-                        <span className="badge badge-primary" style={{ fontSize: '0.74rem', padding: '3px 8px' }}>
+                        {/* Category */}
+                        <td style={{ padding: '14px 18px' }}>
+                          <span className="badge badge-primary" style={{ fontSize: '0.74rem', padding: '3px 8px' }}>
+                            {project.project_type || 'Academic Project'}
+                          </span>
+                        </td>
+
+                        {/* Team */}
+                        <td style={{ padding: '14px 18px' }}>
+                          {members.length > 0 ? (
+                            <div style={{ fontSize: '0.82rem' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{members[0]?.name || 'Student'}</span>
+                              {members.length > 1 && (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem', display: 'block' }}>
+                                  +{members.length - 1} other member{members.length > 2 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }}>None listed</span>
+                          )}
+                        </td>
+
+                        {/* Branch / Batch */}
+                        <td style={{ padding: '14px 18px' }}>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <div>{project.branch_name || members[0]?.branch || '—'}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {project.batch ? `Batch ${project.batch}` : members[0]?.passout_year ? `Batch ${members[0]?.passout_year}` : ''}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Likes */}
+                        <td style={{ padding: '14px 18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#f43f5e', fontWeight: 700 }}>
+                            <Heart size={14} fill="#f43f5e" />
+                            <span>{likes}</span>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td style={{ padding: '14px 18px' }}>
+                          <button
+                            onClick={() => handleTogglePublish(project)}
+                            disabled={statusLoadingId === project.id}
+                            className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
+                            style={{
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              border: 'none',
+                              padding: '4px 10px',
+                              fontSize: '0.74rem'
+                            }}
+                            title="Click to toggle publish/unpublish"
+                          >
+                            {project.is_published ? <Eye size={12} /> : <EyeOff size={12} />}
+                            <span>{project.is_published ? 'Published' : 'Draft'}</span>
+                          </button>
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              onClick={() => setViewingProject(project)}
+                              style={{
+                                background: 'rgba(255,255,255,0.05)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                              title="View Card Preview"
+                            >
+                              <Eye size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => { setEditingProject(project); setIsFormOpen(true); }}
+                              style={{
+                                background: 'rgba(99, 102, 241, 0.1)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--primary)',
+                                cursor: 'pointer'
+                              }}
+                              title="Edit Project"
+                            >
+                              <Edit size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => setDeleteConfirmProject(project)}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#f87171',
+                                cursor: 'pointer'
+                              }}
+                              title="Delete Project"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* MOBILE CARDS VIEW (Visible on mobile/small-tablet < 860px) */}
+          <div className="admin-projects-mobile-cards">
+            {filteredProjects.map((project) => {
+              const members = Array.isArray(project.team_members) ? project.team_members : [];
+              const likes = typeof project.likes_count === 'number' ? project.likes_count : 0;
+              const leadName = members[0]?.name || project.created_by_name || 'Student';
+              const branchName = project.branch_name || members[0]?.branch || '—';
+              const batchYear = project.batch ? `Batch ${project.batch}` : members[0]?.passout_year ? `Batch ${members[0]?.passout_year}` : '';
+
+              return (
+                <div key={`card-${project.id}`} className="admin-project-card glass-panel">
+                  {/* Primary Row: Thumbnail + Title + Category + Links */}
+                  <div className="admin-project-card-header">
+                    <div className="admin-project-card-thumb">
+                      {project.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={project.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Rocket size={20} style={{ color: 'var(--text-muted)' }} />
+                      )}
+                    </div>
+                    <div className="admin-project-card-title-col">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', padding: '2px 7px' }}>
                           {project.project_type || 'Academic Project'}
                         </span>
-                      </td>
+                        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                          {project.live_url && (
+                            <a href={project.live_url} target="_blank" rel="noreferrer" className="admin-proj-link-item" style={{ color: 'var(--primary)', fontSize: '0.74rem' }}>
+                              Demo ↗
+                            </a>
+                          )}
+                          {project.github_url && (
+                            <a href={project.github_url} target="_blank" rel="noreferrer" className="admin-proj-link-item" style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                              Code ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <h3 
+                        className="admin-project-card-title"
+                        onClick={() => setViewingProject(project)}
+                        title="Click to view details preview"
+                      >
+                        {project.title}
+                      </h3>
+                    </div>
+                  </div>
 
-                      {/* Team */}
-                      <td style={{ padding: '14px 18px' }}>
-                        {members.length > 0 ? (
-                          <div style={{ fontSize: '0.82rem' }}>
-                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{members[0]?.name || 'Student'}</span>
-                            {members.length > 1 && (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem', display: 'block' }}>
-                                +{members.length - 1} other member{members.length > 2 ? 's' : ''}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }}>None listed</span>
+                  {/* Secondary Details: Team, Branch, Batch */}
+                  <div className="admin-project-card-meta">
+                    <div className="admin-project-meta-row">
+                      <span className="admin-project-meta-label">Team:</span>
+                      <span className="admin-project-meta-value">
+                        {leadName}
+                        {members.length > 1 && (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginLeft: '4px' }}>
+                            (+{members.length - 1} more)
+                          </span>
                         )}
-                      </td>
+                      </span>
+                    </div>
 
-                      {/* Branch / Batch */}
-                      <td style={{ padding: '14px 18px' }}>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                          <div>{project.branch_name || members[0]?.branch || '—'}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {project.batch ? `Batch ${project.batch}` : members[0]?.passout_year ? `Batch ${members[0]?.passout_year}` : ''}
-                          </div>
+                    <div className="admin-project-meta-grid">
+                      <div className="admin-project-meta-cell">
+                        <span className="admin-project-meta-label">Branch:</span>
+                        <span className="admin-project-meta-value">{branchName}</span>
+                      </div>
+                      {batchYear && (
+                        <div className="admin-project-meta-cell">
+                          <span className="admin-project-meta-label">Batch:</span>
+                          <span className="admin-project-meta-value">{batchYear}</span>
                         </div>
-                      </td>
+                      )}
+                    </div>
+                  </div>
 
-                      {/* Likes */}
-                      <td style={{ padding: '14px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#f43f5e', fontWeight: 700 }}>
-                          <Heart size={14} fill="#f43f5e" />
-                          <span>{likes}</span>
-                        </div>
-                      </td>
+                  {/* Footer: Likes + Status Badge Button + Actions */}
+                  <div className="admin-project-card-footer">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {/* Real Supabase Like Counter */}
+                      <div className="admin-project-likes-badge" title={`${likes} Likes`}>
+                        <Heart size={13} fill="#f43f5e" color="#f43f5e" />
+                        <span>{likes}</span>
+                      </div>
 
-                      {/* Status */}
-                      <td style={{ padding: '14px 18px' }}>
-                        <button
-                          onClick={() => handleTogglePublish(project)}
-                          disabled={statusLoadingId === project.id}
-                          className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
-                          style={{
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            border: 'none',
-                            padding: '4px 10px',
-                            fontSize: '0.74rem'
-                          }}
-                          title="Click to toggle publish/unpublish"
-                        >
-                          {project.is_published ? <Eye size={12} /> : <EyeOff size={12} />}
-                          <span>{project.is_published ? 'Published' : 'Draft'}</span>
-                        </button>
-                      </td>
+                      {/* Clickable Status Badge Button */}
+                      <button
+                        onClick={() => handleTogglePublish(project)}
+                        disabled={statusLoadingId === project.id}
+                        className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
+                        style={{
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          border: 'none',
+                          padding: '4px 9px',
+                          fontSize: '0.72rem',
+                          borderRadius: '8px'
+                        }}
+                        title="Click to toggle publish/unpublish"
+                      >
+                        {project.is_published ? <Eye size={11} /> : <EyeOff size={11} />}
+                        <span>{project.is_published ? 'Published' : 'Draft'}</span>
+                      </button>
+                    </div>
 
-                      {/* Actions */}
-                      <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <button
-                            onClick={() => setViewingProject(project)}
-                            style={{
-                              background: 'rgba(255,255,255,0.05)',
-                              border: 'none',
-                              borderRadius: '8px',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'var(--text-secondary)',
-                              cursor: 'pointer'
-                            }}
-                            title="View Card Preview"
-                          >
-                            <Eye size={14} />
-                          </button>
+                    {/* Action Buttons: View, Edit, Delete */}
+                    <div className="admin-project-card-actions">
+                      <button
+                        onClick={() => setViewingProject(project)}
+                        className="admin-card-action-btn view"
+                        title="View Card Preview"
+                        aria-label="View Project"
+                      >
+                        <Eye size={15} />
+                      </button>
 
-                          <button
-                            onClick={() => { setEditingProject(project); setIsFormOpen(true); }}
-                            style={{
-                              background: 'rgba(99, 102, 241, 0.1)',
-                              border: 'none',
-                              borderRadius: '8px',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'var(--primary)',
-                              cursor: 'pointer'
-                            }}
-                            title="Edit Project"
-                          >
-                            <Edit size={14} />
-                          </button>
+                      <button
+                        onClick={() => { setEditingProject(project); setIsFormOpen(true); }}
+                        className="admin-card-action-btn edit"
+                        title="Edit Project"
+                        aria-label="Edit Project"
+                      >
+                        <Edit size={15} />
+                      </button>
 
-                          <button
-                            onClick={() => setDeleteConfirmProject(project)}
-                            style={{
-                              background: 'rgba(239, 68, 68, 0.1)',
-                              border: 'none',
-                              borderRadius: '8px',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#f87171',
-                              cursor: 'pointer'
-                            }}
-                            title="Delete Project"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <button
+                        onClick={() => setDeleteConfirmProject(project)}
+                        className="admin-card-action-btn delete"
+                        title="Delete Project"
+                        aria-label="Delete Project"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </>
       )}
 
       {/* Delete Confirmation Modal */}
