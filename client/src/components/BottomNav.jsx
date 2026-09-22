@@ -19,14 +19,10 @@ const BottomNav = ({ activeTab, onSelectTab, badges = {} }) => {
         return (
           <button
             key={item.id}
-            onClick={(e) => {
-              onSelectTab(item.id);
-              const btn = e.currentTarget;
-              btn.style.transform = 'scale(0.85)';
-              setTimeout(() => { btn.style.transform = ''; }, 150);
-            }}
+            onClick={() => onSelectTab(item.id)}
             className={`bottom-nav-item ${isActive ? 'active' : ''}`}
             type="button"
+            style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
           >
             <div style={{ position: 'relative', display: 'inline-flex', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
               <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} style={{ transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} />
