@@ -177,6 +177,110 @@ export const requestNotificationPermission = async (user) => {
 };
 
 /**
+ * Save a native FCM token for the given user into Supabase.
+ * Upserts into user_fcm_tokens on fcm_token conflict and optionally updates users.fcm_token.
+ * @param {string} token
+ * @param {Object} user
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const saveNativeFcmToken = async (token, user) => {
+  if (!token || !user) return { success: false, error: 'Missing token or user.' };
+  try {
+    const resolvedUserId = await resolveUserUuid(user);
+    if (!resolvedUserId) return { success: false, error: 'Unable to resolve user UUID.' };
+
+    const branchName = String(user?.branch_name || user?.branchName || 'General').trim();
+    const deviceInfo = `${navigator.platform || ''} • ${navigator.userAgent || ''}`.substring(0, 180);
+    const now = new Date().toISOString();
+
+    const { error: fcmError } = await supabase
+      .from('user_fcm_tokens')
+      .upsert(
+        { user_id: resolvedUserId, fcm_token: token, branch_name: branchName, device_info: deviceInfo, updated_at: now },
+        { onConflict: 'fcm_token' }
+      );
+
+    if (fcmError) {
+      console.warn('Notice saving native FCM token:', fcmError.message);
+      return { success: false, error: fcmError.message };
+    }
+
+    try {
+      await supabase.from('users').update({ fcm_token: token }).eq('id', resolvedUserId);
+    } catch (userUpdateErr) {
+      console.warn('Notice updating users.fcm_token:', userUpdateErr.message);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Error saving native FCM token:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+};
+
+/**
+ * Initialize a listener that watches for native FCM tokens from the app bridge / host.
+ * Monitors:
+ *  - Immediate window.__SISTEC_NATIVE_FCM_TOKEN__ value
+ *  - Object.defineProperty setter trap on window.__SISTEC_NATIVE_FCM_TOKEN__
+ *  - Custom 'sistec_native_fcm_token' window event
+ * @param {Function} getCurrentUser - Returns the current authenticated user object
+ * @returns {Function} Unsubscribe handler
+ */
+export const initNativeFcmTokenListener = (getCurrentUser) => {
+  if (typeof window === 'undefined') return () => {};
+
+  const persist = async (nativeToken) => {
+    const currentUser = getCurrentUser?.();
+    if (!nativeToken || !currentUser) return;
+    await saveNativeFcmToken(nativeToken, currentUser);
+  };
+
+  const handleEvent = (event) => {
+    const token = event?.detail?.token || event?.detail || '';
+    if (token) persist(token);
+  };
+
+  window.addEventListener('sistec_native_fcm_token', handleEvent);
+
+  let previousToken = window.__SISTEC_NATIVE_FCM_TOKEN__;
+  if (previousToken) persist(previousToken);
+
+  try {
+    let descriptor = Object.getOwnPropertyDescriptor(window, '__SISTEC_NATIVE_FCM_TOKEN__');
+    if (!descriptor || !descriptor.set) {
+      Object.defineProperty(window, '__SISTEC_NATIVE_FCM_TOKEN__', {
+        configurable: true,
+        enumerable: true,
+        get() { return previousToken; },
+        set(value) {
+          previousToken = value;
+          if (value) persist(value);
+        }
+      });
+    } else if (descriptor.set) {
+      const originalSetter = descriptor.set.bind(window);
+      Object.defineProperty(window, '__SISTEC_NATIVE_FCM_TOKEN__', {
+        configurable: true,
+        enumerable: true,
+        get: descriptor.get,
+        set(value) {
+          previousToken = value;
+          originalSetter(value);
+          if (value) persist(value);
+        }
+      });
+    }
+  } catch (definePropertyErr) {
+    console.warn('Notice installing native FCM token listener:', definePropertyErr.message);
+  }
+
+  return () => {
+    window.removeEventListener('sistec_native_fcm_token', handleEvent);
+  };
+};
+
+/**
  * Register foreground notification listener to display in-app notifications while browsing
  * @param {Function} onReceive - Callback called with notification payload
  * @returns {Function|null} Unsubscribe function

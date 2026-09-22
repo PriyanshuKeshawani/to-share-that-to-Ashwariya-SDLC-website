@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { resolveBookCover } from '../utils/bookCoverResolver';
+import { saveNativeFcmToken, initNativeFcmTokenListener } from '../firebase';
 
 export const BASE_URL =
   (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL)) ||
@@ -2995,6 +2996,10 @@ export const AuthProvider = ({ children }) => {
         setUser(formatted);
         localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
         setNeedsProfile(false);
+
+        if (typeof window !== 'undefined' && window.__SISTEC_NATIVE_FCM_TOKEN__) {
+          saveNativeFcmToken(window.__SISTEC_NATIVE_FCM_TOKEN__, formatted);
+        }
       } else if (isGoogleUser) {
         setPendingGoogleUser(currentSession.user);
         setNeedsProfile(true);
@@ -3027,6 +3032,12 @@ export const AuthProvider = ({ children }) => {
       authListener.subscription.unsubscribe();
     };
   }, [loadUser]);
+
+  // Native FCM token bridge listener (WebView / host app injected token)
+  useEffect(() => {
+    const unsubscribe = initNativeFcmTokenListener(() => user);
+    return unsubscribe;
+  }, [user]);
 
   // Realtime user status watcher (for pending students to enter portal automatically upon admin approval without refresh)
   useEffect(() => {
@@ -3337,6 +3348,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
     setUser(formattedUser);
     setSession(authData.session);
+
+    if (typeof window !== 'undefined' && window.__SISTEC_NATIVE_FCM_TOKEN__) {
+      saveNativeFcmToken(window.__SISTEC_NATIVE_FCM_TOKEN__, formattedUser);
+    }
 
     return formattedUser;
   };
