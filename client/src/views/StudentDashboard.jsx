@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import { useAuth, normalizeBranch, isSameBranch } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
@@ -24,6 +24,26 @@ import NotificationBell from '../components/NotificationBell';
 import SeniorMajorsMinorsStudentView from '../components/SeniorMajorsMinorsStudentView';
 import ProjectStudentView from '../components/ProjectStudentView';
 import { getCachedBooks, getCachedCategories, getCachedBranches } from '../db/cacheService';
+
+
+// Ultra-fast in-memory token precomputation for instantaneous search (0ms allocations)
+const indexBooks = (rawBooks) => {
+  if (!Array.isArray(rawBooks)) return [];
+  return rawBooks.map(b => {
+    if (b._searchHaystack) return b;
+    const tokens = [
+      b.title,
+      b.author,
+      b.description,
+      b.branch_name,
+      b.branch?.name,
+      b.category_name,
+      b.category?.name,
+      b.priority
+    ].filter(Boolean).join(' ').toLowerCase();
+    return { ...b, _searchHaystack: tokens };
+  });
+};
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -118,6 +138,8 @@ const StudentDashboard = ({ onSelectBook }) => {
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
   const [requestSearch, setRequestSearch] = useState('');
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
+  const scrollSentinelRef = useRef(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
   const [toastExiting, setToastExiting] = useState(false);
@@ -125,7 +147,8 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   useEffect(() => {
     setVisibleCount(36);
-  }, [search, selectedCategory, selectedBranch, activeTab]);
+  }, [deferredSearch, selectedCategory, selectedBranch, activeTab]);
+
 
   const showFeedback = useCallback((text, type = 'success') => {
     setToastExiting(false);
@@ -159,7 +182,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           getCachedBranches()
         ]);
         if (cachedB && cachedB.length > 0) {
-          setBooks(cachedB);
+          setBooks(indexBooks(cachedB));
           if (cachedC && cachedC.length > 0) setCategories(cachedC);
           if (cachedBr && cachedBr.length > 0) setBranches(cachedBr);
           setLoading(false); // Instant render without skeleton blocker!
@@ -181,7 +204,7 @@ const StudentDashboard = ({ onSelectBook }) => {
         apiCall('/projects/count-published').catch(() => ({ count: 0 }))
       ]);
 
-      if (booksData && booksData.length > 0) setBooks(booksData);
+      if (booksData && booksData.length > 0) setBooks(indexBooks(booksData));
       if (catsData && catsData.length > 0) setCategories(catsData);
       if (branchesData && branchesData.length > 0) setBranches(branchesData);
       setRequests(reqsData || []);
@@ -203,7 +226,7 @@ const StudentDashboard = ({ onSelectBook }) => {
         apiCall('/books/branches').catch(() => null),
         apiCall('/projects/count-published').catch(() => null)
       ]);
-      if (booksData) setBooks(booksData);
+      if (booksData) setBooks(indexBooks(booksData));
       if (reqsData) setRequests(reqsData);
       if (histData) setHistory(histData);
       if (branchesData) setBranches(branchesData);
@@ -534,10 +557,10 @@ const StudentDashboard = ({ onSelectBook }) => {
         if (!matchCatId && !matchCatName) return false;
       }
 
-      if (search) {
-        const q = search.toLowerCase().trim();
+      if (deferredSearch) {
+        const q = deferredSearch.toLowerCase().trim();
         const queryWords = q.split(/\s+/).filter(Boolean);
-        const haystack = [
+        const haystack = book._searchHaystack || [
           (book.title || ''),
           (book.author || ''),
           (book.description || ''),
@@ -546,7 +569,7 @@ const StudentDashboard = ({ onSelectBook }) => {
           (book.priority || '')
         ].join(' ').toLowerCase();
 
-        const matches = queryWords.every(word => haystack.includes(word.toLowerCase()));
+        const matches = queryWords.every(word => haystack.includes(word));
         if (!matches) {
           return false;
         }
@@ -554,7 +577,25 @@ const StudentDashboard = ({ onSelectBook }) => {
 
       return true;
     });
-  }, [books, activeTab, selectedCategory, selectedBranch, search, user?.branchName, user?.branch_name, branches, categories]);
+  }, [books, activeTab, selectedCategory, selectedBranch, deferredSearch, user?.branchName, user?.branch_name, branches, categories]);
+
+  // Native IntersectionObserver for fluid 60-120fps infinite streaming
+  useEffect(() => {
+    const sentinel = scrollSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(prev => Math.min(prev + 36, filteredBooks.length));
+      }
+    }, {
+      rootMargin: '450px 0px',
+      threshold: 0
+    });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filteredBooks.length]);
 
   const pendingRequestsCount = useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
   const approvedRequestsCount = useMemo(() => requests.filter(r => r.status === 'approved').length, [requests]);
@@ -1602,7 +1643,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                               src={book.cover_url}
                               alt={book.title}
                               className="realistic-book-img"
-                              loading="lazy"
+                              loading={idx < 4 ? "eager" : "lazy"}
+                              decoding="async"
+                              fetchPriority={idx < 4 ? "high" : "low"}
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none';
                                 const fb = e.currentTarget.parentElement?.querySelector('.realistic-book-fallback');
@@ -1882,6 +1925,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                   </button>
                 </div>
               )}
+              {/* Auto-Streaming Infinite Scroll Sentinel */}
+              <div ref={scrollSentinelRef} style={{ height: '24px', margin: '8px 0', pointerEvents: 'none' }} />
               <div className="catalog-mobile-spacer" />
               </>
             )}
