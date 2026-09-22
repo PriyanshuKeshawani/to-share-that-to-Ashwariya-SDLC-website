@@ -271,20 +271,18 @@ export default function ProjectStudentView({
   };
 
   return (
-    <div style={{ paddingBottom: '40px' }}>
+    <div className="project-showcase-container">
       {/* Hero Showcase Header */}
-      <div 
-        className="glass-panel project-showcase-hero"
-      >
+      <div className="project-showcase-hero">
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', color: '#818cf8', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>
+          <div className="project-hero-badge">
             <Sparkles size={13} />
             <span>SISTEC Innovation & Project Directory</span>
           </div>
           <h1 className="project-hero-title">
             Projects Showcase
           </h1>
-          <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', margin: '6px 0 0 0', maxWidth: '600px', lineHeight: 1.5 }}>
+          <p className="project-hero-subtitle">
             Explore cutting-edge Major projects, Minor projects, hackathon innovations, and research papers built by students.
           </p>
         </div>
@@ -298,7 +296,7 @@ export default function ProjectStudentView({
           background: feedback.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
           border: `1px solid ${feedback.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
           color: feedback.type === 'success' ? '#34d399' : '#f87171',
-          marginBottom: '20px',
+          marginBottom: '16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -312,17 +310,15 @@ export default function ProjectStudentView({
       )}
 
       {/* Search & Category Filter Pills */}
-      <div 
-        className="glass-panel project-filter-panel"
-      >
+      <div className="project-filter-panel">
         {/* Search Row */}
         <div className="project-filter-grid">
           <div className="project-search-col">
             <Search 
-              size={16} 
+              size={15} 
               style={{
                 position: 'absolute',
-                left: '14px',
+                left: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--text-muted)',
@@ -331,25 +327,27 @@ export default function ProjectStudentView({
             />
             <input
               type="text"
-              className="glass-input"
+              className="project-search-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by project title, student name, tech, branch, or keywords..."
-              style={{ paddingLeft: '40px', paddingRight: searchTerm ? '38px' : '14px', width: '100%', height: '42px', fontSize: '0.88rem' }}
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
                 style={{
                   position: 'absolute',
-                  right: '12px',
+                  right: '10px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
-                  padding: '4px'
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
                 title="Clear"
               >
@@ -360,10 +358,9 @@ export default function ProjectStudentView({
 
           <div>
             <select
-              className="glass-input"
+              className="project-select"
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
             >
               <option value="all">All Branches</option>
               {availableBranches.map(br => (
@@ -374,10 +371,9 @@ export default function ProjectStudentView({
 
           <div>
             <select
-              className="glass-input"
+              className="project-select"
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
-              style={{ width: '100%', height: '42px', fontSize: '0.86rem' }}
             >
               <option value="all">All Batches / Years</option>
               {availableBatches.map(b => (
@@ -473,26 +469,18 @@ export default function ProjectStudentView({
             return (
               <div
                 key={project.id}
-                className="glass-panel hover-card project-card"
+                className="project-card"
                 onClick={() => setViewingProject(project)}
               >
                 <div>
                   {/* Card Thumbnail Banner */}
-                  <div style={{
-                    position: 'relative',
-                    width: '100%',
-                    height: '160px',
-                    background: project.image_url 
-                      ? 'rgba(0,0,0,0.5)' 
-                      : 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.18) 50%, rgba(6, 182, 212, 0.12) 100%)',
-                    overflow: 'hidden'
-                  }}>
+                  <div className="project-card-banner">
                     {project.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img 
                         src={project.image_url} 
                         alt={project.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        className="project-card-img"
                         loading="lazy"
                       />
                     ) : (
@@ -502,9 +490,10 @@ export default function ProjectStudentView({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: 'rgba(255,255,255,0.2)'
+                        color: 'rgba(255,255,255,0.2)',
+                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(168, 85, 247, 0.15) 50%, rgba(6, 182, 212, 0.1) 100%)'
                       }}>
-                        <Rocket size={40} />
+                        <Rocket size={36} />
                       </div>
                     )}
 
@@ -512,11 +501,12 @@ export default function ProjectStudentView({
                     <div style={{
                       position: 'absolute',
                       inset: 0,
-                      background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(18,22,34,0.85) 100%)'
+                      background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(18,22,34,0.85) 100%)',
+                      pointerEvents: 'none'
                     }} />
 
                     {/* Category Badge */}
-                    <div style={{ position: 'absolute', top: '12px', left: '12px' }}>
+                    <div style={{ position: 'absolute', top: '10px', left: '10px' }}>
                       <span style={{
                         background: catStyle.bg,
                         color: catStyle.text,
@@ -532,27 +522,29 @@ export default function ProjectStudentView({
                     </div>
 
                     {/* Branch/Batch Badge */}
-                    <div style={{ position: 'absolute', bottom: '10px', left: '12px', display: 'flex', gap: '6px' }}>
+                    <div style={{ position: 'absolute', bottom: '8px', left: '10px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                       {project.branch_name && (
                         <span style={{
-                          background: 'rgba(0,0,0,0.6)',
+                          background: 'rgba(0,0,0,0.65)',
                           color: 'var(--text-secondary)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid rgba(255,255,255,0.12)',
                           padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.7rem'
+                          borderRadius: '10px',
+                          fontSize: '0.68rem',
+                          fontWeight: 500
                         }}>
                           {project.branch_name}
                         </span>
                       )}
                       {project.batch && (
                         <span style={{
-                          background: 'rgba(0,0,0,0.6)',
+                          background: 'rgba(0,0,0,0.65)',
                           color: 'var(--text-secondary)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid rgba(255,255,255,0.12)',
                           padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.7rem'
+                          borderRadius: '10px',
+                          fontSize: '0.68rem',
+                          fontWeight: 500
                         }}>
                           Batch {project.batch}
                         </span>
@@ -561,54 +553,35 @@ export default function ProjectStudentView({
                   </div>
 
                   {/* Card Body */}
-                  <div style={{ padding: '16px 18px 12px 18px' }}>
-                    <h3 style={{
-                      fontSize: '1.08rem',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      margin: '0 0 6px 0',
-                      lineHeight: 1.35,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
+                  <div style={{ padding: '14px 16px 10px 16px' }}>
+                    <h3 className="project-card-title">
                       {project.title}
                     </h3>
 
-                    <p style={{
-                      fontSize: '0.84rem',
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                      margin: '0 0 14px 0',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
+                    <p className="project-card-desc">
                       {project.short_description || project.description || 'No description provided.'}
                     </p>
 
                     {/* Team Members Avatar Stack */}
                     {members.length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginLeft: '2px' }}>
                           {members.slice(0, 3).map((m, mi) => (
                             <div
                               key={mi}
                               style={{
-                                width: '26px',
-                                height: '26px',
+                                width: '24px',
+                                height: '24px',
                                 borderRadius: '50%',
                                 background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.4), rgba(168, 85, 247, 0.4))',
                                 border: '2px solid var(--bg-card, #121622)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.72rem',
+                                fontSize: '0.68rem',
                                 fontWeight: 700,
                                 color: 'var(--text-primary)',
-                                marginLeft: mi > 0 ? '-8px' : 0
+                                marginLeft: mi > 0 ? '-6px' : 0
                               }}
                               title={`${m.name || 'Team member'} (${m.branch || ''})`}
                             >
@@ -617,7 +590,7 @@ export default function ProjectStudentView({
                           ))}
                         </div>
 
-                        <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {members[0]?.name || 'Student'}
                           {members.length > 1 && ` +${members.length - 1} more`}
                         </span>

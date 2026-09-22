@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, ExternalLink, Github, Globe, Heart, 
   Linkedin, Users, GraduationCap, Building2, Sparkles, FileText
@@ -16,6 +16,24 @@ export default function ProjectDetailsModal({
   const [currentLikes, setCurrentLikes] = useState(typeof project.likes_count === 'number' ? project.likes_count : 0);
   const [userReaction, setUserReaction] = useState(project.user_reaction || null);
   const [voting, setVoting] = useState(false);
+
+  // Lock background body scroll and bind Escape key
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const teamMembers = Array.isArray(project.team_members) && project.team_members.length > 0
     ? project.team_members
@@ -204,20 +222,12 @@ export default function ProjectDetailsModal({
 
           {/* Title & Interactive Reaction Header */}
           <div className="project-details-title-row">
-            <h1 style={{
-              fontSize: '1.48rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              margin: 0,
-              lineHeight: 1.3,
-              flex: 1,
-              letterSpacing: '-0.015em'
-            }}>
+            <h1 className="project-details-title">
               {project.title}
             </h1>
 
             {/* Instagram-Style Heart Like Reaction Bar */}
-            <div className="project-details-reaction-bar" style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="project-details-reaction-bar">
               <button
                 onClick={handleReactionClick}
                 disabled={voting}
@@ -229,16 +239,16 @@ export default function ProjectDetailsModal({
                   border: userReaction === 'like' ? '1px solid rgba(244, 63, 94, 0.45)' : '1px solid var(--border-glass)',
                   color: userReaction === 'like' ? '#f43f5e' : 'var(--text-secondary)',
                   borderRadius: '20px',
-                  padding: '7px 16px',
+                  padding: '6px 14px',
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  fontSize: '0.88rem',
+                  fontSize: '0.86rem',
                   fontWeight: 700
                 }}
                 title={userReaction === 'like' ? "Unlike" : "Like this project"}
               >
                 <Heart 
-                  size={16} 
+                  size={15} 
                   fill={userReaction === 'like' ? '#f43f5e' : 'none'} 
                   color={userReaction === 'like' ? '#f43f5e' : 'currentColor'} 
                 />
@@ -248,31 +258,16 @@ export default function ProjectDetailsModal({
           </div>
 
           {/* Project Overview Card */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.025)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '16px',
-            padding: '18px 20px'
-          }}>
-            <h3 style={{
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--text-muted)',
-              marginBottom: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
+          <div className="project-details-box">
+            <h3 className="project-details-section-title">
               <FileText size={13} style={{ color: 'var(--primary, #6366f1)' }} />
               <span>Project Overview & Innovations</span>
             </h3>
             <p style={{
-              fontSize: '0.92rem',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.65,
-              margin: 0,
+              fontSize: '0.88rem',
+              color: '#cbd5e1',
+              lineHeight: 1.6,
+              margin: '6px 0 0 0',
               whiteSpace: 'pre-line'
             }}>
               {project.short_description || project.description || 'No description provided for this project.'}
@@ -282,36 +277,19 @@ export default function ProjectDetailsModal({
           {/* Team Members List */}
           {teamMembers.length > 0 && (
             <div>
-              <h3 style={{
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: 'var(--text-muted)',
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <Users size={15} style={{ color: 'var(--primary, #6366f1)' }} />
+              <h3 className="project-details-section-title" style={{ marginBottom: '10px' }}>
+                <Users size={14} style={{ color: 'var(--primary, #6366f1)' }} />
                 <span>Team Members ({teamMembers.length})</span>
               </h3>
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-                gap: '12px'
-              }}>
+              <div className="project-team-grid">
                 {teamMembers.map((member, idx) => (
                   <div
                     key={idx}
+                    className="project-team-card"
                     style={{
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.09)',
-                      borderRadius: '14px',
-                      padding: '14px',
-                      display: 'flex',
                       flexDirection: 'column',
+                      alignItems: 'stretch',
                       justifyContent: 'space-between',
                       gap: '10px'
                     }}
@@ -319,14 +297,14 @@ export default function ProjectDetailsModal({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                         <div style={{
-                          width: '32px',
-                          height: '32px',
+                          width: '30px',
+                          height: '30px',
                           borderRadius: '50%',
                           background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '0.82rem',
+                          fontSize: '0.8rem',
                           fontWeight: 700,
                           color: '#818cf8',
                           flexShrink: 0
@@ -336,7 +314,7 @@ export default function ProjectDetailsModal({
                         <div style={{ overflow: 'hidden' }}>
                           <span style={{
                             display: 'block',
-                            fontSize: '0.92rem',
+                            fontSize: '0.88rem',
                             fontWeight: 700,
                             color: 'var(--text-primary)',
                             whiteSpace: 'nowrap',
@@ -379,7 +357,7 @@ export default function ProjectDetailsModal({
                           color: '#38bdf8',
                           padding: '6px 10px',
                           borderRadius: '8px',
-                          fontSize: '0.78rem',
+                          fontSize: '0.76rem',
                           fontWeight: 600,
                           textDecoration: 'none',
                           transition: 'all 0.15s ease'
@@ -409,9 +387,9 @@ export default function ProjectDetailsModal({
                 rel="noopener noreferrer"
                 className="btn btn-primary"
                 style={{
-                  flex: 1,
-                  minWidth: '160px',
-                  padding: '11px 20px',
+                  flex: '1 1 180px',
+                  minHeight: '42px',
+                  padding: '10px 18px',
                   fontSize: '0.88rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -434,9 +412,9 @@ export default function ProjectDetailsModal({
                 rel="noopener noreferrer"
                 className="btn btn-secondary"
                 style={{
-                  flex: 1,
-                  minWidth: '160px',
-                  padding: '11px 20px',
+                  flex: '1 1 180px',
+                  minHeight: '42px',
+                  padding: '10px 18px',
                   fontSize: '0.88rem',
                   display: 'flex',
                   alignItems: 'center',
