@@ -464,7 +464,7 @@ export default function ProjectManagement({
 
                         {/* Category */}
                         <td style={{ padding: '14px 18px' }}>
-                          <span className="badge badge-primary" style={{ fontSize: '0.74rem', padding: '3px 8px' }}>
+                          <span className={`admin-project-type-badge ${(project.project_type || '').toLowerCase().replace(/\s+/g, '-')}`}>
                             {project.project_type || 'Academic Project'}
                           </span>
                         </td>
@@ -508,16 +508,7 @@ export default function ProjectManagement({
                           <button
                             onClick={() => handleTogglePublish(project)}
                             disabled={statusLoadingId === project.id}
-                            className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
-                            style={{
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              border: 'none',
-                              padding: '4px 10px',
-                              fontSize: '0.74rem'
-                            }}
+                            className={`admin-project-status-btn ${project.is_published ? 'published' : 'draft'}`}
                             title="Click to toggle publish/unpublish"
                           >
                             {project.is_published ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -530,57 +521,27 @@ export default function ProjectManagement({
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <button
                               onClick={() => setViewingProject(project)}
-                              style={{
-                                background: 'rgba(255,255,255,0.05)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer'
-                              }}
+                              className="admin-card-action-btn view"
                               title="View Card Preview"
+                              aria-label="View Project"
                             >
                               <Eye size={14} />
                             </button>
 
                             <button
                               onClick={() => { setEditingProject(project); setIsFormOpen(true); }}
-                              style={{
-                                background: 'rgba(99, 102, 241, 0.1)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--primary)',
-                                cursor: 'pointer'
-                              }}
+                              className="admin-card-action-btn edit"
                               title="Edit Project"
+                              aria-label="Edit Project"
                             >
                               <Edit size={14} />
                             </button>
 
                             <button
                               onClick={() => setDeleteConfirmProject(project)}
-                              style={{
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#f87171',
-                                cursor: 'pointer'
-                              }}
+                              className="admin-card-action-btn delete"
                               title="Delete Project"
+                              aria-label="Delete Project"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -604,7 +565,7 @@ export default function ProjectManagement({
               const batchYear = project.batch ? `Batch ${project.batch}` : members[0]?.passout_year ? `Batch ${members[0]?.passout_year}` : '';
 
               return (
-                <div key={`card-${project.id}`} className="admin-project-card glass-panel">
+                <div key={`card-${project.id}`} className="admin-project-card">
                   {/* Primary Row: Thumbnail + Title + Category + Links */}
                   <div className="admin-project-card-header">
                     <div className="admin-project-card-thumb">
@@ -616,18 +577,18 @@ export default function ProjectManagement({
                       )}
                     </div>
                     <div className="admin-project-card-title-col">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
-                        <span className="badge badge-primary" style={{ fontSize: '0.68rem', padding: '2px 7px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        <span className={`admin-project-type-badge ${(project.project_type || '').toLowerCase().replace(/\s+/g, '-')}`}>
                           {project.project_type || 'Academic Project'}
                         </span>
                         <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
                           {project.live_url && (
-                            <a href={project.live_url} target="_blank" rel="noreferrer" className="admin-proj-link-item" style={{ color: 'var(--primary)', fontSize: '0.74rem' }}>
+                            <a href={project.live_url} target="_blank" rel="noreferrer" className="admin-proj-link-item live">
                               Demo ↗
                             </a>
                           )}
                           {project.github_url && (
-                            <a href={project.github_url} target="_blank" rel="noreferrer" className="admin-proj-link-item" style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                            <a href={project.github_url} target="_blank" rel="noreferrer" className="admin-proj-link-item code">
                               Code ↗
                             </a>
                           )}
@@ -684,17 +645,7 @@ export default function ProjectManagement({
                       <button
                         onClick={() => handleTogglePublish(project)}
                         disabled={statusLoadingId === project.id}
-                        className={`badge ${project.is_published ? 'badge-primary' : 'badge-secondary'}`}
-                        style={{
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          border: 'none',
-                          padding: '4px 9px',
-                          fontSize: '0.72rem',
-                          borderRadius: '8px'
-                        }}
+                        className={`admin-project-status-btn ${project.is_published ? 'published' : 'draft'}`}
                         title="Click to toggle publish/unpublish"
                       >
                         {project.is_published ? <Eye size={11} /> : <EyeOff size={11} />}

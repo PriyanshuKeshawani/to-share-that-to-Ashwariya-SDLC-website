@@ -96,18 +96,6 @@ export default function ProjectDetailsModal({
     }
   };
 
-  const getCategoryColor = (type = '') => {
-    const t = type.toLowerCase();
-    if (t.includes('major')) return { bg: 'rgba(99, 102, 241, 0.16)', text: '#818cf8', border: 'rgba(99, 102, 241, 0.35)' };
-    if (t.includes('minor')) return { bg: 'rgba(168, 85, 247, 0.16)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.35)' };
-    if (t.includes('hackathon')) return { bg: 'rgba(245, 158, 11, 0.16)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.35)' };
-    if (t.includes('research')) return { bg: 'rgba(6, 182, 212, 0.16)', text: '#22d3ee', border: 'rgba(6, 182, 212, 0.35)' };
-    if (t.includes('open source')) return { bg: 'rgba(16, 185, 129, 0.16)', text: '#34d399', border: 'rgba(16, 185, 129, 0.35)' };
-    if (t.includes('internship')) return { bg: 'rgba(236, 72, 153, 0.16)', text: '#f472b6', border: 'rgba(236, 72, 153, 0.35)' };
-    return { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-primary)', border: 'rgba(255, 255, 255, 0.18)' };
-  };
-
-  const catStyle = getCategoryColor(project.project_type);
   const isLiked = userReaction === 'like';
 
   return (
@@ -164,15 +152,7 @@ export default function ProjectDetailsModal({
             </button>
           </div>
         ) : (
-          <div style={{
-            position: 'relative',
-            padding: '20px 24px',
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))'
-          }}>
+          <div className="project-details-header-fallback">
             <button
               onClick={onClose}
               className="project-details-close-btn"
@@ -188,71 +168,27 @@ export default function ProjectDetailsModal({
         <div className="project-details-body">
           {/* Metadata Badges Row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{
-              background: catStyle.bg,
-              color: catStyle.text,
-              border: `1px solid ${catStyle.border}`,
-              padding: '4px 12px',
-              borderRadius: '20px',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px'
-            }}>
+            <span className={`project-details-cat-badge ${(project.project_type || '').toLowerCase().replace(/\s+/g, '-')}`}>
               <Sparkles size={13} />
               {project.project_type || 'Academic Project'}
             </span>
 
             {project.branch_name && (
-              <span style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                color: 'var(--text-secondary)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                padding: '4px 11px',
-                borderRadius: '20px',
-                fontSize: '0.76rem',
-                fontWeight: 600,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
-                <Building2 size={12} style={{ color: 'var(--text-muted)' }} />
+              <span className="project-details-meta-tag">
+                <Building2 size={12} />
                 {project.branch_name}
               </span>
             )}
 
             {project.batch && (
-              <span style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                color: 'var(--text-secondary)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                padding: '4px 11px',
-                borderRadius: '20px',
-                fontSize: '0.76rem',
-                fontWeight: 600,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
-                <GraduationCap size={13} style={{ color: 'var(--text-muted)' }} />
+              <span className="project-details-meta-tag">
+                <GraduationCap size={13} />
                 Batch {project.batch}
               </span>
             )}
 
             {project.mentor_name && (
-              <span style={{
-                background: 'rgba(16, 185, 129, 0.12)',
-                color: '#34d399',
-                border: '1px solid rgba(16, 185, 129, 0.28)',
-                padding: '4px 11px',
-                borderRadius: '20px',
-                fontSize: '0.76rem',
-                fontWeight: 600,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
+              <span className="project-details-mentor-tag">
                 <Award size={12} />
                 Mentor: {project.mentor_name}
               </span>
@@ -270,20 +206,7 @@ export default function ProjectDetailsModal({
               <button
                 onClick={handleReactionClick}
                 disabled={voting}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '7px',
-                  background: isLiked ? 'rgba(239, 68, 68, 0.16)' : 'rgba(255, 255, 255, 0.04)',
-                  border: isLiked ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-glass)',
-                  color: isLiked ? '#ef4444' : 'var(--text-secondary)',
-                  borderRadius: '20px',
-                  padding: '6px 14px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  fontSize: '0.86rem',
-                  fontWeight: 700
-                }}
+                className={`project-details-like-btn ${isLiked ? 'liked' : ''}`}
                 title={isLiked ? "Unlike this project" : "Like this project"}
               >
                 <Heart 
@@ -299,16 +222,10 @@ export default function ProjectDetailsModal({
           {/* Project Overview Card */}
           <div className="project-details-box">
             <h3 className="project-details-section-title">
-              <FileText size={14} style={{ color: 'var(--primary, #6366f1)' }} />
+              <FileText size={14} />
               <span>Project Overview & Innovations</span>
             </h3>
-            <p style={{
-              fontSize: '0.9rem',
-              color: '#cbd5e1',
-              lineHeight: 1.65,
-              margin: '8px 0 0 0',
-              whiteSpace: 'pre-line'
-            }}>
+            <p className="project-details-desc">
               {project.description || project.short_description || 'No detailed description provided for this project.'}
             </p>
           </div>
@@ -317,23 +234,14 @@ export default function ProjectDetailsModal({
           {skillsList.length > 0 && (
             <div className="project-details-box">
               <h3 className="project-details-section-title">
-                <Code size={14} style={{ color: 'var(--primary, #6366f1)' }} />
+                <Code size={14} />
                 <span>Technologies & Skills</span>
               </h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                 {skillsList.map((skill, si) => (
                   <span
                     key={si}
-                    style={{
-                      background: 'rgba(99, 102, 241, 0.12)',
-                      border: '1px solid rgba(99, 102, 241, 0.28)',
-                      color: '#c7d2fe',
-                      padding: '4px 12px',
-                      borderRadius: '16px',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      letterSpacing: '0.01em'
-                    }}
+                    className="project-details-skill-chip"
                   >
                     {skill}
                   </span>
@@ -346,7 +254,7 @@ export default function ProjectDetailsModal({
           {teamMembers.length > 0 && (
             <div>
               <h3 className="project-details-section-title" style={{ marginBottom: '10px' }}>
-                <Users size={14} style={{ color: 'var(--primary, #6366f1)' }} />
+                <Users size={14} />
                 <span>Team Members ({teamMembers.length})</span>
               </h3>
 
@@ -355,55 +263,29 @@ export default function ProjectDetailsModal({
                   <div
                     key={idx}
                     className="project-team-card"
-                    style={{
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          color: '#818cf8',
-                          flexShrink: 0
-                        }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <div className="project-member-avatar">
                           {(member.name || 'S').charAt(0).toUpperCase()}
                         </div>
-                        <div style={{ overflow: 'hidden' }}>
-                          <span style={{
-                            display: 'block',
-                            fontSize: '0.88rem',
-                            fontWeight: 700,
-                            color: 'var(--text-primary)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
+                        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                          <span className="project-member-name">
                             {member.name || 'Student'}
                           </span>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      <div className="project-member-meta">
                         {member.branch && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            <Building2 size={11} style={{ color: 'var(--text-muted)' }} />
+                            <Building2 size={11} />
                             {member.branch}
                           </span>
                         )}
                         {member.passout_year && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            <GraduationCap size={11} style={{ color: 'var(--text-muted)' }} />
+                            <GraduationCap size={11} />
                             Batch {member.passout_year}
                           </span>
                         )}
@@ -416,27 +298,14 @@ export default function ProjectDetailsModal({
                         href={member.linkedin_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: 'rgba(10, 102, 194, 0.16)',
-                          border: '1px solid rgba(10, 102, 194, 0.35)',
-                          color: '#38bdf8',
-                          padding: '6px 10px',
-                          borderRadius: '8px',
-                          fontSize: '0.76rem',
-                          fontWeight: 600,
-                          textDecoration: 'none',
-                          transition: 'all 0.15s ease'
-                        }}
+                        className="project-member-linkedin"
                       >
                         <Linkedin size={13} style={{ color: '#0a66c2' }} />
                         <span>LinkedIn Profile</span>
                         <ExternalLink size={11} style={{ marginLeft: 'auto' }} />
                       </a>
                     ) : (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      <span className="project-member-no-linkedin">
                         No LinkedIn profile
                       </span>
                     )}
@@ -453,19 +322,7 @@ export default function ProjectDetailsModal({
                 href={project.live_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-primary"
-                style={{
-                  flex: '1 1 180px',
-                  minHeight: '42px',
-                  padding: '10px 18px',
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  textDecoration: 'none',
-                  borderRadius: '12px'
-                }}
+                className="project-action-demo-btn"
               >
                 <Globe size={16} />
                 <span>Live Project Demo</span>
@@ -478,19 +335,7 @@ export default function ProjectDetailsModal({
                 href={project.github_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-secondary"
-                style={{
-                  flex: '1 1 180px',
-                  minHeight: '42px',
-                  padding: '10px 18px',
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  textDecoration: 'none',
-                  borderRadius: '12px'
-                }}
+                className="project-action-github-btn"
               >
                 <Github size={16} />
                 <span>GitHub Repository</span>
