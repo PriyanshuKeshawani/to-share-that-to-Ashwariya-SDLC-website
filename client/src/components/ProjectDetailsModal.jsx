@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { 
   X, ExternalLink, Github, Globe, Heart, 
-  Linkedin, Users, GraduationCap, Building2, Sparkles, FileText
+  Linkedin, Users, GraduationCap, Building2, Sparkles, FileText, Code, Award
 } from 'lucide-react';
 
 export default function ProjectDetailsModal({
@@ -14,8 +14,14 @@ export default function ProjectDetailsModal({
   if (!project) return null;
 
   const [currentLikes, setCurrentLikes] = useState(typeof project.likes_count === 'number' ? project.likes_count : 0);
-  const [userReaction, setUserReaction] = useState(project.user_reaction || null);
+  const [userReaction, setUserReaction] = useState((project.is_liked || project.user_reaction === 'like') ? 'like' : null);
   const [voting, setVoting] = useState(false);
+
+  // Sync state whenever project prop updates
+  useEffect(() => {
+    setCurrentLikes(typeof project.likes_count === 'number' ? project.likes_count : 0);
+    setUserReaction((project.is_liked || project.user_reaction === 'like') ? 'like' : null);
+  }, [project.id, project.likes_count, project.is_liked, project.user_reaction]);
 
   // Lock background body scroll and bind Escape key
   useEffect(() => {
@@ -41,6 +47,20 @@ export default function ProjectDetailsModal({
       ? [{ name: 'Project Lead / Team', branch: project.branch_name || '', passout_year: project.batch || '' }]
       : [];
 
+  const skillsList = (() => {
+    const s = project.required_skills;
+    if (!s) return [];
+    if (Array.isArray(s)) return s.map(x => String(x).trim()).filter(Boolean);
+    if (typeof s === 'string') {
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) return parsed.map(x => String(x).trim()).filter(Boolean);
+      } catch {}
+      return s.split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+    }
+    return [];
+  })();
+
   const handleReactionClick = async () => {
     if (voting) return;
     setVoting(true);
@@ -49,28 +69,28 @@ export default function ProjectDetailsModal({
     const nextReaction = isCurrentlyLiked ? null : 'like';
     const nextLikes = isCurrentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
 
-    // Update local modal state immediately
+    // 1. Optimistic UI update
     setUserReaction(nextReaction);
     setCurrentLikes(nextLikes);
 
-    // Persist immediately in localStorage
-    try {
-      const stored = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
-      stored[project.id] = { reaction: nextReaction, likes: nextLikes };
-      localStorage.setItem('sistec_project_votes', JSON.stringify(stored));
-    } catch (e) {}
-
-    // Call onVote handler
+    // 2. Call parent onVote (which communicates with Supabase)
     try {
       if (onVote) {
         const res = await onVote(project.id, 'like');
         if (res && res.success) {
           if (res.user_reaction !== undefined) setUserReaction(res.user_reaction);
           if (typeof res.likes_count === 'number') setCurrentLikes(res.likes_count);
+        } else {
+          // Rollback if onVote indicated failure or unauthenticated
+          setUserReaction(isCurrentlyLiked ? 'like' : null);
+          setCurrentLikes(currentLikes);
         }
       }
     } catch (err) {
-      console.warn('Reaction error:', err);
+      console.warn('Modal reaction error:', err);
+      // Rollback on network failure
+      setUserReaction(isCurrentlyLiked ? 'like' : null);
+      setCurrentLikes(currentLikes);
     } finally {
       setVoting(false);
     }
@@ -88,13 +108,14 @@ export default function ProjectDetailsModal({
   };
 
   const catStyle = getCategoryColor(project.project_type);
+  const isLiked = userReaction === 'like';
 
   return (
     <div 
       className="project-details-backdrop"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="project-details-card">
+      <div className="project-details-card" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
         {/* Banner Cover Image */}
         {project.image_url ? (
           <div className="project-details-banner">
@@ -116,7 +137,7 @@ export default function ProjectDetailsModal({
               }}
             />
 
-            {/* Sharp Foreground Image (Never Cropped or Stretched) */}
+            {/* Sharp Foreground Image */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
               src={project.image_url} 
@@ -145,9 +166,9 @@ export default function ProjectDetailsModal({
         ) : (
           <div style={{
             position: 'relative',
-            padding: '24px',
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '20px 24px',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             justifyContent: 'flex-end',
             paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))'
@@ -165,7 +186,7 @@ export default function ProjectDetailsModal({
 
         {/* Modal Scrollable Body */}
         <div className="project-details-body">
-          {/* Metadata Badges Row (Cleanly above title) */}
+          {/* Metadata Badges Row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{
               background: catStyle.bg,
@@ -218,15 +239,33 @@ export default function ProjectDetailsModal({
                 Batch {project.batch}
               </span>
             )}
+
+            {project.mentor_name && (
+              <span style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.28)',
+                padding: '4px 11px',
+                borderRadius: '20px',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Award size={12} />
+                Mentor: {project.mentor_name}
+              </span>
+            )}
           </div>
 
           {/* Title & Interactive Reaction Header */}
           <div className="project-details-title-row">
-            <h1 className="project-details-title">
+            <h1 id="project-modal-title" className="project-details-title">
               {project.title}
             </h1>
 
-            {/* Instagram-Style Heart Like Reaction Bar */}
+            {/* Instagram-Style Heart Like Reaction Button */}
             <div className="project-details-reaction-bar">
               <button
                 onClick={handleReactionClick}
@@ -235,9 +274,9 @@ export default function ProjectDetailsModal({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '7px',
-                  background: userReaction === 'like' ? 'rgba(244, 63, 94, 0.16)' : 'rgba(255, 255, 255, 0.04)',
-                  border: userReaction === 'like' ? '1px solid rgba(244, 63, 94, 0.45)' : '1px solid var(--border-glass)',
-                  color: userReaction === 'like' ? '#f43f5e' : 'var(--text-secondary)',
+                  background: isLiked ? 'rgba(239, 68, 68, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                  border: isLiked ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-glass)',
+                  color: isLiked ? '#ef4444' : 'var(--text-secondary)',
                   borderRadius: '20px',
                   padding: '6px 14px',
                   cursor: 'pointer',
@@ -245,12 +284,12 @@ export default function ProjectDetailsModal({
                   fontSize: '0.86rem',
                   fontWeight: 700
                 }}
-                title={userReaction === 'like' ? "Unlike" : "Like this project"}
+                title={isLiked ? "Unlike this project" : "Like this project"}
               >
                 <Heart 
-                  size={15} 
-                  fill={userReaction === 'like' ? '#f43f5e' : 'none'} 
-                  color={userReaction === 'like' ? '#f43f5e' : 'currentColor'} 
+                  size={16} 
+                  fill={isLiked ? '#ef4444' : 'none'} 
+                  color={isLiked ? '#ef4444' : 'currentColor'} 
                 />
                 <span>{currentLikes}</span>
               </button>
@@ -260,19 +299,48 @@ export default function ProjectDetailsModal({
           {/* Project Overview Card */}
           <div className="project-details-box">
             <h3 className="project-details-section-title">
-              <FileText size={13} style={{ color: 'var(--primary, #6366f1)' }} />
+              <FileText size={14} style={{ color: 'var(--primary, #6366f1)' }} />
               <span>Project Overview & Innovations</span>
             </h3>
             <p style={{
-              fontSize: '0.88rem',
+              fontSize: '0.9rem',
               color: '#cbd5e1',
-              lineHeight: 1.6,
-              margin: '6px 0 0 0',
+              lineHeight: 1.65,
+              margin: '8px 0 0 0',
               whiteSpace: 'pre-line'
             }}>
-              {project.short_description || project.description || 'No description provided for this project.'}
+              {project.description || project.short_description || 'No detailed description provided for this project.'}
             </p>
           </div>
+
+          {/* Technologies & Tech Stack Chips */}
+          {skillsList.length > 0 && (
+            <div className="project-details-box">
+              <h3 className="project-details-section-title">
+                <Code size={14} style={{ color: 'var(--primary, #6366f1)' }} />
+                <span>Technologies & Skills</span>
+              </h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
+                {skillsList.map((skill, si) => (
+                  <span
+                    key={si}
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      border: '1px solid rgba(99, 102, 241, 0.28)',
+                      color: '#c7d2fe',
+                      padding: '4px 12px',
+                      borderRadius: '16px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.01em'
+                    }}
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Team Members List */}
           {teamMembers.length > 0 && (
@@ -297,14 +365,14 @@ export default function ProjectDetailsModal({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                         <div style={{
-                          width: '30px',
-                          height: '30px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
                           background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '0.8rem',
+                          fontSize: '0.82rem',
                           fontWeight: 700,
                           color: '#818cf8',
                           flexShrink: 0

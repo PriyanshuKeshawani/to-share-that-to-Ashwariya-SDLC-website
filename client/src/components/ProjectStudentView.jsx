@@ -42,26 +42,16 @@ export default function ProjectStudentView({
   const fetchProjects = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
-      const data = await apiCall('/projects');
-      const list = Array.isArray(data) ? data : [];
-
-      let localVotes = {};
+      // Ensure any legacy localStorage votes are purged so Supabase is 100% source of truth
       try {
-        localVotes = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('sistec_project_votes');
+        }
       } catch (e) {}
 
-      const merged = list.map(p => {
-        const lv = localVotes[p.id];
-        if (!lv) return p;
-        return {
-          ...p,
-          likes_count: typeof lv.likes === 'number' ? Math.max(p.likes_count || 0, lv.likes) : (p.likes_count || 0),
-          dislikes_count: typeof lv.dislikes === 'number' ? Math.max(p.dislikes_count || 0, lv.dislikes) : (p.dislikes_count || 0),
-          user_reaction: lv.reaction !== undefined ? lv.reaction : p.user_reaction
-        };
-      });
-
-      setProjects(merged);
+      const data = await apiCall('/projects');
+      const list = Array.isArray(data) ? data : [];
+      setProjects(list);
     } catch (err) {
       console.error('Failed to load projects:', err);
     } finally {
@@ -101,68 +91,116 @@ export default function ProjectStudentView({
     };
   }, []);
 
-  // Handle Instagram-style Heart Like toggle with instant UI update and local persistence
+  // Handle Instagram-style Heart Like toggle with instant optimistic UI and Supabase persistence
   const handleVote = async (projectId, reactionType = 'like') => {
-    let nextReaction = null;
-    let nextLikes = 0;
+    // 1. Unauthenticated users cannot like projects
+    if (!user || !user.id) {
+      setFeedback({
+        type: 'info',
+        message: 'Please sign in with your student account to like projects.'
+      });
+      return { success: false, unauthorized: true };
+    }
 
-    // 1. Optimistically toggle like state (like <-> unlike)
+    // 2. Snapshot current state for optimistic update and rollback
+    const curr = projects.find(p => p.id === projectId);
+    const prevLiked = Boolean(curr?.is_liked || curr?.user_reaction === 'like');
+    const prevCount = typeof curr?.likes_count === 'number' ? curr.likes_count : 0;
+
+    const optimisticLiked = !prevLiked;
+    const optimisticCount = optimisticLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+    // 3. Optimistic UI update
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
-      let likes = typeof p.likes_count === 'number' ? p.likes_count : 0;
-      const isCurrentlyLiked = p.user_reaction === 'like';
-
-      if (isCurrentlyLiked) {
-        nextReaction = null;
-        likes = Math.max(0, likes - 1);
-      } else {
-        nextReaction = 'like';
-        likes = likes + 1;
-      }
-
-      nextLikes = likes;
-      return { ...p, likes_count: likes, user_reaction: nextReaction };
+      return {
+        ...p,
+        is_liked: optimisticLiked,
+        user_reaction: optimisticLiked ? 'like' : null,
+        likes_count: optimisticCount
+      };
     }));
 
-    // 2. Also keep the opened modal synced
     setViewingProject(prev => {
       if (!prev || prev.id !== projectId) return prev;
       return {
         ...prev,
-        likes_count: nextLikes,
-        user_reaction: nextReaction
+        is_liked: optimisticLiked,
+        user_reaction: optimisticLiked ? 'like' : null,
+        likes_count: optimisticCount
       };
     });
 
-    // 3. Persist in localStorage so state remains accurate on refresh
-    try {
-      const stored = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
-      stored[projectId] = { reaction: nextReaction, likes: nextLikes };
-      localStorage.setItem('sistec_project_votes', JSON.stringify(stored));
-    } catch (e) {}
-
-    // 4. Send to server in background
+    // 4. Send authoritative request to Supabase
     try {
       const res = await apiCall(`/projects/${projectId}/vote`, {
         method: 'POST',
-        body: JSON.stringify({
-          reaction: 'like',
-          user_email: user?.email,
-          current_likes: nextLikes
-        })
+        body: JSON.stringify({ reaction: 'like' })
+      });
+
+      const verifiedLiked = res?.is_liked ?? optimisticLiked;
+      const verifiedCount = typeof res?.likes_count === 'number' ? res.likes_count : optimisticCount;
+
+      setProjects(prev => prev.map(p => {
+        if (p.id !== projectId) return p;
+        return {
+          ...p,
+          is_liked: verifiedLiked,
+          user_reaction: verifiedLiked ? 'like' : null,
+          likes_count: verifiedCount
+        };
+      }));
+
+      setViewingProject(prev => {
+        if (!prev || prev.id !== projectId) return prev;
+        return {
+          ...prev,
+          is_liked: verifiedLiked,
+          user_reaction: verifiedLiked ? 'like' : null,
+          likes_count: verifiedCount
+        };
       });
 
       return {
         success: true,
-        user_reaction: res?.user_reaction !== undefined ? res.user_reaction : nextReaction,
-        likes_count: typeof res?.likes_count === 'number' ? res.likes_count : nextLikes
+        is_liked: verifiedLiked,
+        user_reaction: verifiedLiked ? 'like' : null,
+        likes_count: verifiedCount
       };
     } catch (err) {
-      console.warn('Vote background sync note:', err.message);
+      console.warn('Like toggle error in Supabase:', err.message);
+
+      // Rollback optimistic update
+      setProjects(prev => prev.map(p => {
+        if (p.id !== projectId) return p;
+        return {
+          ...p,
+          is_liked: prevLiked,
+          user_reaction: prevLiked ? 'like' : null,
+          likes_count: prevCount
+        };
+      }));
+
+      setViewingProject(prev => {
+        if (!prev || prev.id !== projectId) return prev;
+        return {
+          ...prev,
+          is_liked: prevLiked,
+          user_reaction: prevLiked ? 'like' : null,
+          likes_count: prevCount
+        };
+      });
+
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Unable to update like. Please try again.'
+      });
+
       return {
-        success: true,
-        user_reaction: nextReaction,
-        likes_count: nextLikes
+        success: false,
+        is_liked: prevLiked,
+        user_reaction: prevLiked ? 'like' : null,
+        likes_count: prevCount
       };
     }
   };
@@ -613,31 +651,36 @@ export default function ProjectStudentView({
                     style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <button
-                      onClick={() => handleVote(project.id, 'like')}
-                      style={{
-                        background: project.user_reaction === 'like' ? 'rgba(244, 63, 94, 0.16)' : 'rgba(255,255,255,0.04)',
-                        border: project.user_reaction === 'like' ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid var(--border-glass)',
-                        color: project.user_reaction === 'like' ? '#f43f5e' : 'var(--text-secondary)',
-                        borderRadius: '20px',
-                        padding: '5px 11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                      }}
-                      title={project.user_reaction === 'like' ? "Unlike" : "Like"}
-                    >
-                      <Heart 
-                        size={14} 
-                        fill={project.user_reaction === 'like' ? '#f43f5e' : 'none'} 
-                        color={project.user_reaction === 'like' ? '#f43f5e' : 'currentColor'} 
-                      />
-                      <span>{likes}</span>
-                    </button>
+                    {(() => {
+                      const isLiked = Boolean(project.is_liked || project.user_reaction === 'like');
+                      return (
+                        <button
+                          onClick={() => handleVote(project.id, 'like')}
+                          style={{
+                            background: isLiked ? 'rgba(239, 68, 68, 0.16)' : 'rgba(255,255,255,0.04)',
+                            border: isLiked ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-glass)',
+                            color: isLiked ? '#ef4444' : 'var(--text-secondary)',
+                            borderRadius: '20px',
+                            padding: '5px 12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }}
+                          title={isLiked ? "Unlike" : "Like this project"}
+                        >
+                          <Heart 
+                            size={15} 
+                            fill={isLiked ? '#ef4444' : 'none'} 
+                            color={isLiked ? '#ef4444' : 'currentColor'} 
+                          />
+                          <span>{likes}</span>
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   {/* External Links Icon Badges */}
