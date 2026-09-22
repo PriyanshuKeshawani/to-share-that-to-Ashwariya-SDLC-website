@@ -91,50 +91,13 @@ export default function ProjectDetailsModal({
 
   return (
     <div 
-      className="modal-backdrop"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.82)',
-        backdropFilter: 'blur(12px)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        overflowY: 'auto'
-      }}
+      className="project-details-backdrop"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div 
-        className="glass-panel"
-        style={{
-          width: '100%',
-          maxWidth: '720px',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: '24px',
-          background: 'linear-gradient(180deg, #0f172a 0%, #0b1120 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.14)',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 35px rgba(99, 102, 241, 0.12)',
-          overflow: 'hidden',
-          animation: 'fadeIn 0.2s ease-out'
-        }}
-      >
+      <div className="project-details-card">
         {/* Banner Cover Image */}
         {project.image_url ? (
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '240px',
-            background: '#070b14',
-            overflow: 'hidden',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
+          <div className="project-details-banner">
             {/* Ambient Blurred Background for Logo/Cover */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
@@ -147,7 +110,7 @@ export default function ProjectDetailsModal({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                filter: 'blur(30px) brightness(0.4)',
+                filter: 'blur(30px) brightness(0.35)',
                 transform: 'scale(1.15)',
                 pointerEvents: 'none'
               }}
@@ -160,79 +123,48 @@ export default function ProjectDetailsModal({
               alt={project.title}
               style={{
                 position: 'relative',
-                maxHeight: '220px',
-                maxWidth: '92%',
+                maxHeight: '85%',
+                maxWidth: '90%',
                 objectFit: 'contain',
                 borderRadius: '10px',
                 zIndex: 1,
-                boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
+                boxShadow: '0 8px 30px rgba(0,0,0,0.55)'
               }}
             />
 
-            {/* Close Button */}
+            {/* High-Visibility Close Button */}
             <button
               onClick={onClose}
-              style={{
-                position: 'absolute',
-                top: '14px',
-                right: '14px',
-                background: 'rgba(0, 0, 0, 0.7)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '50%',
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                cursor: 'pointer',
-                zIndex: 3,
-                transition: 'transform 0.15s ease, background 0.15s ease'
-              }}
-              title="Close"
+              className="project-details-close-btn"
+              title="Close modal"
+              aria-label="Close modal"
             >
-              <X size={18} />
+              <X size={20} strokeWidth={2.5} />
             </button>
           </div>
         ) : (
           <div style={{
             position: 'relative',
             padding: '24px',
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'flex',
-            justifyContent: 'flex-end'
+            justifyContent: 'flex-end',
+            paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))'
           }}>
             <button
               onClick={onClose}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '50%',
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                cursor: 'pointer'
-              }}
-              title="Close"
+              className="project-details-close-btn"
+              title="Close modal"
+              aria-label="Close modal"
             >
-              <X size={18} />
+              <X size={20} strokeWidth={2.5} />
             </button>
           </div>
         )}
 
         {/* Modal Scrollable Body */}
-        <div style={{
-          padding: '24px 28px',
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
-        }}>
+        <div className="project-details-body">
           {/* Metadata Badges Row (Cleanly above title) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{
@@ -289,13 +221,7 @@ export default function ProjectDetailsModal({
           </div>
 
           {/* Title & Interactive Reaction Header */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: '16px',
-            flexWrap: 'wrap'
-          }}>
+          <div className="project-details-title-row">
             <h1 style={{
               fontSize: '1.48rem',
               fontWeight: 800,
@@ -309,15 +235,7 @@ export default function ProjectDetailsModal({
             </h1>
 
             {/* Like & Dislike Reaction Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
-              padding: '4px 8px'
-            }}>
+            <div className="project-details-reaction-bar">
               <button
                 onClick={() => handleReactionClick('like')}
                 disabled={voting}
@@ -522,15 +440,7 @@ export default function ProjectDetailsModal({
           )}
 
           {/* Action Links Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            flexWrap: 'wrap',
-            paddingTop: '16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            marginTop: '4px'
-          }}>
+          <div className="project-details-actions">
             {project.live_url && (
               <a
                 href={project.live_url}
