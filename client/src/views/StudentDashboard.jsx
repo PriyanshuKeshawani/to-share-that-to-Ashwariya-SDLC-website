@@ -893,8 +893,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                   <Rocket size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>Projects</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Showcase &amp; Minors</div>
+                  <div style={{ fontSize: '1.18rem', fontWeight: 700, color: 'var(--text-primary)' }}>{publishedProjectsCount}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Projects &amp; Guidance</div>
                 </div>
               </div>
             </div>

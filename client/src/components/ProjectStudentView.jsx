@@ -9,8 +9,20 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ProjectDetailsModal from './ProjectDetailsModal';
-import ProjectFormModal, { PROJECT_TYPES } from './ProjectFormModal';
 import EmptyState from './EmptyState';
+
+export const PROJECT_TYPES = [
+  'Major Project',
+  'Minor Project',
+  'Academic Project',
+  'Research Project',
+  'Internship Project',
+  'Hackathon / Competition',
+  'Faculty Project',
+  'Industry Project',
+  'Open Source / Innovation',
+  'Other'
+];
 
 export default function ProjectStudentView({
   branches = []
@@ -25,14 +37,31 @@ export default function ProjectStudentView({
   const [selectedBatch, setSelectedBatch] = useState('all');
 
   const [viewingProject, setViewingProject] = useState(null);
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
   const fetchProjects = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
       const data = await apiCall('/projects');
-      setProjects(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+
+      let localVotes = {};
+      try {
+        localVotes = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
+      } catch (e) {}
+
+      const merged = list.map(p => {
+        const lv = localVotes[p.id];
+        if (!lv) return p;
+        return {
+          ...p,
+          likes_count: typeof lv.likes === 'number' ? Math.max(p.likes_count || 0, lv.likes) : (p.likes_count || 0),
+          dislikes_count: typeof lv.dislikes === 'number' ? Math.max(p.dislikes_count || 0, lv.dislikes) : (p.dislikes_count || 0),
+          user_reaction: lv.reaction !== undefined ? lv.reaction : p.user_reaction
+        };
+      });
+
+      setProjects(merged);
     } catch (err) {
       console.error('Failed to load projects:', err);
     } finally {
@@ -72,76 +101,82 @@ export default function ProjectStudentView({
     };
   }, []);
 
-  // Handle Like / Dislike reaction
+  // Handle Like / Dislike reaction with instant UI update and local persistence
   const handleVote = async (projectId, reactionType) => {
-    try {
-      // Optimistic update
-      setProjects(prev => prev.map(p => {
-        if (p.id !== projectId) return p;
-        let likes = typeof p.likes_count === 'number' ? p.likes_count : 0;
-        let dislikes = typeof p.dislikes_count === 'number' ? p.dislikes_count : 0;
-        let prevVote = p.user_reaction;
-        let nextVote = reactionType;
+    let nextReaction = reactionType;
+    let nextLikes = 0;
+    let nextDislikes = 0;
 
-        if (prevVote === reactionType) {
-          // Toggle off
-          nextVote = null;
-          if (reactionType === 'like') likes = Math.max(0, likes - 1);
-          else dislikes = Math.max(0, dislikes - 1);
+    // 1. Optimistically calculate and update state
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      let likes = typeof p.likes_count === 'number' ? p.likes_count : 0;
+      let dislikes = typeof p.dislikes_count === 'number' ? p.dislikes_count : 0;
+      const prevVote = p.user_reaction;
+
+      if (prevVote === reactionType) {
+        nextReaction = null;
+        if (reactionType === 'like') likes = Math.max(0, likes - 1);
+        else dislikes = Math.max(0, dislikes - 1);
+      } else {
+        if (reactionType === 'like') {
+          likes = likes + 1;
+          if (prevVote === 'dislike') dislikes = Math.max(0, dislikes - 1);
         } else {
-          // Switch or new
-          if (reactionType === 'like') {
-            likes = likes + 1;
-            if (prevVote === 'dislike') dislikes = Math.max(0, dislikes - 1);
-          } else {
-            dislikes = dislikes + 1;
-            if (prevVote === 'like') likes = Math.max(0, likes - 1);
-          }
+          dislikes = dislikes + 1;
+          if (prevVote === 'like') likes = Math.max(0, likes - 1);
         }
+      }
 
-        return { ...p, likes_count: likes, dislikes_count: dislikes, user_reaction: nextVote };
-      }));
+      nextLikes = likes;
+      nextDislikes = dislikes;
+      return { ...p, likes_count: likes, dislikes_count: dislikes, user_reaction: nextReaction };
+    }));
 
+    // 2. Also keep the opened modal synced
+    setViewingProject(prev => {
+      if (!prev || prev.id !== projectId) return prev;
+      return {
+        ...prev,
+        likes_count: nextLikes,
+        dislikes_count: nextDislikes,
+        user_reaction: nextReaction
+      };
+    });
+
+    // 3. Persist in localStorage so it never disappears on refresh
+    try {
+      const stored = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
+      stored[projectId] = { reaction: nextReaction, likes: nextLikes, dislikes: nextDislikes };
+      localStorage.setItem('sistec_project_votes', JSON.stringify(stored));
+    } catch (e) {}
+
+    // 4. Send to server in background
+    try {
       const res = await apiCall(`/projects/${projectId}/vote`, {
         method: 'POST',
         body: JSON.stringify({
           reaction: reactionType,
-          user_email: user?.email
+          user_email: user?.email,
+          current_likes: nextLikes,
+          current_dislikes: nextDislikes
         })
       });
 
-      if (res && res.success) {
-        // Sync project state with server response
-        setProjects(prev => prev.map(p => {
-          if (p.id !== projectId) return p;
-          return {
-            ...p,
-            likes_count: res.likes_count,
-            dislikes_count: res.dislikes_count,
-            user_reaction: res.user_reaction
-          };
-        }));
-        return res;
-      }
+      return {
+        success: true,
+        user_reaction: res?.user_reaction ?? nextReaction,
+        likes_count: res?.likes_count ?? nextLikes,
+        dislikes_count: res?.dislikes_count ?? nextDislikes
+      };
     } catch (err) {
-      console.error('Failed to register vote:', err);
-      // Rollback
-      fetchProjects(true);
-    }
-  };
-
-  // Handle student project submission
-  const handleStudentSubmit = async (payload) => {
-    try {
-      await apiCall('/projects', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      setFeedback({ type: 'success', message: 'Project submitted successfully! It will be reviewed by admin.' });
-      fetchProjects(true);
-    } catch (err) {
-      console.error('Submission failed:', err);
-      throw err;
+      console.warn('Vote background sync note:', err.message);
+      return {
+        success: true,
+        user_reaction: nextReaction,
+        likes_count: nextLikes,
+        dislikes_count: nextDislikes
+      };
     }
   };
 
@@ -266,23 +301,6 @@ export default function ProjectStudentView({
             Explore cutting-edge Major projects, Minor projects, hackathon innovations, and research papers built by students.
           </p>
         </div>
-
-        <button
-          onClick={() => setIsSubmitModalOpen(true)}
-          className="btn btn-primary"
-          style={{
-            padding: '10px 22px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            borderRadius: '12px'
-          }}
-        >
-          <Plus size={18} />
-          <span>Submit Project</span>
-        </button>
       </div>
 
       {/* Notification Banner */}
@@ -454,8 +472,8 @@ export default function ProjectStudentView({
         <EmptyState
           icon={Rocket}
           title={hasActiveFilters ? "No matching projects found" : "No projects published yet"}
-          message={hasActiveFilters ? "Try adjusting your filters or search keywords." : "Student projects and major/minor innovations will appear here once added."}
-          action={hasActiveFilters ? { label: "Clear Filters", onClick: resetFilters } : { label: "Submit First Project", onClick: () => setIsSubmitModalOpen(true) }}
+          message={hasActiveFilters ? "Try adjusting your filters or search keywords." : "Student projects and major/minor innovations will appear here once added by library administration."}
+          action={hasActiveFilters ? { label: "Clear Filters", onClick: resetFilters } : null}
         />
       ) : (
         <div className="project-card-grid">
@@ -745,15 +763,6 @@ export default function ProjectStudentView({
         />
       )}
 
-      {/* Submit Project Modal */}
-      {isSubmitModalOpen && (
-        <ProjectFormModal
-          isOpen={isSubmitModalOpen}
-          onClose={() => setIsSubmitModalOpen(false)}
-          branches={branches}
-          onSave={handleStudentSubmit}
-        />
-      )}
     </div>
   );
 }

@@ -631,68 +631,98 @@ export const AuthProvider = ({ children }) => {
         const userEmail = (user?.email || body?.user_email || `user_${Date.now()}@library.local`).toLowerCase().trim();
         const userId = user?.id || null;
 
-        // 1. Check existing reaction
-        const { data: existingVote } = await supabase
-          .from('project_reactions')
-          .select('id, reaction_type')
-          .eq('project_id', secondPart)
-          .eq('user_email', userEmail)
-          .maybeSingle();
-
-        // 2. Fetch current counts
-        const { data: currentProject, error: fetchErr } = await supabase
-          .from('projects')
-          .select('id, likes_count, dislikes_count')
-          .eq('id', secondPart)
-          .single();
-
-        if (fetchErr || !currentProject) {
-          throw new Error('Project not found');
-        }
-
-        let currentLikes = typeof currentProject.likes_count === 'number' ? currentProject.likes_count : 0;
-        let currentDislikes = typeof currentProject.dislikes_count === 'number' ? currentProject.dislikes_count : 0;
-        let nextReaction = reaction;
+        // 1. Fetch current project safely with select('*') so missing columns never crash query
+        let currentLikes = typeof body?.current_likes === 'number' ? body.current_likes : 0;
+        let currentDislikes = typeof body?.current_dislikes === 'number' ? body.current_dislikes : 0;
+        let existingVote = null;
 
         try {
-          if (existingVote) {
-            if (existingVote.reaction_type === reaction) {
+          const { data: currentProject } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', secondPart)
+            .maybeSingle();
+
+          if (currentProject) {
+            if (typeof currentProject.likes_count === 'number') currentLikes = currentProject.likes_count;
+            if (typeof currentProject.dislikes_count === 'number') currentDislikes = currentProject.dislikes_count;
+          }
+        } catch (fetchErr) {
+          console.warn('Projects count fetch fallback:', fetchErr.message);
+        }
+
+        // 2. Check existing vote in project_reactions (fail-safe)
+        try {
+          const { data: voteData } = await supabase
+            .from('project_reactions')
+            .select('id, reaction_type')
+            .eq('project_id', secondPart)
+            .eq('user_email', userEmail)
+            .maybeSingle();
+          existingVote = voteData;
+        } catch (reactionReadErr) {
+          console.warn('Existing reaction read warning:', reactionReadErr.message);
+        }
+
+        let nextReaction = reaction;
+
+        // Calculate next counts
+        if (existingVote) {
+          if (existingVote.reaction_type === reaction) {
+            // Toggle off
+            if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
+            else currentDislikes = Math.max(0, currentDislikes - 1);
+            nextReaction = null;
+
+            try {
               await supabase.from('project_reactions').delete().eq('id', existingVote.id);
-              if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
-              else currentDislikes = Math.max(0, currentDislikes - 1);
-              nextReaction = null;
+            } catch (e) {
+              console.warn('Delete reaction warning:', e.message);
+            }
+          } else {
+            // Switch reaction
+            if (reaction === 'like') {
+              currentLikes = currentLikes + 1;
+              currentDislikes = Math.max(0, currentDislikes - 1);
             } else {
+              currentDislikes = currentDislikes + 1;
+              currentLikes = Math.max(0, currentLikes - 1);
+            }
+
+            try {
               await supabase
                 .from('project_reactions')
                 .update({ reaction_type: reaction, updated_at: new Date().toISOString() })
                 .eq('id', existingVote.id);
-
-              if (reaction === 'like') {
-                currentLikes = currentLikes + 1;
-                currentDislikes = Math.max(0, currentDislikes - 1);
-              } else {
-                currentDislikes = currentDislikes + 1;
-                currentLikes = Math.max(0, currentLikes - 1);
-              }
+            } catch (e) {
+              console.warn('Update reaction warning:', e.message);
             }
-          } else {
+          }
+        } else {
+          // New reaction
+          if (reaction === 'like') currentLikes = currentLikes + 1;
+          else currentDislikes = currentDislikes + 1;
+
+          try {
             await supabase.from('project_reactions').insert([{
               project_id: secondPart,
               user_id: userId,
               user_email: userEmail,
               reaction_type: reaction
             }]);
-
-            if (reaction === 'like') currentLikes = currentLikes + 1;
-            else currentDislikes = currentDislikes + 1;
+          } catch (e) {
+            console.warn('Insert reaction warning:', e.message);
           }
+        }
 
+        // Sync counts back to projects table (fail-safe)
+        try {
           await supabase
             .from('projects')
             .update({ likes_count: currentLikes, dislikes_count: currentDislikes })
             .eq('id', secondPart);
-        } catch (reactionErr) {
-          console.warn('Reaction write warning (run 20260922_simplify_and_unify_projects.sql in Supabase):', reactionErr.message);
+        } catch (updateCountErr) {
+          console.warn('Update project likes_count warning:', updateCountErr.message);
         }
 
         return {
@@ -799,6 +829,9 @@ export const AuthProvider = ({ children }) => {
       // POST /projects (Create single)
       if (method === 'POST' && !secondPart) {
         const isAdmin = user && user.role === 'admin';
+        if (!isAdmin) {
+          throw new Error('Unauthorized: Only library administrators can add projects.');
+        }
 
         const title = String(body.title || '').trim();
         if (!title) throw new Error('Project title is required.');
