@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  Rocket, Search, X, ThumbsUp, ThumbsDown, ExternalLink, 
+  Rocket, Search, X, Heart, ExternalLink, 
   Github, Globe, Users, Plus, Sparkles, Building2, Calendar, 
   Layers, Filter
 } from 'lucide-react';
@@ -101,36 +101,27 @@ export default function ProjectStudentView({
     };
   }, []);
 
-  // Handle Like / Dislike reaction with instant UI update and local persistence
-  const handleVote = async (projectId, reactionType) => {
-    let nextReaction = reactionType;
+  // Handle Instagram-style Heart Like toggle with instant UI update and local persistence
+  const handleVote = async (projectId, reactionType = 'like') => {
+    let nextReaction = null;
     let nextLikes = 0;
-    let nextDislikes = 0;
 
-    // 1. Optimistically calculate and update state
+    // 1. Optimistically toggle like state (like <-> unlike)
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       let likes = typeof p.likes_count === 'number' ? p.likes_count : 0;
-      let dislikes = typeof p.dislikes_count === 'number' ? p.dislikes_count : 0;
-      const prevVote = p.user_reaction;
+      const isCurrentlyLiked = p.user_reaction === 'like';
 
-      if (prevVote === reactionType) {
+      if (isCurrentlyLiked) {
         nextReaction = null;
-        if (reactionType === 'like') likes = Math.max(0, likes - 1);
-        else dislikes = Math.max(0, dislikes - 1);
+        likes = Math.max(0, likes - 1);
       } else {
-        if (reactionType === 'like') {
-          likes = likes + 1;
-          if (prevVote === 'dislike') dislikes = Math.max(0, dislikes - 1);
-        } else {
-          dislikes = dislikes + 1;
-          if (prevVote === 'like') likes = Math.max(0, likes - 1);
-        }
+        nextReaction = 'like';
+        likes = likes + 1;
       }
 
       nextLikes = likes;
-      nextDislikes = dislikes;
-      return { ...p, likes_count: likes, dislikes_count: dislikes, user_reaction: nextReaction };
+      return { ...p, likes_count: likes, user_reaction: nextReaction };
     }));
 
     // 2. Also keep the opened modal synced
@@ -139,15 +130,14 @@ export default function ProjectStudentView({
       return {
         ...prev,
         likes_count: nextLikes,
-        dislikes_count: nextDislikes,
         user_reaction: nextReaction
       };
     });
 
-    // 3. Persist in localStorage so it never disappears on refresh
+    // 3. Persist in localStorage so state remains accurate on refresh
     try {
       const stored = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
-      stored[projectId] = { reaction: nextReaction, likes: nextLikes, dislikes: nextDislikes };
+      stored[projectId] = { reaction: nextReaction, likes: nextLikes };
       localStorage.setItem('sistec_project_votes', JSON.stringify(stored));
     } catch (e) {}
 
@@ -156,26 +146,23 @@ export default function ProjectStudentView({
       const res = await apiCall(`/projects/${projectId}/vote`, {
         method: 'POST',
         body: JSON.stringify({
-          reaction: reactionType,
+          reaction: 'like',
           user_email: user?.email,
-          current_likes: nextLikes,
-          current_dislikes: nextDislikes
+          current_likes: nextLikes
         })
       });
 
       return {
         success: true,
-        user_reaction: res?.user_reaction ?? nextReaction,
-        likes_count: res?.likes_count ?? nextLikes,
-        dislikes_count: res?.dislikes_count ?? nextDislikes
+        user_reaction: res?.user_reaction !== undefined ? res.user_reaction : nextReaction,
+        likes_count: typeof res?.likes_count === 'number' ? res.likes_count : nextLikes
       };
     } catch (err) {
       console.warn('Vote background sync note:', err.message);
       return {
         success: true,
         user_reaction: nextReaction,
-        likes_count: nextLikes,
-        dislikes_count: nextDislikes
+        likes_count: nextLikes
       };
     }
   };
@@ -648,7 +635,7 @@ export default function ProjectStudentView({
                   justifyContent: 'space-between',
                   background: 'rgba(255, 255, 255, 0.01)'
                 }}>
-                  {/* Reaction Buttons */}
+                  {/* Instagram-Style Heart Like Button */}
                   <div 
                     style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                     onClick={(e) => e.stopPropagation()}
@@ -656,45 +643,27 @@ export default function ProjectStudentView({
                     <button
                       onClick={() => handleVote(project.id, 'like')}
                       style={{
-                        background: project.user_reaction === 'like' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.04)',
-                        border: project.user_reaction === 'like' ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border-glass)',
-                        color: project.user_reaction === 'like' ? 'var(--primary, #6366f1)' : 'var(--text-secondary)',
-                        borderRadius: '8px',
-                        padding: '4px 8px',
+                        background: project.user_reaction === 'like' ? 'rgba(244, 63, 94, 0.16)' : 'rgba(255,255,255,0.04)',
+                        border: project.user_reaction === 'like' ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid var(--border-glass)',
+                        color: project.user_reaction === 'like' ? '#f43f5e' : 'var(--text-secondary)',
+                        borderRadius: '20px',
+                        padding: '5px 11px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
+                        gap: '6px',
                         cursor: 'pointer',
-                        fontSize: '0.76rem',
-                        fontWeight: 600,
-                        transition: 'all 0.15s ease'
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                       }}
-                      title="Like"
+                      title={project.user_reaction === 'like' ? "Unlike" : "Like"}
                     >
-                      <ThumbsUp size={13} />
+                      <Heart 
+                        size={14} 
+                        fill={project.user_reaction === 'like' ? '#f43f5e' : 'none'} 
+                        color={project.user_reaction === 'like' ? '#f43f5e' : 'currentColor'} 
+                      />
                       <span>{likes}</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleVote(project.id, 'dislike')}
-                      style={{
-                        background: project.user_reaction === 'dislike' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.04)',
-                        border: project.user_reaction === 'dislike' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-glass)',
-                        color: project.user_reaction === 'dislike' ? '#f87171' : 'var(--text-muted)',
-                        borderRadius: '8px',
-                        padding: '4px 8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.76rem',
-                        fontWeight: 600,
-                        transition: 'all 0.15s ease'
-                      }}
-                      title="Dislike"
-                    >
-                      <ThumbsDown size={13} />
-                      <span>{dislikes}</span>
                     </button>
                   </div>
 

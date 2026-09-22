@@ -5,67 +5,115 @@ import * as XLSX from 'xlsx';
 import { 
   X, Upload, FileSpreadsheet, Link as LinkIcon, Check, 
   AlertCircle, ArrowRight, ArrowLeft, RefreshCw, 
-  Download 
+  Download, Copy, FileText 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const DB_TARGET_FIELDS = [
   { value: 'ignore', label: '— Ignore This Column —' },
   { value: 'title', label: 'Project Title (Required)' },
-  { value: 'short_description', label: 'Short Description' },
-  { value: 'description', label: 'Full Description' },
-  { value: 'project_type', label: 'Project Type' },
-  { value: 'department', label: 'Department' },
-  { value: 'branch_name', label: 'Branch Name' },
-  { value: 'eligibility', label: 'Eligibility' },
-  { value: 'required_skills', label: 'Required Skills' },
-  { value: 'major', label: 'Major Specialization' },
-  { value: 'minor', label: 'Minor Specialization' },
-  { value: 'batch', label: 'Batch / Year' },
-  { value: 'team_size', label: 'Team Size' },
-  { value: 'mentor_name', label: 'Mentor / Faculty Lead' },
-  { value: 'organization', label: 'Organization / Lab' },
-  { value: 'application_mode', label: 'Application Mode' },
-  { value: 'application_deadline', label: 'Application Deadline' },
-  { value: 'google_form_url', label: 'Google Form URL' },
-  { value: 'application_url', label: 'Application URL' },
-  { value: 'resource_url', label: 'Resource / Drive URL' },
-  { value: 'contact_name', label: 'Contact Person' },
-  { value: 'contact_email', label: 'Contact Email' },
-  { value: 'is_published', label: 'Published Status (true/false)' },
-  { value: 'is_active', label: 'Active Status (true/false)' },
-  { value: 'sort_order', label: 'Sort Order' }
+  { value: 'project_type', label: 'Project Category / Type' },
+  { value: 'short_description', label: 'Short Description / Tagline' },
+  { value: 'description', label: 'Full Scope / Description' },
+  { value: 'branch_name', label: 'Department / Branch' },
+  { value: 'batch', label: 'Batch / Graduation Year' },
+  { value: 'team_members', label: 'Team Members (Smart Parsed)' },
+  { value: 'image_url', label: 'Cover Image / Screenshot (Auto Drive CDN)' },
+  { value: 'live_url', label: 'Live Demo URL' },
+  { value: 'github_url', label: 'GitHub Repository URL' },
+  { value: 'mentor_name', label: 'Faculty Mentor / Guide' },
+  { value: 'is_published', label: 'Published Status (true/false)' }
 ];
+
+// Automatically converts Google Drive share links to fast direct preview URLs
+export function convertDriveImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  const m1 = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1 && m1[1]) return `https://lh3.googleusercontent.com/d/${m1[1]}`;
+  const m2 = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m2 && m2[1]) return `https://lh3.googleusercontent.com/d/${m2[1]}`;
+  return trimmed;
+}
+
+// Intelligently parses free-text team members into structured JSON objects
+export function parseTeamMembers(rawText, defaultBranch = '', defaultBatch = '') {
+  if (!rawText) return [];
+  if (Array.isArray(rawText)) return rawText;
+  if (typeof rawText !== 'string') return [];
+
+  const lines = rawText.split(/[\r\n;]+/).map(s => s.trim()).filter(Boolean);
+  const results = [];
+
+  lines.forEach(line => {
+    const parts = line.split(/,(?![^()]*\))/).map(s => s.trim()).filter(Boolean);
+    parts.forEach(part => {
+      let linkedin = '';
+      const linkedinMatch = part.match(/https?:\/\/(?:www\.)?linkedin\.com\/[^\s\)]+/i);
+      if (linkedinMatch) {
+        linkedin = linkedinMatch[0];
+        part = part.replace(linkedin, '').trim();
+      }
+
+      const parenMatch = part.match(/\((.*?)\)/);
+      let name = part;
+      let branch = defaultBranch;
+      let passout_year = defaultBatch;
+
+      if (parenMatch) {
+        name = part.replace(parenMatch[0], '').replace(/[-–,]/g, ' ').trim();
+        const inner = parenMatch[1];
+        const yMatch = inner.match(/\b(20\d{2})\b/);
+        if (yMatch) passout_year = yMatch[1];
+        const branchClean = inner.replace(/\b20\d{2}\b/, '').replace(/[-–,]/g, ' ').trim();
+        if (branchClean) branch = branchClean;
+      } else if (part.includes('-') || part.includes('–')) {
+        const chunks = part.split(/[-–]/).map(c => c.trim());
+        name = chunks[0] || '';
+        if (chunks[1]) {
+          const yMatch = chunks[1].match(/\b(20\d{2})\b/);
+          if (yMatch) passout_year = yMatch[1];
+          else branch = chunks[1];
+        }
+        if (chunks[2]) {
+          const yMatch = chunks[2].match(/\b(20\d{2})\b/);
+          if (yMatch) passout_year = yMatch[1];
+          else if (!branch) branch = chunks[2];
+        }
+      }
+
+      name = name.replace(/^[\d\.\s*-]+/, '').trim();
+      if (name) {
+        results.push({
+          name,
+          branch: branch || 'Engineering',
+          passout_year: passout_year || '2025',
+          linkedin_url: linkedin
+        });
+      }
+    });
+  });
+
+  return results.length > 0 ? results : [{ name: rawText.slice(0, 50), branch: defaultBranch || 'Engineering', passout_year: defaultBatch || '2025' }];
+}
 
 // Helper for automatic header matching
 function autoDetectField(headerName) {
   if (!headerName) return 'ignore';
   const h = String(headerName).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  if (h.includes('projecttitle') || h === 'title' || h === 'topic' || h === 'projectname') return 'title';
-  if (h.includes('shortdesc') || h.includes('summary') || h.includes('brief')) return 'short_description';
-  if (h.includes('desc') || h.includes('scope') || h.includes('methodology') || h.includes('deliverables')) return 'description';
-  if (h.includes('projecttype') || h === 'type' || h === 'category') return 'project_type';
-  if (h.includes('dept') || h.includes('department')) return 'department';
-  if (h.includes('branch') || h.includes('discipline')) return 'branch_name';
-  if (h.includes('eligib') || h.includes('criteria')) return 'eligibility';
-  if (h.includes('skill') || h.includes('techstack') || h.includes('technology') || h.includes('tools')) return 'required_skills';
-  if (h.includes('major')) return 'major';
-  if (h.includes('minor')) return 'minor';
-  if (h.includes('batch') || h.includes('gradyear') || h.includes('yearofpassing')) return 'batch';
-  if (h.includes('teamsize') || h.includes('teams') || h.includes('members')) return 'team_size';
-  if (h.includes('mentor') || h.includes('faculty') || h.includes('guide')) return 'mentor_name';
-  if (h.includes('org') || h.includes('company') || h.includes('lab') || h.includes('sponsor')) return 'organization';
-  if (h.includes('mode') || h.includes('appmode')) return 'application_mode';
-  if (h.includes('deadline') || h.includes('lastdate') || h.includes('duedate')) return 'application_deadline';
-  if (h.includes('googleform') || h.includes('formurl') || h.includes('formlink')) return 'google_form_url';
-  if (h.includes('appurl') || h.includes('applyurl') || h.includes('registrationlink')) return 'application_url';
-  if (h.includes('drive') || h.includes('resource') || h.includes('docurl') || h.includes('proposal')) return 'resource_url';
-  if (h.includes('contactname') || h.includes('contactperson') || h.includes('coordinator')) return 'contact_name';
-  if (h.includes('email') || h.includes('mail')) return 'contact_email';
-  if (h.includes('published') || h.includes('ispublished')) return 'is_published';
-  if (h.includes('active') || h.includes('isactive')) return 'is_active';
-  if (h.includes('sortorder') || h.includes('order')) return 'sort_order';
+  if (h.includes('projecttitle') || h === 'title' || h === 'topic' || h.includes('projectname') || h.includes('nameofproject')) return 'title';
+  if (h.includes('category') || h.includes('projecttype') || h === 'type' || h.includes('majorminor')) return 'project_type';
+  if (h.includes('shortdesc') || h.includes('tagline') || h.includes('summary') || h.includes('brief') || h.includes('overview')) return 'short_description';
+  if (h.includes('desc') || h.includes('scope') || h.includes('methodology') || h.includes('problem') || h.includes('details') || h.includes('techstack')) return 'description';
+  if (h.includes('branch') || h.includes('dept') || h.includes('department') || h.includes('stream') || h.includes('discipline')) return 'branch_name';
+  if (h.includes('batch') || h.includes('passingyear') || h.includes('gradyear') || h.includes('passout') || h === 'year') return 'batch';
+  if (h.includes('team') || h.includes('member') || h.includes('student') || h.includes('authors') || h.includes('contributor')) return 'team_members';
+  if (h.includes('image') || h.includes('cover') || h.includes('screenshot') || h.includes('poster') || h.includes('banner') || h.includes('photo') || h.includes('drive')) return 'image_url';
+  if (h.includes('live') || h.includes('demo') || h.includes('website') || h.includes('deploy') || (h.includes('link') && !h.includes('git') && !h.includes('image'))) return 'live_url';
+  if (h.includes('github') || h.includes('git') || h.includes('repo') || h.includes('repository') || h.includes('sourcecode')) return 'github_url';
+  if (h.includes('mentor') || h.includes('guide') || h.includes('faculty') || h.includes('supervisor')) return 'mentor_name';
+  if (h.includes('publish') || h.includes('status')) return 'is_published';
 
   return 'ignore';
 }
@@ -80,8 +128,9 @@ export default function ProjectImportWizard({
 
   // Wizard Steps: 1: Source -> 2: Preview & Map -> 3: Validate & Duplicates -> 4: Executing / Result
   const [currentStep, setCurrentStep] = useState(1);
-  const [sourceType, setSourceType] = useState('excel'); // 'excel' | 'csv' | 'google_sheet'
+  const [sourceType, setSourceType] = useState('paste'); // 'paste' | 'excel' | 'csv' | 'google_sheet'
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [pasteText, setPasteText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
 
   // Parsing States
@@ -199,6 +248,36 @@ export default function ProjectImportWizard({
     }
   };
 
+  // Handle Direct Paste from Google Sheets or CSV
+  const handlePasteData = () => {
+    if (!pasteText || !pasteText.trim()) {
+      setParseError('Please paste rows copied from your Google Sheet or spreadsheet.');
+      return;
+    }
+    setParseError('');
+    try {
+      const lines = pasteText.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length < 2) {
+        throw new Error('Please include at least a header row and 1 data row copied from Google Sheets.');
+      }
+      const delimiter = lines[0].includes('\t') ? '\t' : ',';
+      const rawHeaders = lines[0].split(delimiter).map((h, i) => String(h || `Column_${i + 1}`).trim());
+      const dataRows = lines.slice(1).map(l => l.split(delimiter).map(c => c.trim()));
+
+      const initialMappings = {};
+      rawHeaders.forEach((h, idx) => {
+        initialMappings[idx] = autoDetectField(h);
+      });
+
+      setParsedHeaders(rawHeaders);
+      setParsedRows(dataRows);
+      setColumnMappings(initialMappings);
+      setCurrentStep(2);
+    } catch (err) {
+      setParseError(err.message || 'Failed to parse pasted data.');
+    }
+  };
+
   // Convert parsed rows using current column mappings
   const mappedObjects = useMemo(() => {
     return parsedRows.map(row => {
@@ -256,11 +335,26 @@ export default function ProjectImportWizard({
     setParseError('');
 
     try {
-      const payloadItems = mappedObjects.filter(item => Boolean((item.title || '').trim())).map(item => ({
-        ...item,
-        source_type: sourceType === 'google_sheet' ? 'google_sheet' : (sourceType === 'csv' ? 'csv' : 'excel'),
-        source_reference: sourceType === 'google_sheet' ? googleSheetUrl.trim() : (selectedFile ? selectedFile.name : null)
-      }));
+      const payloadItems = mappedObjects.filter(item => Boolean((item.title || '').trim())).map(item => {
+        const branch = item.branch_name || 'Engineering';
+        const batch = item.batch || '2025';
+        return {
+          title: item.title.trim(),
+          project_type: item.project_type || 'Academic Project',
+          short_description: item.short_description || (item.description ? item.description.slice(0, 160) : 'Student innovation project.'),
+          description: item.description || item.short_description || 'Student project description and scope.',
+          branch_name: branch,
+          batch: batch,
+          image_url: convertDriveImageUrl(item.image_url),
+          live_url: item.live_url || '',
+          github_url: item.github_url || '',
+          team_members: parseTeamMembers(item.team_members, branch, batch),
+          mentor_name: item.mentor_name || '',
+          is_published: item.is_published !== undefined ? (String(item.is_published).toLowerCase() !== 'false') : true,
+          source_type: sourceType,
+          source_reference: sourceType === 'google_sheet' ? googleSheetUrl.trim() : (sourceType === 'paste' ? 'Google Sheet Tabular Paste' : (selectedFile ? selectedFile.name : null))
+        };
+      });
 
       const res = await apiCall('/projects/bulk-import', {
         method: 'POST',
@@ -418,12 +512,29 @@ export default function ProjectImportWizard({
           {/* STEP 1: SOURCE SELECTION */}
           {currentStep === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
+                {/* Direct Paste Option */}
+                <div
+                  onClick={() => setSourceType('paste')}
+                  style={{
+                    padding: '16px',
+                    borderRadius: '14px',
+                    border: sourceType === 'paste' ? '2px solid var(--primary)' : '1px solid var(--border-glass)',
+                    background: sourceType === 'paste' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255,255,255,0.02)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Copy size={26} color="#818cf8" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>Paste Responses</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>Copy-paste cells directly from Google Sheet</div>
+                </div>
+
                 {/* Excel Option */}
                 <div
                   onClick={() => setSourceType('excel')}
                   style={{
-                    padding: '18px',
+                    padding: '16px',
                     borderRadius: '14px',
                     border: sourceType === 'excel' ? '2px solid var(--primary)' : '1px solid var(--border-glass)',
                     background: sourceType === 'excel' ? 'rgba(37,99,235,0.08)' : 'rgba(255,255,255,0.02)',
@@ -431,16 +542,16 @@ export default function ProjectImportWizard({
                     transition: 'all 0.2s'
                   }}
                 >
-                  <FileSpreadsheet size={28} color="#10b981" style={{ marginBottom: '10px' }} />
-                  <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-primary)' }}>Excel File</div>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>Upload .xlsx or .xls spreadsheet</div>
+                  <FileSpreadsheet size={26} color="#10b981" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>Excel File</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>Upload .xlsx or .xls spreadsheet</div>
                 </div>
 
                 {/* CSV Option */}
                 <div
                   onClick={() => setSourceType('csv')}
                   style={{
-                    padding: '18px',
+                    padding: '16px',
                     borderRadius: '14px',
                     border: sourceType === 'csv' ? '2px solid var(--primary)' : '1px solid var(--border-glass)',
                     background: sourceType === 'csv' ? 'rgba(37,99,235,0.08)' : 'rgba(255,255,255,0.02)',
@@ -448,16 +559,16 @@ export default function ProjectImportWizard({
                     transition: 'all 0.2s'
                   }}
                 >
-                  <FileSpreadsheet size={28} color="#0ea5e9" style={{ marginBottom: '10px' }} />
-                  <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-primary)' }}>CSV File</div>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>Upload comma-separated values (.csv)</div>
+                  <FileSpreadsheet size={26} color="#0ea5e9" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>CSV File</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>Upload comma-separated values (.csv)</div>
                 </div>
 
                 {/* Google Sheet URL */}
                 <div
                   onClick={() => setSourceType('google_sheet')}
                   style={{
-                    padding: '18px',
+                    padding: '16px',
                     borderRadius: '14px',
                     border: sourceType === 'google_sheet' ? '2px solid var(--primary)' : '1px solid var(--border-glass)',
                     background: sourceType === 'google_sheet' ? 'rgba(37,99,235,0.08)' : 'rgba(255,255,255,0.02)',
@@ -465,14 +576,59 @@ export default function ProjectImportWizard({
                     transition: 'all 0.2s'
                   }}
                 >
-                  <LinkIcon size={28} color="#f59e0b" style={{ marginBottom: '10px' }} />
-                  <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-primary)' }}>Google Sheet URL</div>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>Import directly from shareable Google Sheet link</div>
+                  <LinkIcon size={26} color="#f59e0b" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>Google Sheet URL</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>Link via public sheet URL</div>
                 </div>
               </div>
 
-              {/* Upload or Link Input */}
-              {(sourceType === 'excel' || sourceType === 'csv') ? (
+              {/* Source-specific Input Form */}
+              {sourceType === 'paste' ? (
+                <div style={{
+                  padding: '20px',
+                  borderRadius: '16px',
+                  border: '1px solid var(--border-glass)',
+                  background: 'rgba(255, 255, 255, 0.02)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Paste Google Sheet Rows:
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Tip: In Google Sheets, select rows including header and press Ctrl+C
+                    </span>
+                  </div>
+                  <textarea
+                    className="glass-input"
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    placeholder="Timestamp&#9;Project Title&#9;Category&#9;Branch&#9;Batch&#9;Team Members&#9;Screenshot Drive Link&#9;Live Link&#9;GitHub...&#10;(Paste copied rows here - Ctrl+V)"
+                    rows={7}
+                    style={{
+                      width: '100%',
+                      fontFamily: 'monospace',
+                      fontSize: '0.8rem',
+                      lineHeight: 1.4,
+                      padding: '12px',
+                      marginBottom: '14px',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      ⚡ Intelligent engine converts Google Drive image links and formats team members automatically.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handlePasteData}
+                      className="btn btn-primary btn-shine"
+                      style={{ padding: '9px 20px', borderRadius: '10px', gap: '8px', fontWeight: 700 }}
+                    >
+                      <ArrowRight size={14} /> Parse & Auto-Map Columns
+                    </button>
+                  </div>
+                </div>
+              ) : (sourceType === 'excel' || sourceType === 'csv') ? (
                 <div style={{
                   padding: '36px 20px',
                   borderRadius: '16px',

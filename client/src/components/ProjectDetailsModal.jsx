@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { 
-  X, ExternalLink, Github, Globe, ThumbsUp, ThumbsDown, 
+  X, ExternalLink, Github, Globe, Heart, 
   Linkedin, Users, GraduationCap, Building2, Sparkles, FileText
 } from 'lucide-react';
 
@@ -14,7 +14,6 @@ export default function ProjectDetailsModal({
   if (!project) return null;
 
   const [currentLikes, setCurrentLikes] = useState(typeof project.likes_count === 'number' ? project.likes_count : 0);
-  const [currentDislikes, setCurrentDislikes] = useState(typeof project.dislikes_count === 'number' ? project.dislikes_count : 0);
   const [userReaction, setUserReaction] = useState(project.user_reaction || null);
   const [voting, setVoting] = useState(false);
 
@@ -24,49 +23,32 @@ export default function ProjectDetailsModal({
       ? [{ name: 'Project Lead / Team', branch: project.branch_name || '', passout_year: project.batch || '' }]
       : [];
 
-  const handleReactionClick = async (reactionType) => {
+  const handleReactionClick = async () => {
     if (voting) return;
     setVoting(true);
 
-    let nextReaction = reactionType;
-    let nextLikes = currentLikes;
-    let nextDislikes = currentDislikes;
-
-    // Optimistic calculation
-    if (userReaction === reactionType) {
-      nextReaction = null;
-      if (reactionType === 'like') nextLikes = Math.max(0, nextLikes - 1);
-      else nextDislikes = Math.max(0, nextDislikes - 1);
-    } else {
-      if (reactionType === 'like') {
-        nextLikes = nextLikes + 1;
-        if (userReaction === 'dislike') nextDislikes = Math.max(0, nextDislikes - 1);
-      } else {
-        nextDislikes = nextDislikes + 1;
-        if (userReaction === 'like') nextLikes = Math.max(0, nextLikes - 1);
-      }
-    }
+    const isCurrentlyLiked = userReaction === 'like';
+    const nextReaction = isCurrentlyLiked ? null : 'like';
+    const nextLikes = isCurrentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
 
     // Update local modal state immediately
     setUserReaction(nextReaction);
     setCurrentLikes(nextLikes);
-    setCurrentDislikes(nextDislikes);
 
     // Persist immediately in localStorage
     try {
       const stored = JSON.parse(localStorage.getItem('sistec_project_votes') || '{}');
-      stored[project.id] = { reaction: nextReaction, likes: nextLikes, dislikes: nextDislikes };
+      stored[project.id] = { reaction: nextReaction, likes: nextLikes };
       localStorage.setItem('sistec_project_votes', JSON.stringify(stored));
     } catch (e) {}
 
     // Call onVote handler
     try {
       if (onVote) {
-        const res = await onVote(project.id, reactionType);
+        const res = await onVote(project.id, 'like');
         if (res && res.success) {
           if (res.user_reaction !== undefined) setUserReaction(res.user_reaction);
           if (typeof res.likes_count === 'number') setCurrentLikes(res.likes_count);
-          if (typeof res.dislikes_count === 'number') setCurrentDislikes(res.dislikes_count);
         }
       }
     } catch (err) {
@@ -234,54 +216,33 @@ export default function ProjectDetailsModal({
               {project.title}
             </h1>
 
-            {/* Like & Dislike Reaction Bar */}
-            <div className="project-details-reaction-bar">
+            {/* Instagram-Style Heart Like Reaction Bar */}
+            <div className="project-details-reaction-bar" style={{ display: 'flex', alignItems: 'center' }}>
               <button
-                onClick={() => handleReactionClick('like')}
+                onClick={handleReactionClick}
                 disabled={voting}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  background: userReaction === 'like' ? 'rgba(99, 102, 241, 0.28)' : 'transparent',
-                  border: userReaction === 'like' ? '1px solid #6366f1' : '1px solid transparent',
-                  color: userReaction === 'like' ? '#818cf8' : 'var(--text-secondary)',
-                  borderRadius: '8px',
-                  padding: '6px 12px',
+                  gap: '7px',
+                  background: userReaction === 'like' ? 'rgba(244, 63, 94, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                  border: userReaction === 'like' ? '1px solid rgba(244, 63, 94, 0.45)' : '1px solid var(--border-glass)',
+                  color: userReaction === 'like' ? '#f43f5e' : 'var(--text-secondary)',
+                  borderRadius: '20px',
+                  padding: '7px 16px',
                   cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                  fontSize: '0.86rem',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  fontSize: '0.88rem',
                   fontWeight: 700
                 }}
-                title="Like this project"
+                title={userReaction === 'like' ? "Unlike" : "Like this project"}
               >
-                <ThumbsUp size={15} style={{ color: userReaction === 'like' ? '#818cf8' : 'currentColor' }} />
+                <Heart 
+                  size={16} 
+                  fill={userReaction === 'like' ? '#f43f5e' : 'none'} 
+                  color={userReaction === 'like' ? '#f43f5e' : 'currentColor'} 
+                />
                 <span>{currentLikes}</span>
-              </button>
-
-              <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.1)' }} />
-
-              <button
-                onClick={() => handleReactionClick('dislike')}
-                disabled={voting}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: userReaction === 'dislike' ? 'rgba(239, 68, 68, 0.22)' : 'transparent',
-                  border: userReaction === 'dislike' ? '1px solid #ef4444' : '1px solid transparent',
-                  color: userReaction === 'dislike' ? '#f87171' : 'var(--text-muted)',
-                  borderRadius: '8px',
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                  fontSize: '0.86rem',
-                  fontWeight: 700
-                }}
-                title="Dislike"
-              >
-                <ThumbsDown size={15} style={{ color: userReaction === 'dislike' ? '#f87171' : 'currentColor' }} />
-                <span>{currentDislikes}</span>
               </button>
             </div>
           </div>

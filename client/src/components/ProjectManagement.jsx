@@ -4,12 +4,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Rocket, Plus, Search, Edit, Trash2, Eye, EyeOff, X, 
   AlertTriangle, RefreshCw, Sparkles, FileText, Globe, Github,
-  ThumbsUp, ThumbsDown, Users, Check, ExternalLink, Copy, CheckCheck
+  Heart, Users, Check, ExternalLink, Copy, CheckCheck, Upload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ProjectFormModal, { PROJECT_TYPES } from './ProjectFormModal';
 import ProjectDetailsModal from './ProjectDetailsModal';
+import GoogleFormTemplateModal from './GoogleFormTemplateModal';
+import ProjectImportWizard from './ProjectImportWizard';
 import EmptyState from './EmptyState';
 
 export default function ProjectManagement({
@@ -33,6 +35,7 @@ export default function ProjectManagement({
   const [editingProject, setEditingProject] = useState(null);
   const [viewingProject, setViewingProject] = useState(null);
   const [isFormTemplateOpen, setIsFormTemplateOpen] = useState(false);
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
   const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   // Deletion Confirmation
@@ -260,10 +263,20 @@ export default function ProjectManagement({
             onClick={() => setIsFormTemplateOpen(true)}
             className="btn btn-secondary"
             style={{ padding: '8px 14px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Simplified Google Form instructions for collecting projects"
+            title="Create & configure Google Form for student submissions"
           >
-            <FileText size={15} />
-            <span>Google Form Template</span>
+            <FileText size={15} style={{ color: 'var(--primary, #6366f1)' }} />
+            <span>Google Form Setup</span>
+          </button>
+
+          <button
+            onClick={() => setIsImportWizardOpen(true)}
+            className="btn btn-secondary"
+            style={{ padding: '8px 14px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Import projects from Google Sheet responses, CSV, or Excel"
+          >
+            <Upload size={15} style={{ color: '#10b981' }} />
+            <span>Import from Google Form</span>
           </button>
 
           <button
@@ -278,7 +291,7 @@ export default function ProjectManagement({
 
           <button
             onClick={() => { setEditingProject(null); setIsFormOpen(true); }}
-            className="btn btn-primary"
+            className="btn btn-primary btn-shine"
             style={{ padding: '8px 18px', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Plus size={16} />
@@ -394,7 +407,7 @@ export default function ProjectManagement({
                   <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Category</th>
                   <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</th>
                   <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Branch / Batch</th>
-                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Reactions</th>
+                  <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Likes</th>
                   <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600 }}>Status</th>
                   <th style={{ padding: '14px 18px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -492,15 +505,11 @@ export default function ProjectManagement({
                         </div>
                       </td>
 
-                      {/* Reactions */}
+                      {/* Likes */}
                       <td style={{ padding: '14px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#818cf8' }}>
-                            <ThumbsUp size={12} /> {likes}
-                          </span>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--text-muted)' }}>
-                            <ThumbsDown size={12} /> {dislikes}
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#f43f5e', fontWeight: 700 }}>
+                          <Heart size={14} fill="#f43f5e" />
+                          <span>{likes}</span>
                         </div>
                       </td>
 
@@ -648,71 +657,19 @@ export default function ProjectManagement({
         </div>
       )}
 
-      {/* Simplified Google Form Template Modal */}
-      {isFormTemplateOpen && (
-        <div 
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) setIsFormTemplateOpen(false); }}
-        >
-          <div className="glass-panel" style={{ maxWidth: '580px', width: '100%', borderRadius: '22px', padding: '26px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FileText size={18} />
-                </div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Google Form Setup Guide</h3>
-              </div>
-              <button onClick={() => setIsFormTemplateOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
+      {/* Google Form Setup & Question Structure Modal */}
+      <GoogleFormTemplateModal
+        isOpen={isFormTemplateOpen}
+        onClose={() => setIsFormTemplateOpen(false)}
+      />
 
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
-              If you prefer collecting student projects via a Google Form, create a form with these 6 simple fields:
-            </p>
-
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.3)',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '12px',
-              padding: '16px',
-              fontSize: '0.82rem',
-              color: 'var(--text-primary)',
-              lineHeight: 1.7,
-              marginBottom: '18px',
-              fontFamily: 'monospace'
-            }}>
-              <div>1. <strong>Project Title</strong> (Short answer)</div>
-              <div>2. <strong>Project Type</strong> (Dropdown: Major, Minor, Academic, Hackathon, etc.)</div>
-              <div>3. <strong>Cover Image Link</strong> (Short answer - Optional)</div>
-              <div>4. <strong>Short Description</strong> (Paragraph)</div>
-              <div>5. <strong>Team Members</strong> (Paragraph - Name, Branch, Batch, LinkedIn)</div>
-              <div>6. <strong>Live Link & GitHub Link</strong> (Short answer - Optional)</div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={copyFormQuestions}
-                className="btn btn-primary"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', fontSize: '0.86rem' }}
-              >
-                {copiedTemplate ? <CheckCheck size={16} /> : <Copy size={16} />}
-                <span>{copiedTemplate ? 'Copied Template!' : 'Copy Questions Template'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Intelligent Google Form / Sheets Project Import Wizard */}
+      <ProjectImportWizard
+        isOpen={isImportWizardOpen}
+        onClose={() => setIsImportWizardOpen(false)}
+        existingProjects={projects}
+        onImportComplete={() => fetchProjects(true)}
+      />
 
       {/* Add / Edit Project Modal */}
       {isFormOpen && (

@@ -621,37 +621,40 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      // POST /projects/:id/vote
+      // POST /projects/:id/vote (Instagram-style Like Toggle)
       if (method === 'POST' && secondPart && thirdPart === 'vote') {
-        const reaction = body?.reaction; // 'like' | 'dislike'
-        if (!reaction || !['like', 'dislike'].includes(reaction)) {
-          throw new Error('Invalid reaction type. Must be "like" or "dislike".');
+        // Stable user identifier (never use Date.now() which caused duplicate log entries)
+        let userEmail = '';
+        if (user && user.email) {
+          userEmail = user.email.toLowerCase().trim();
+        } else if (body?.user_email && String(body.user_email).trim()) {
+          userEmail = String(body.user_email).toLowerCase().trim();
+        } else if (body?.device_id) {
+          userEmail = `dev_${String(body.device_id).replace(/[^a-zA-Z0-9_-]/g, '')}@student.local`;
+        } else {
+          userEmail = 'guest_student@library.local';
         }
 
-        const userEmail = (user?.email || body?.user_email || `user_${Date.now()}@library.local`).toLowerCase().trim();
         const userId = user?.id || null;
 
-        // 1. Fetch current project safely with select('*') so missing columns never crash query
+        // 1. Fetch current likes count from projects table
         let currentLikes = typeof body?.current_likes === 'number' ? body.current_likes : 0;
-        let currentDislikes = typeof body?.current_dislikes === 'number' ? body.current_dislikes : 0;
-        let existingVote = null;
-
         try {
           const { data: currentProject } = await supabase
             .from('projects')
-            .select('*')
+            .select('likes_count')
             .eq('id', secondPart)
             .maybeSingle();
 
-          if (currentProject) {
-            if (typeof currentProject.likes_count === 'number') currentLikes = currentProject.likes_count;
-            if (typeof currentProject.dislikes_count === 'number') currentDislikes = currentProject.dislikes_count;
+          if (currentProject && typeof currentProject.likes_count === 'number') {
+            currentLikes = currentProject.likes_count;
           }
         } catch (fetchErr) {
-          console.warn('Projects count fetch fallback:', fetchErr.message);
+          console.warn('Project likes_count fetch fallback:', fetchErr.message);
         }
 
-        // 2. Check existing vote in project_reactions (fail-safe)
+        // 2. Check existing vote in project_reactions
+        let existingVote = null;
         try {
           const { data: voteData } = await supabase
             .from('project_reactions')
@@ -661,75 +664,78 @@ export const AuthProvider = ({ children }) => {
             .maybeSingle();
           existingVote = voteData;
         } catch (reactionReadErr) {
-          console.warn('Existing reaction read warning:', reactionReadErr.message);
+          console.warn('Existing reaction read note:', reactionReadErr.message);
         }
 
-        let nextReaction = reaction;
+        let nextReaction = null;
 
-        // Calculate next counts
         if (existingVote) {
-          if (existingVote.reaction_type === reaction) {
-            // Toggle off
-            if (reaction === 'like') currentLikes = Math.max(0, currentLikes - 1);
-            else currentDislikes = Math.max(0, currentDislikes - 1);
-            nextReaction = null;
-
-            try {
-              await supabase.from('project_reactions').delete().eq('id', existingVote.id);
-            } catch (e) {
-              console.warn('Delete reaction warning:', e.message);
-            }
-          } else {
-            // Switch reaction
-            if (reaction === 'like') {
-              currentLikes = currentLikes + 1;
-              currentDislikes = Math.max(0, currentDislikes - 1);
-            } else {
-              currentDislikes = currentDislikes + 1;
-              currentLikes = Math.max(0, currentLikes - 1);
-            }
-
-            try {
-              await supabase
-                .from('project_reactions')
-                .update({ reaction_type: reaction, updated_at: new Date().toISOString() })
-                .eq('id', existingVote.id);
-            } catch (e) {
-              console.warn('Update reaction warning:', e.message);
-            }
-          }
-        } else {
-          // New reaction
-          if (reaction === 'like') currentLikes = currentLikes + 1;
-          else currentDislikes = currentDislikes + 1;
-
+          // User already liked this project -> Unlike (Toggle OFF)
           try {
+            // Delete all reaction records for this user+project to purge any historical log duplicates
+            await supabase
+              .from('project_reactions')
+              .delete()
+              .eq('project_id', secondPart)
+              .eq('user_email', userEmail);
+          } catch (delErr) {
+            console.warn('Delete reaction note:', delErr.message);
+          }
+          nextReaction = null;
+        } else {
+          // User has not liked yet -> Like (Toggle ON)
+          try {
+            // First clean any stale reactions
+            await supabase
+              .from('project_reactions')
+              .delete()
+              .eq('project_id', secondPart)
+              .eq('user_email', userEmail);
+
+            // Insert single clean reaction
             await supabase.from('project_reactions').insert([{
               project_id: secondPart,
               user_id: userId,
               user_email: userEmail,
-              reaction_type: reaction
+              reaction_type: 'like'
             }]);
-          } catch (e) {
-            console.warn('Insert reaction warning:', e.message);
+          } catch (insErr) {
+            console.warn('Insert reaction note:', insErr.message);
           }
+          nextReaction = 'like';
         }
 
-        // Sync counts back to projects table (fail-safe)
+        // 3. Accurately count total likes for this project from project_reactions
+        let calculatedLikes = nextReaction === 'like' ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+        try {
+          const { count: exactCount, error: countErr } = await supabase
+            .from('project_reactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', secondPart)
+            .eq('reaction_type', 'like');
+
+          if (!countErr && typeof exactCount === 'number') {
+            calculatedLikes = exactCount;
+          }
+        } catch (cErr) {
+          console.warn('Count exact likes note:', cErr.message);
+        }
+
+        // 4. Update the projects table with the verified count
         try {
           await supabase
             .from('projects')
-            .update({ likes_count: currentLikes, dislikes_count: currentDislikes })
+            .update({ likes_count: calculatedLikes })
             .eq('id', secondPart);
         } catch (updateCountErr) {
-          console.warn('Update project likes_count warning:', updateCountErr.message);
+          console.warn('Update project likes_count note:', updateCountErr.message);
         }
 
         return {
           success: true,
           user_reaction: nextReaction,
-          likes_count: currentLikes,
-          dislikes_count: currentDislikes
+          is_liked: nextReaction === 'like',
+          likes_count: calculatedLikes
         };
       }
 

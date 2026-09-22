@@ -8,22 +8,16 @@ import {
 
 const AVAILABLE_FIELDS = [
   { id: 'title', label: 'Project Title', defaultChecked: true, required: true, type: 'Short answer' },
-  { id: 'project_type', label: 'Project Type (Academic, Major, Minor, Internship, etc.)', defaultChecked: true, required: true, type: 'Multiple choice / Dropdown' },
-  { id: 'branch_name', label: 'Department / Branch Name', defaultChecked: true, required: true, type: 'Short answer / Dropdown' },
-  { id: 'short_description', label: 'Short Description / Summary', defaultChecked: true, required: false, type: 'Paragraph' },
-  { id: 'description', label: 'Full Project Scope & Methodology', defaultChecked: true, required: false, type: 'Paragraph' },
-  { id: 'required_skills', label: 'Required Skills / Tech Stack', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'eligibility', label: 'Eligibility Criteria', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'major', label: 'Recommended Major Specialization', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'minor', label: 'Recommended Minor Specialization', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'batch', label: 'Batch / Graduation Year', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'team_size', label: 'Expected Team Size (e.g. 2-4 Members)', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'mentor_name', label: 'Faculty Mentor / Project Lead', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'organization', label: 'Organization / Lab / Company', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'application_deadline', label: 'Application Deadline (YYYY-MM-DD)', defaultChecked: true, required: false, type: 'Date' },
-  { id: 'resource_url', label: 'Drive / Document Reference URL', defaultChecked: false, required: false, type: 'Short answer' },
-  { id: 'contact_name', label: 'Contact Person Name', defaultChecked: true, required: false, type: 'Short answer' },
-  { id: 'contact_email', label: 'Contact Email Address', defaultChecked: true, required: false, type: 'Short answer' }
+  { id: 'project_type', label: 'Project Category / Type (Major, Minor, Academic, Hackathon, Research, Open Source)', defaultChecked: true, required: true, type: 'Dropdown / Multiple choice' },
+  { id: 'branch_name', label: 'Department / Branch (e.g. CSE, AIML, IT, ME, EC, Civil, MBA)', defaultChecked: true, required: true, type: 'Dropdown / Short answer' },
+  { id: 'batch', label: 'Batch / Graduation Year (e.g. 2025, 2026)', defaultChecked: true, required: true, type: 'Short answer' },
+  { id: 'short_description', label: 'Short Description / Tagline (1-2 sentences)', defaultChecked: true, required: true, type: 'Paragraph' },
+  { id: 'description', label: 'Full Project Scope, Problem Statement & Tech Stack', defaultChecked: true, required: false, type: 'Paragraph' },
+  { id: 'team_members', label: 'Team Members (Format: Name, Branch, Year, LinkedIn URL)', defaultChecked: true, required: true, type: 'Paragraph' },
+  { id: 'image_url', label: 'Project Screenshot / Cover Poster (Google Drive link or image URL)', defaultChecked: true, required: false, type: 'Short answer' },
+  { id: 'live_url', label: 'Live Deployment Link (Vercel, Netlify, Render, Demo URL)', defaultChecked: true, required: false, type: 'Short answer' },
+  { id: 'github_url', label: 'GitHub Repository Link', defaultChecked: true, required: false, type: 'Short answer' },
+  { id: 'mentor_name', label: 'Faculty Mentor / Project Guide Name', defaultChecked: true, required: false, type: 'Short answer' }
 ];
 
 export default function GoogleFormTemplateModal({
@@ -53,24 +47,26 @@ export default function GoogleFormTemplateModal({
     .join('\n');
 
   const fullInstructions = `SISTEC Central Digital Library Portal
-Google Form Creation & Import Template Guide
+Google Form Creation & Project Submissions Guide
 
-Steps to Collect Project Submissions:
-1. Open Google Forms: https://forms.new
-2. Form Title: SISTEC Student Project & Opportunities Submission Form
-3. Add the following questions in order:
+Step 1: Open Google Forms
+- Click "Open Google Forms" or visit: https://forms.new
+
+Step 2: Set Form Title & Description
+- Title: SISTEC Student Project & Innovation Showcase Submission
+- Description: Submit your academic, major, minor, or hackathon project to be published in the SISTEC Digital Library Portal.
+
+Step 3: Add the Questions:
 ${questionsText}
 
-4. In Google Forms, go to the "Responses" tab:
-   - Click "Link to Sheets" to create a linked Google Spreadsheet.
-5. In the Google Spreadsheet:
-   - Click "Share" (top-right).
-   - Change General access to: "Anyone with the link can view" (Viewer).
-   - Copy the Google Sheet URL.
-6. Return to SISTEC Library Portal:
-   - Go to Admin -> Projects -> Click "Import Projects".
-   - Select "Google Sheet URL", paste the link, and click "Preview & Import".
-   - Review the automatic column mapping and import records directly into the library directory!`;
+Step 4: Link to Google Sheets
+- In Google Forms, switch to the "Responses" tab.
+- Click "Link to Sheets" to automatically send submissions to a Google Spreadsheet.
+
+Step 5: Import into Digital Library in 1 Click:
+- In Google Sheets, copy response rows (Ctrl+C) OR download as CSV/Excel.
+- In SISTEC Library Admin -> Click "Import from Google Form".
+- Paste or upload the file — intelligent auto-detection maps all fields & Drive screenshots automatically!`;
 
   const handleCopyQuestions = async () => {
     try {
