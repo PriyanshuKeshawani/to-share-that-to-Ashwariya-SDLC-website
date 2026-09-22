@@ -23,6 +23,7 @@ import BookOverviewModal from '../components/BookOverviewModal';
 import NotificationBell from '../components/NotificationBell';
 import SeniorMajorsMinorsStudentView from '../components/SeniorMajorsMinorsStudentView';
 import ProjectStudentView from '../components/ProjectStudentView';
+import { getCachedBooks, getCachedCategories, getCachedBranches } from '../db/cacheService';
 
 const StudentDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -150,7 +151,27 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      // 1. Instant Cache Render: load from IndexedDB immediately in <10ms
+      try {
+        const [cachedB, cachedC, cachedBr] = await Promise.all([
+          getCachedBooks(),
+          getCachedCategories(),
+          getCachedBranches()
+        ]);
+        if (cachedB && cachedB.length > 0) {
+          setBooks(cachedB);
+          if (cachedC && cachedC.length > 0) setCategories(cachedC);
+          if (cachedBr && cachedBr.length > 0) setBranches(cachedBr);
+          setLoading(false); // Instant render without skeleton blocker!
+        } else {
+          setLoading(true);
+        }
+      } catch (cacheErr) {
+        console.warn('[StudentDashboard] Local cache read note:', cacheErr);
+        setLoading(true);
+      }
+
+      // 2. Parallel Background Sync / Stale-While-Revalidate
       const [booksData, catsData, branchesData, reqsData, histData, projCount] = await Promise.all([
         apiCall('/books').catch(() => []),
         apiCall('/books/categories').catch(() => []),
@@ -160,9 +181,9 @@ const StudentDashboard = ({ onSelectBook }) => {
         apiCall('/projects/count-published').catch(() => ({ count: 0 }))
       ]);
 
-      setBooks(booksData || []);
-      setCategories(catsData || []);
-      setBranches(branchesData || []);
+      if (booksData && booksData.length > 0) setBooks(booksData);
+      if (catsData && catsData.length > 0) setCategories(catsData);
+      if (branchesData && branchesData.length > 0) setBranches(branchesData);
       setRequests(reqsData || []);
       setHistory(histData || []);
       setPublishedProjectsCount(projCount?.count || 0);

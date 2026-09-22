@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ProjectDetailsModal from './ProjectDetailsModal';
 import EmptyState from './EmptyState';
+import { setCachedLike, queueSyncAction } from '../db/cacheService';
 
 export const PROJECT_TYPES = [
   'Major Project',
@@ -131,6 +132,11 @@ export default function ProjectStudentView({
       };
     });
 
+       // 3b. Cache optimistic state locally
+    if (user?.id) {
+      setCachedLike(user.id, projectId, 'project', optimisticLiked ? 'like' : null, 'pending');
+    }
+
     // 4. Send authoritative request to Supabase
     try {
       const res = await apiCall(`/projects/${projectId}/vote`, {
@@ -140,6 +146,10 @@ export default function ProjectStudentView({
 
       const verifiedLiked = res?.is_liked ?? optimisticLiked;
       const verifiedCount = typeof res?.likes_count === 'number' ? res.likes_count : optimisticCount;
+
+      if (user?.id) {
+        setCachedLike(user.id, projectId, 'project', verifiedLiked ? 'like' : null, 'synced');
+      }
 
       setProjects(prev => prev.map(p => {
         if (p.id !== projectId) return p;
@@ -169,6 +179,21 @@ export default function ProjectStudentView({
       };
     } catch (err) {
       console.warn('Like toggle error in Supabase:', err.message);
+
+      // Check if network is offline -> queue and keep optimistic state
+      if (typeof navigator !== 'undefined' && !navigator.onLine && user?.id) {
+        queueSyncAction(user.id, 'like', `/projects/${projectId}/vote`, { reaction: 'like' });
+        setFeedback({
+          type: 'info',
+          message: 'Saved offline. Your reaction will sync automatically once reconnected.'
+        });
+        return {
+          success: true,
+          is_liked: optimisticLiked,
+          user_reaction: optimisticLiked ? 'like' : null,
+          likes_count: optimisticCount
+        };
+      }
 
       // Rollback optimistic update
       setProjects(prev => prev.map(p => {

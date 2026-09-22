@@ -4,6 +4,21 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { supabase } from '../supabaseClient';
 import { resolveBookCover } from '../utils/bookCoverResolver';
 import { saveNativeFcmToken, initNativeFcmTokenListener } from '../firebase';
+import { clearUserScopedData, getDb } from '../db/indexeddb';
+import {
+  getCachedBooks,
+  setCachedBooks,
+  updateSingleCachedBook,
+  deleteSingleCachedBook,
+  getCachedCategories,
+  setCachedCategories,
+  getCachedBranches,
+  setCachedBranches,
+  saveLocalReadingProgress,
+  getCachedBookmarks,
+  setCachedBookmarks,
+  hasCatalogChanged
+} from '../db/cacheService';
 
 export const BASE_URL =
   (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL)) ||
@@ -242,8 +257,20 @@ export const AuthProvider = ({ children }) => {
     // 1. Branches
     if (endpoint === '/auth/branches' || endpoint === '/books/branches') {
       if (method === 'GET') {
+        const cached = await getCachedBranches();
+        if (cached && cached.length > 0 && !options.skipCache) {
+          // Revalidate in background
+          supabase.from('branches').select('*').order('name', { ascending: true })
+            .then(({ data }) => { if (data) setCachedBranches(data); })
+            .catch(() => {});
+          return cached;
+        }
         const { data, error } = await supabase.from('branches').select('*').order('name', { ascending: true });
-        if (error) throw error;
+        if (error) {
+          if (cached && cached.length > 0) return cached;
+          throw error;
+        }
+        if (data) setCachedBranches(data);
         return data || [];
       }
 
@@ -1098,26 +1125,121 @@ export const AuthProvider = ({ children }) => {
 
     // 2. Categories
     if (endpoint === '/books/categories') {
+      const cached = await getCachedCategories();
+      if (cached && cached.length > 0 && !options.skipCache) {
+        // Revalidate in background
+        supabase.from('categories').select('*, parent:parent_category_id(name)')
+          .then(({ data, error }) => {
+            if (!error && data) {
+              const formatted = data.map(c => ({ ...c, parent_name: c.parent ? c.parent.name : null }));
+              setCachedCategories(formatted);
+            }
+          })
+          .catch(() => {});
+        return cached;
+      }
       const { data, error } = await supabase.from('categories').select('*, parent:parent_category_id(name)');
-      if (error) throw error;
-      return (data || []).map(c => ({ ...c, parent_name: c.parent ? c.parent.name : null }));
+      if (error) {
+        if (cached && cached.length > 0) return cached;
+        throw error;
+      }
+      const formatted = (data || []).map(c => ({ ...c, parent_name: c.parent ? c.parent.name : null }));
+      setCachedCategories(formatted);
+      return formatted;
     }
 
     // 3. Books
     if (endpoint === '/books' && method === 'GET') {
+      const cached = await getCachedBooks();
+      if (cached && cached.length > 0 && !options.skipCache) {
+        let approvedBookIds = [];
+        if (user && user.role === 'student') {
+          try {
+            const effectiveId = user.id && isValidUuid(user.id) ? user.id : (user.id ? toDeterministicUuid(user.id) : null);
+            if (effectiveId) {
+              const { data: perms } = await supabase
+                .from('permissions')
+                .select('book_id')
+                .eq('user_id', effectiveId)
+                .eq('status', 'approved');
+              approvedBookIds = (perms || []).map(p => p.book_id).filter(Boolean);
+            }
+          } catch {}
+        }
+
+        const userBranch = (user?.branchName || user?.branch_name || '').trim();
+        const mappedCached = cached.map(b => {
+          const branchName = b.branch ? b.branch.name : (b.branch_name || null);
+          const bookBranch = (branchName || '').trim();
+          let hasAccess = true;
+          let isHomeBranch = false;
+          if (user && user.role === 'student') {
+            isHomeBranch = Boolean(userBranch && bookBranch && isSameBranch(userBranch, bookBranch));
+            const isBookApproved = approvedBookIds.some(bId => String(bId) === String(b.id));
+            hasAccess = isHomeBranch || isBookApproved;
+          }
+          return {
+            ...b,
+            branch_name: branchName,
+            hasAccess,
+            isHomeBranch
+          };
+        });
+
+        // Background revalidation with Supabase without blocking UI
+        (async () => {
+          try {
+            const bookSelectFields = `
+              *,
+              category:category_id(name),
+              branch:branch_id(name)
+            `;
+            const [res1, res2, res3] = await Promise.all([
+              supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),
+              supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999),
+              supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(2000, 2999)
+            ]);
+            if (!res1.error) {
+              const freshData = [...(res1.data || []), ...(res2.data || []), ...(res3.data || [])];
+              const freshMapped = freshData.map(b => ({
+                ...b,
+                category_name: b.category ? b.category.name : null,
+                branch_name: b.branch ? b.branch.name : null
+              }));
+              if (hasCatalogChanged(cached, freshMapped)) {
+                await setCachedBooks(freshMapped);
+              }
+            }
+          } catch (bgErr) {
+            console.warn('[Cache] Background books revalidation note:', bgErr);
+          }
+        })();
+
+        return mappedCached;
+      }
+
       // Supabase default max-rows limit is 1000, so we fetch in paged chunks to retrieve all 1,400+ books
       const bookSelectFields = `
         *,
         category:category_id(name),
         branch:branch_id(name)
       `;
-      const [res1, res2, res3] = await Promise.all([
-        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),
-        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999),
-        supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(2000, 2999)
-      ]);
-      if (res1.error) throw res1.error;
-      const data = [...(res1.data || []), ...(res2.data || []), ...(res3.data || [])];
+      let data = [];
+      try {
+        const [res1, res2, res3] = await Promise.all([
+          supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),
+          supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(1000, 1999),
+          supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(2000, 2999)
+        ]);
+        if (res1.error) throw res1.error;
+        data = [...(res1.data || []), ...(res2.data || []), ...(res3.data || [])];
+      } catch (fetchErr) {
+        if (cached && cached.length > 0) {
+          console.warn('[Cache] Supabase fetch failed, returning cached books');
+          return cached;
+        }
+        throw fetchErr;
+      }
 
       let approvedBookIds = [];
       if (user && user.role === 'student') {
@@ -1136,7 +1258,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      return (data || []).map(b => {
+      const formatted = (data || []).map(b => {
         const branchName = b.branch ? b.branch.name : null;
         const userBranch = (user?.branchName || user?.branch_name || '').trim();
         const bookBranch = (branchName || '').trim();
@@ -1146,8 +1268,6 @@ export const AuthProvider = ({ children }) => {
         if (user && user.role === 'student') {
           isHomeBranch = Boolean(userBranch && bookBranch && isSameBranch(userBranch, bookBranch));
           const isBookApproved = approvedBookIds.some(bId => String(bId) === String(b.id));
-          // Home branch books NEVER require a request (direct access).
-          // Outside home branch books require admin approval.
           hasAccess = isHomeBranch || isBookApproved;
         }
 
@@ -1159,6 +1279,9 @@ export const AuthProvider = ({ children }) => {
           isHomeBranch
         };
       });
+
+      setCachedBooks(formatted);
+      return formatted;
     }
 
     // Single Book fetch (GET /books/:id) - Enables cross-branch shared book preview on demand
@@ -1321,6 +1444,7 @@ export const AuthProvider = ({ children }) => {
       const bookId = endpoint.split('/').pop();
       const { error } = await supabase.from('books').delete().eq('id', bookId);
       if (error) throw error;
+      deleteSingleCachedBook(bookId);
       return { message: 'Book deleted successfully' };
     }
 
@@ -1456,11 +1580,13 @@ export const AuthProvider = ({ children }) => {
         const bookId = endpoint.split('/').pop();
         const { data, error } = await supabase.from('books').update(cleanPayload).eq('id', bookId).select().single();
         if (error) throw error;
+        updateSingleCachedBook(data);
         return { message: 'Book updated successfully', data };
       }
 
       const { data, error } = await supabase.from('books').insert([cleanPayload]).select().single();
       if (error) throw error;
+      updateSingleCachedBook(data);
 
       // Realtime notification for active students
       try {
@@ -1755,11 +1881,13 @@ export const AuthProvider = ({ children }) => {
           updated_at: new Date().toISOString()
         });
 
+        setCachedBookmarks(user.id, bookId, updatedList);
+
         return updatedList;
       }
     }
 
-    // 3c. Student Bookmarks (Cloud DB Persisted)
+    // 3c. Student Bookmarks (Cloud DB Persisted with IndexedDB Cache)
     if (endpoint.startsWith('/books/') && endpoint.includes('/bookmarks')) {
       if (!user) return [];
       const parts = endpoint.split('/');
@@ -1767,8 +1895,24 @@ export const AuthProvider = ({ children }) => {
       const key = `bookmarks_${user.id}_${bookId}`;
 
       if (method === 'GET') {
+        const cached = await getCachedBookmarks(user.id, bookId);
+        if (cached && cached.length > 0 && !options.skipCache) {
+          // Revalidate in background
+          supabase.from('system_settings').select('value').eq('key', key).maybeSingle()
+            .then(({ data }) => {
+              if (Array.isArray(data?.value?.list)) {
+                setCachedBookmarks(user.id, bookId, data.value.list);
+              }
+            }).catch(() => {});
+          return cached.map(b => ({ id: b.id, page: b.page_number, title: b.title, createdAt: b.created_at }));
+        }
+
         const { data } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        return Array.isArray(data?.value?.list) ? data.value.list : [];
+        const list = Array.isArray(data?.value?.list) ? data.value.list : [];
+        if (list.length > 0) {
+          setCachedBookmarks(user.id, bookId, list);
+        }
+        return list;
       }
 
       if (method === 'POST') {
@@ -2544,6 +2688,9 @@ export const AuthProvider = ({ children }) => {
 
       // Upsert user_book_progress with accurate real-time page count and progress
       if (targetBookId) {
+        if (effectiveId) {
+          saveLocalReadingProgress(effectiveId, targetBookId, pageRead, body.total_pages);
+        }
         const nowIso = new Date().toISOString();
         try {
           const [{ data: existing }, { data: targetBookRow }] = await Promise.all([
@@ -3536,6 +3683,11 @@ export const AuthProvider = ({ children }) => {
       } catch (e) {
         console.error('Logout log error:', e);
       }
+    }
+    try {
+      if (user?.id) await clearUserScopedData(user.id);
+    } catch (cacheErr) {
+      console.warn('Notice clearing user cached data:', cacheErr);
     }
     await supabase.auth.signOut();
     clearSession();

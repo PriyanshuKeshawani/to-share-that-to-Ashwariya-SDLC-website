@@ -35,6 +35,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import ShareBookModal from '../components/ShareBookModal';
+import { getCachedReadingProgress, saveLocalReadingProgress, queueSyncAction } from '../db/cacheService';
 
 // Polyfills for modern TC39 proposals required by modern pdfjs-dist workers and range chunkers
 if (typeof Map !== 'undefined') {
@@ -602,16 +603,33 @@ const BookReader = ({ book, onClose }) => {
     loadCloudData();
   }, [book?.id, apiCall]);
 
-  // Restore saved reading position from analytics history on mount
+   // Restore saved reading position from local cache immediately, then reconcile with analytics history
   useEffect(() => {
     const initReader = async () => {
       let restoredPage = 1;
+      // 1. Instant local IndexedDB restore (<1ms)
+      try {
+        if (user?.id && book?.id) {
+          const localProg = await getCachedReadingProgress(user.id, book.id);
+          if (localProg && localProg.last_page_read) {
+            restoredPage = Math.max(1, Math.min(localProg.last_page_read, totalPages));
+            setCurrentPage(restoredPage);
+          }
+        }
+      } catch (cacheErr) {
+        console.warn('[BookReader] Local progress read note:', cacheErr);
+      }
+
+      // 2. Network reconciliation with Supabase
       try {
         const history = await apiCall('/analytics/my-history');
         const record = history?.find(h => Number(h.book_id) === Number(book.id) || h.book_title === book.title);
-        if (record && record.last_page_read) {
+        if (record && record.last_page_read && record.last_page_read > restoredPage) {
           restoredPage = Math.max(1, Math.min(record.last_page_read, totalPages));
           setCurrentPage(restoredPage);
+          if (user?.id && book?.id) {
+            saveLocalReadingProgress(user.id, book.id, restoredPage, totalPages);
+          }
         }
       } catch (err) {
         console.error('Error restoring book reading position:', err);
@@ -634,32 +652,41 @@ const BookReader = ({ book, onClose }) => {
     };
 
     initReader();
-  }, [book.id, book.title, apiCall, totalPages]);
+  }, [book?.id, book?.title, apiCall, totalPages, user?.id]);
 
-  // Debounced real-time progress updater
+  // Debounced real-time progress updater with immediate local IndexedDB persistence
   const saveDebounceRef = useRef(null);
   const saveProgress = useCallback((page) => {
+    // 1. Save immediately to local cache (<1ms)
+    if (user?.id && book?.id) {
+      saveLocalReadingProgress(user.id, book.id, page, totalPages);
+    }
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaving(true);
     saveDebounceRef.current = setTimeout(async () => {
+      const payload = {
+        book_id: book.id,
+        action_type: 'view',
+        last_page_read: page,
+        total_pages: totalPages,
+        details: `Reading "${book.title}" — page ${page} of ${totalPages}`
+      };
       try {
         await apiCall('/analytics/track', {
           method: 'POST',
-          body: JSON.stringify({
-            book_id: book.id,
-            action_type: 'view',
-            last_page_read: page,
-            total_pages: totalPages,
-            details: `Reading "${book.title}" — page ${page} of ${totalPages}`
-          })
+          body: JSON.stringify(payload)
         });
       } catch (err) {
         console.error('Error auto-saving page progress:', err);
+        // Queue for background sync on reconnection
+        if (user?.id) {
+          queueSyncAction(user.id, 'reading_progress', '/analytics/track', payload);
+        }
       } finally {
         setSaving(false);
       }
     }, 350);
-  }, [apiCall, book.id, book.title, totalPages]);
+  }, [apiCall, book?.id, book?.title, totalPages, user?.id]);
 
   // Resilient In-Memory Buffer Provider: caches ArrayBuffer and Document instance
   const getOrFetchBufferDoc = useCallback(async () => {
