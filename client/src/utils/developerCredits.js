@@ -46,50 +46,69 @@ export function initDeveloperCredits() {
       ? console.groupEnd.bind(console)
       : () => {};
 
-    // 1. Collapsed heading (DevTools natively renders as '▶ 🛠️ Developer Information')
-    groupCollapsed('%c🛠️ Developer Information', 'color: #64748b; font-weight: 600; font-size: 11px; padding: 2px 0;');
-
-    // 2. Company entry: DOMAINEXPANDERS//
-    console.log(
-      '%cDOMAINEXPANDERS//\n%chttps://www.domainexpanders.in/',
-      'color: #2563eb; font-weight: 700; font-size: 13px; letter-spacing: 0.5px;',
-      'color: #3b82f6; font-size: 11px; text-decoration: underline; cursor: pointer;'
+    // 1. Collapsed heading with stylish pill badge (Dark & Light mode friendly)
+    groupCollapsed(
+      '%c 🛠️ Developer Information %c DOMAINEXPANDERS // ',
+      'background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px 0 0 4px; border: 1px solid #334155; font-family: system-ui, -apple-system, sans-serif;',
+      'background: #2563eb; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 0 4px 4px 0; border: 1px solid #2563eb; font-family: system-ui, -apple-system, sans-serif;'
     );
 
-    // 3. Developer 1: Anshul Soni (Senior Developer)
+    // 2. Card Header Banner Chips
     console.log(
-      '%cAnshul Soni\n%c  Senior Developer\n  %chttps://www.instagram.com/otaku_anshul_',
-      'color: #0f172a; font-weight: 600; font-size: 12px;',
-      'color: #64748b; font-size: 11px;',
-      'color: #2563eb; font-size: 11px; text-decoration: underline; cursor: pointer;'
+      '%c DOMAINEXPANDERS // %c CORE DEV TEAM %c VERIFIED BUILD ',
+      'background: #2563eb; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px 0 0 4px;',
+      'background: #0f172a; color: #38bdf8; font-weight: 700; font-size: 11px; padding: 3px 8px; border: 1px solid #1e3a8a;',
+      'background: #059669; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 0 4px 4px 0;'
     );
 
-    // 4. Developer 2: Adarah Mishra (Junior Developer & Non-Development Works)
+    // 3. Interactive Graphical Card Table (DevTools natively renders as a rich interactive card with 1-click hyperlinks)
+    if (typeof console.table === 'function') {
+      console.table([
+        {
+          'Developer / Organization': '🏢 DOMAINEXPANDERS//',
+          'Role & Responsibilities': 'Engineering & Product Architecture',
+          'Direct Profile Link (Clickable)': 'https://www.domainexpanders.in/'
+        },
+        {
+          'Developer / Organization': '👨‍💻 Anshul Soni',
+          'Role & Responsibilities': 'Senior Developer (Fullstack & Core)',
+          'Direct Profile Link (Clickable)': 'https://www.instagram.com/otaku_anshul_'
+        },
+        {
+          'Developer / Organization': '👨‍💻 Adarah Mishra',
+          'Role & Responsibilities': 'Junior Developer & Non-Dev Works',
+          'Direct Profile Link (Clickable)': 'https://www.instagram.com/adarshmishra121325'
+        }
+      ]);
+    }
+
+    // 4. Quick-access console shortcuts & pro-tip
     console.log(
-      '%cAdarah Mishra\n%c  Junior Developer & Non-Development Works\n  %chttps://www.instagram.com/adarshmishra121325',
-      'color: #0f172a; font-weight: 600; font-size: 12px;',
-      'color: #64748b; font-size: 11px;',
-      'color: #2563eb; font-size: 11px; text-decoration: underline; cursor: pointer;'
+      '%c💡 ProTip:%c Click any URL in the table above, or type %canshul()%c, %cadarsh()%c, or %cdomainexpanders()%c in the console to open directly.',
+      'color: #38bdf8; font-weight: bold;',
+      'color: #94a3b8;',
+      'color: #fbbf24; font-family: monospace; font-weight: bold;',
+      'color: #94a3b8;',
+      'color: #fbbf24; font-family: monospace; font-weight: bold;',
+      'color: #94a3b8;',
+      'color: #fbbf24; font-family: monospace; font-weight: bold;',
+      'color: #94a3b8;'
     );
 
-    // 5. Interactive getter object for safe programmatic navigation
-    const interactiveLinks = {
-      get 'DOMAINEXPANDERS//'() {
+    // 5. Register global console helper functions for effortless 1-command navigation
+    if (typeof window !== 'undefined') {
+      window.domainexpanders = () => {
         safeOpenUrl('https://www.domainexpanders.in/');
-        return 'https://www.domainexpanders.in/';
-      },
-      get 'Anshul Soni (Senior Developer)'() {
+        return '🌐 Opening DomainExpanders official site...';
+      };
+      window.anshul = () => {
         safeOpenUrl('https://www.instagram.com/otaku_anshul_');
-        return 'https://www.instagram.com/otaku_anshul_';
-      },
-      get 'Adarah Mishra (Junior Developer & Non-Development Works)'() {
+        return '👨‍💻 Opening Anshul Soni (Senior Developer) profile...';
+      };
+      window.adarsh = () => {
         safeOpenUrl('https://www.instagram.com/adarshmishra121325');
-        return 'https://www.instagram.com/adarshmishra121325';
-      }
-    };
-
-    if (typeof console.dir === 'function') {
-      console.dir(interactiveLinks);
+        return '👨‍💻 Opening Adarah Mishra profile...';
+      };
     }
 
     groupEnd();
