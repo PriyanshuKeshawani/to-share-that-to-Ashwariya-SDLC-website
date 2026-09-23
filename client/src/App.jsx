@@ -14,7 +14,6 @@ import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { initNativeBackManager } from './utils/nativeBackManager';
 import useNativeBack from './hooks/useNativeBack';
 import NativeExitToast from './components/NativeExitToast';
-import SmartAppBanner from './components/SmartAppBanner';
 
 class GlobalErrorBoundary extends Component {
   constructor(props) {
@@ -526,7 +525,6 @@ const AppContent = () => {
 function App() {
   return (
     <GlobalErrorBoundary>
-      <SmartAppBanner />
       <AppContent />
       <NativeExitToast />
     </GlobalErrorBoundary>
