@@ -24,6 +24,7 @@ import NotificationBell from '../components/NotificationBell';
 import SeniorMajorsMinorsStudentView from '../components/SeniorMajorsMinorsStudentView';
 import ProjectStudentView from '../components/ProjectStudentView';
 import { getCachedBooks, getCachedCategories, getCachedBranches } from '../db/cacheService';
+import useNativeBack from '../hooks/useNativeBack';
 
 
 // Ultra-fast in-memory token precomputation for instantaneous search (0ms allocations)
@@ -134,6 +135,38 @@ const StudentDashboard = ({ onSelectBook }) => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Trap Android hardware back button for modals and sub-tabs in mobile view & APK
+  useNativeBack(
+    () => {
+      setOverviewBook(null);
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('book');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + (url.hash ? url.hash : ''));
+        } catch {}
+      }
+    },
+    Boolean(overviewBook),
+    { id: 'student-overview-modal', priority: 20, label: 'student-overview' }
+  );
+
+  useNativeBack(
+    () => {
+      setSharingBook(null);
+    },
+    Boolean(sharingBook),
+    { id: 'student-share-modal', priority: 20, label: 'student-share' }
+  );
+
+  useNativeBack(
+    () => {
+      setActiveTab('all');
+    },
+    activeTab !== 'all',
+    { id: 'student-subtab-navigation', priority: 5, label: 'student-subtab' }
+  );
 
   const [requestFilter, setRequestFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
   const [requestSearch, setRequestSearch] = useState('');

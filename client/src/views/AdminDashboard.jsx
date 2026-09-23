@@ -25,6 +25,7 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 import NotificationBell from '../components/NotificationBell';
 import SeniorMajorsMinorsAdminView from '../components/SeniorMajorsMinorsAdminView';
 import ProjectManagement from '../components/ProjectManagement';
+import useNativeBack from '../hooks/useNativeBack';
 
 const AdminDashboard = ({ onSelectBook }) => {
   const { user, logout, apiCall } = useAuth();
@@ -202,6 +203,32 @@ const AdminDashboard = ({ onSelectBook }) => {
   const [logsLoading, setLogsLoading] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const [toastExiting, setToastExiting] = useState(false);
+
+  // Trap Android hardware back for modals and drawers in Admin Dashboard (Mobile / APK view)
+  useNativeBack(() => setShowMenuDrawer(false), showMenuDrawer, { id: 'admin-menu-drawer', priority: 25 });
+  useNativeBack(() => setShowBookModal(false), showBookModal, { id: 'admin-book-modal', priority: 20 });
+  useNativeBack(() => setSelectedStudentForActivity(null), Boolean(selectedStudentForActivity), { id: 'admin-student-activity', priority: 20 });
+  useNativeBack(() => setSelectedBookForActivity(null), Boolean(selectedBookForActivity), { id: 'admin-book-activity', priority: 20 });
+  useNativeBack(() => setEditingStudent(null), Boolean(editingStudent), { id: 'admin-student-edit', priority: 20 });
+  useNativeBack(() => setEditingBranch(null), Boolean(editingBranch), { id: 'admin-branch-edit', priority: 20 });
+  useNativeBack(() => setActiveAnalyticsDrilldown(null), Boolean(activeAnalyticsDrilldown), { id: 'admin-analytics-drilldown', priority: 20 });
+
+  // Confirmation dialogs (highest priority to dismiss topmost prompt first)
+  useNativeBack(() => setDeleteConfirm(null), Boolean(deleteConfirm), { id: 'admin-delete-confirm', priority: 30 });
+  useNativeBack(() => setDeleteBookConfirm(null), Boolean(deleteBookConfirm), { id: 'admin-delete-book-confirm', priority: 30 });
+  useNativeBack(() => setBranchDeleteConfirm(null), Boolean(branchDeleteConfirm), { id: 'admin-branch-delete-confirm', priority: 30 });
+  useNativeBack(() => setShowBulkDeleteConfirm(false), showBulkDeleteConfirm, { id: 'admin-bulk-delete-confirm', priority: 30 });
+  useNativeBack(() => setShowBulkDeleteBooksConfirm(false), showBulkDeleteBooksConfirm, { id: 'admin-bulk-delete-books-confirm', priority: 30 });
+  useNativeBack(() => setShowBulkApproveUsersConfirm(false), showBulkApproveUsersConfirm, { id: 'admin-bulk-approve-confirm', priority: 30 });
+
+  // Sub-tab navigation: pressing Back returns to 'overview' tab before triggering app exit
+  useNativeBack(
+    () => {
+      setActiveTab('overview');
+    },
+    activeTab !== 'overview',
+    { id: 'admin-subtab-navigation', priority: 5, label: 'admin-subtab' }
+  );
 
   // Memoized selector values to optimize rendering performance
   const uniqueStudentBranches = useMemo(() => {

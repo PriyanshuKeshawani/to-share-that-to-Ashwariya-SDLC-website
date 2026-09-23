@@ -11,6 +11,9 @@ import BookReader from './views/BookReader';
 import AdminDashboard from './views/AdminDashboard';
 import GoogleProfileCompletion from './components/GoogleProfileCompletion';
 import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { initNativeBackManager } from './utils/nativeBackManager';
+import useNativeBack from './hooks/useNativeBack';
+import NativeExitToast from './components/NativeExitToast';
 
 class GlobalErrorBoundary extends Component {
   constructor(props) {
@@ -210,6 +213,29 @@ const AppContent = () => {
     const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
     window.history.pushState(null, '', newUrl);
   }, []);
+
+  // Initialize native back interceptor once on mount
+  useEffect(() => {
+    initNativeBackManager();
+  }, []);
+
+  // Trap back navigation when reading a book -> smoothly returns to catalog
+  useNativeBack(
+    () => {
+      handleCloseBook();
+    },
+    Boolean(selectedBook),
+    { id: 'app-book-reader', priority: 25, label: 'book-reader' }
+  );
+
+  // Trap back navigation when in registration mode -> returns to login
+  useNativeBack(
+    () => {
+      setIsRegistering(false);
+    },
+    isRegistering,
+    { id: 'app-register-view', priority: 15, label: 'register-view' }
+  );
 
   // Listen to popstate for browser back/forward buttons
   useEffect(() => {
@@ -445,6 +471,7 @@ function App() {
   return (
     <GlobalErrorBoundary>
       <AppContent />
+      <NativeExitToast />
     </GlobalErrorBoundary>
   );
 }

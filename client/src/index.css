@@ -5456,4 +5456,73 @@ body.dark .st-page-footer,
   }
 }
 
+/* ==========================================================================
+   NATIVE MOBILE APP & APK TOUCH ERGONOMICS (Mobile View Only)
+   ========================================================================== */
+
+/* Android Native Toast Entrance Animation */
+@keyframes nativeToastEntrance {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 18px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  /* Prevent pull-to-refresh reload bounce and jitter in Android WebViews */
+  html, body {
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection on UI controls (buttons, tabs, badges) to feel 100% like native app */
+  .mobile-bottom-nav,
+  .admin-mobile-bottom-nav,
+  .admin-mobile-header,
+  .btn,
+  .badge,
+  .bottom-nav-item,
+  .theme-fab-btn,
+  .status-badge {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Tactile Native Spring Feedback on Tap */
+  .btn:active,
+  .bottom-nav-item:active,
+  .book-card:active,
+  .theme-fab-btn:active,
+  .admin-card-action-btn:active,
+  .btn-icon-action:active {
+    transform: scale(0.95) !important;
+    transition: transform 0.08s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  /* Smooth momentum scrolling for all scroll containers */
+  .catalog-view,
+  .modal-content,
+  .admin-sidebar-drawer,
+  .seating-grid-wrapper,
+  .table-responsive-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Safe Area Bottom insets for modern Android gesture bars */
+  .mobile-bottom-nav {
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 6px)) !important;
+  }
+  .admin-mobile-bottom-nav {
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 6px)) !important;
+  }
+}
+
 
