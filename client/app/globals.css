@@ -4703,11 +4703,21 @@ body.dark .st-page-footer,
   }
 }
 
-/* Dual View: Desktop Table vs Mobile Cards */
-.admin-projects-desktop-table {
-  display: block;
+/* Dual View: Desktop Table / Grid vs Mobile Cards */
+.admin-projects-desktop-table,
+.student-projects-desktop-grid {
   width: 100%;
   max-width: 100%;
+}
+
+.admin-projects-desktop-table {
+  display: block;
+}
+
+.student-projects-desktop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 22px;
 }
 
 .admin-projects-mobile-cards {
@@ -4717,7 +4727,8 @@ body.dark .st-page-footer,
 }
 
 @media (max-width: 859px) {
-  .admin-projects-desktop-table {
+  .admin-projects-desktop-table,
+  .student-projects-desktop-grid {
     display: none !important;
   }
   .admin-projects-mobile-cards {
@@ -5148,6 +5159,49 @@ body.dark .st-page-footer,
   background: rgba(239, 68, 68, 0.22);
   color: #fca5a5;
   transform: translateY(-1px);
+}
+
+.admin-card-action-btn.view.student-mobile-view-btn {
+  width: auto !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  gap: 5px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+
+.student-mobile-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.student-mobile-like-btn.liked {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  color: #ef4444 !important;
+}
+
+[data-theme='light'] .student-mobile-like-btn {
+  background: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: #64748b;
+}
+
+[data-theme='light'] .student-mobile-like-btn.liked {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #ef4444 !important;
 }
 
 .admin-card-action-btn:active {

@@ -1,9 +1,10 @@
-import { Home, BookOpen, BookMarked, Activity, Settings } from 'lucide-react';
+import { Home, BookOpen, BookMarked, Activity, Settings, Rocket } from 'lucide-react';
 
 const BottomNav = ({ activeTab, onSelectTab, badges = {} }) => {
   const navItems = [
     { id: 'all', label: 'Catalog', icon: Home },
-    { id: 'home', label: 'My Branch', icon: BookOpen },
+    { id: 'projects', label: 'Projects', icon: Rocket, badge: badges.projects },
+    { id: 'home', label: 'Branch', icon: BookOpen },
     { id: 'requests', label: 'Requests', icon: BookMarked, badge: badges.requests },
     { id: 'history', label: 'Activity', icon: Activity },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -13,7 +14,7 @@ const BottomNav = ({ activeTab, onSelectTab, badges = {} }) => {
     <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = activeTab === item.id;
+        const isActive = activeTab === item.id || (item.id === 'projects' && (activeTab === 'projects' || activeTab === 'majors-minors'));
         const badgeCount = item.badge || badges[item.id] || 0;
 
         return (

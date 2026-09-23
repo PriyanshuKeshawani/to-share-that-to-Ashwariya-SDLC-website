@@ -229,8 +229,12 @@ const StudentDashboard = ({ onSelectBook }) => {
       if (booksData) setBooks(indexBooks(booksData));
       if (reqsData) setRequests(reqsData);
       if (histData) setHistory(histData);
-      if (branchesData) setBranches(branchesData);
-      if (projCount && typeof projCount.count === 'number') setPublishedProjectsCount(projCount.count);
+      if (branchesData && Array.isArray(branchesData)) {
+        setBranches(prev => (prev.length === branchesData.length ? prev : branchesData));
+      }
+      if (projCount && typeof projCount.count === 'number') {
+        setPublishedProjectsCount(prev => (prev === projCount.count ? prev : projCount.count));
+      }
     } catch (e) {
       console.warn('Silent student realtime refresh note:', e);
     }

@@ -1,4 +1,4 @@
-﻿import Dexie from 'dexie';
+import Dexie from 'dexie';
 
 /**
  * SISTec eLibrary — IndexedDB Local-First Database Layer (Dexie)
@@ -30,9 +30,15 @@ class SistecLibraryDatabase extends Dexie {
       sync_queue: '++id, user_id, action, endpoint, created_at, retry_count'
     });
 
+    // Version 2 Schema Definition (Adds projects table)
+    this.version(2).stores({
+      projects: 'id, project_type, branch_name, batch, is_published, created_at'
+    });
+
     this.books = this.table('books');
     this.categories = this.table('categories');
     this.branches = this.table('branches');
+    this.projects = this.table('projects');
     this.reading_progress = this.table('reading_progress');
     this.bookmarks = this.table('bookmarks');
     this.likes = this.table('likes');

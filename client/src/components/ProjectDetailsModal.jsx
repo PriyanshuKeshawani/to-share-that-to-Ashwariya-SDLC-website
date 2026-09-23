@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, ExternalLink, Github, Globe, Heart, 
   Linkedin, Users, GraduationCap, Building2, Sparkles, FileText, Code, Award
@@ -11,6 +12,12 @@ export default function ProjectDetailsModal({
   onClose,
   onVote = null
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (!project) return null;
 
   const [currentLikes, setCurrentLikes] = useState(typeof project.likes_count === 'number' ? project.likes_count : 0);
@@ -98,7 +105,11 @@ export default function ProjectDetailsModal({
 
   const isLiked = userReaction === 'like';
 
-  return (
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
     <div 
       className="project-details-backdrop"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -351,6 +362,7 @@ export default function ProjectDetailsModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

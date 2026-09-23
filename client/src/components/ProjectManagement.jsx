@@ -14,14 +14,26 @@ import GoogleFormTemplateModal from './GoogleFormTemplateModal';
 import ProjectImportWizard from './ProjectImportWizard';
 import EmptyState from './EmptyState';
 
+// Module-level RAM cache so tab switching in admin portal is 100% instantaneous (0ms) without any skeleton flash
+let inMemoryAdminProjects = null;
+
 export default function ProjectManagement({
   branches = [],
   showFeedback
 }) {
   const { apiCall } = useAuth();
+  const apiCallRef = useRef(apiCall);
+  useEffect(() => {
+    apiCallRef.current = apiCall;
+  }, [apiCall]);
 
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const showFeedbackRef = useRef(showFeedback);
+  useEffect(() => {
+    showFeedbackRef.current = showFeedback;
+  }, [showFeedback]);
+
+  const [projects, setProjects] = useState(() => inMemoryAdminProjects || []);
+  const [loading, setLoading] = useState(() => !inMemoryAdminProjects || inMemoryAdminProjects.length === 0);
   const [refreshing, setRefreshing] = useState(false);
 
   // Search & Filters
@@ -45,29 +57,38 @@ export default function ProjectManagement({
 
   const fetchProjects = useCallback(async (isSilent = false) => {
     try {
-      if (!isSilent) setLoading(true);
-      else setRefreshing(true);
+      if (!isSilent && (!inMemoryAdminProjects || inMemoryAdminProjects.length === 0)) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
-      const data = await apiCall('/projects');
-      setProjects(Array.isArray(data) ? data : []);
+      const data = await apiCallRef.current('/projects');
+      const list = Array.isArray(data) ? data : [];
+      inMemoryAdminProjects = list;
+      setProjects(list);
     } catch (err) {
       console.error('Failed to fetch projects:', err);
-      if (showFeedback) {
-        showFeedback(err.message || 'Failed to load projects', 'error');
+      if (showFeedbackRef.current) {
+        showFeedbackRef.current(err.message || 'Failed to load projects', 'error');
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [apiCall, showFeedback]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  }, []);
 
   const fetchProjectsRef = useRef(fetchProjects);
   useEffect(() => {
     fetchProjectsRef.current = fetchProjects;
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    const hasData = Boolean(
+      (inMemoryAdminProjects && inMemoryAdminProjects.length > 0) ||
+      projects.length > 0
+    );
+    fetchProjects(hasData);
   }, [fetchProjects]);
 
   // Realtime Supabase Channel
@@ -183,7 +204,11 @@ export default function ProjectManagement({
       await apiCall(`/projects/${project.id}/${nextPublished ? 'publish' : 'unpublish'}`, {
         method: 'POST'
       });
-      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, is_published: nextPublished } : p));
+      setProjects(prev => {
+        const updated = prev.map(p => p.id === project.id ? { ...p, is_published: nextPublished } : p);
+        inMemoryAdminProjects = updated;
+        return updated;
+      });
       if (showFeedback) {
         showFeedback(`Project ${nextPublished ? 'published' : 'hidden from student view'}.`, 'success');
       }
@@ -200,7 +225,11 @@ export default function ProjectManagement({
     setDeleteLoading(true);
     try {
       await apiCall(`/projects/${deleteConfirmProject.id}`, { method: 'DELETE' });
-      setProjects(prev => prev.filter(p => p.id !== deleteConfirmProject.id));
+      setProjects(prev => {
+        const updated = prev.filter(p => p.id !== deleteConfirmProject.id);
+        inMemoryAdminProjects = updated;
+        return updated;
+      });
       if (showFeedback) showFeedback('Project deleted successfully.', 'success');
       setDeleteConfirmProject(null);
     } catch (err) {

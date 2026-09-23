@@ -164,6 +164,71 @@ export const setCachedBranches = async (branches) => {
 };
 
 // ==========================================
+// 1d. PROJECTS & INNOVATIONS CACHING
+// ==========================================
+
+export const getCachedProjects = async () => {
+  const db = getDb();
+  if (!db || !db.projects) return null;
+  try {
+    const projects = await db.projects.toArray();
+    if (projects && projects.length > 0) {
+      log('HIT', 'Loaded ' + projects.length + ' projects from IndexedDB');
+      return projects;
+    }
+    log('MISS', 'No projects found in IndexedDB');
+    return null;
+  } catch (err) {
+    warn('ERROR', 'Failed to read projects from cache:', err);
+    return null;
+  }
+};
+
+export const setCachedProjects = async (projects) => {
+  const db = getDb();
+  if (!db || !db.projects || !Array.isArray(projects)) return;
+  try {
+    await db.transaction('rw', [db.projects, db.cache_metadata], async () => {
+      await db.projects.clear();
+      if (projects.length > 0) {
+        await db.projects.bulkPut(projects);
+      }
+      await db.cache_metadata.put({
+        key: 'projects',
+        last_synced_at: new Date().toISOString(),
+        version: 1,
+        record_count: projects.length
+      });
+    });
+    log('SET', 'Cached ' + projects.length + ' projects to IndexedDB');
+  } catch (err) {
+    warn('ERROR', 'Failed to write projects to cache:', err);
+  }
+};
+
+export const updateSingleCachedProject = async (project) => {
+  const db = getDb();
+  if (!db || !db.projects || !project || !project.id) return;
+  try {
+    await db.projects.put(project);
+    log('UPDATE', 'Updated cached project id=' + project.id);
+  } catch (err) {
+    warn('ERROR', 'Failed to update cached project ' + project.id + ':', err);
+  }
+};
+
+export const deleteSingleCachedProject = async (projectId) => {
+  const db = getDb();
+  if (!db || !db.projects || !projectId) return;
+  try {
+    await db.projects.delete(projectId);
+    log('DELETE', 'Deleted cached project id=' + projectId);
+  } catch (err) {
+    warn('ERROR', 'Failed to delete cached project ' + projectId + ':', err);
+  }
+};
+
+// ==========================================
 // 2. READING PROGRESS & RECENT BOOKS
 // ==========================================
 
