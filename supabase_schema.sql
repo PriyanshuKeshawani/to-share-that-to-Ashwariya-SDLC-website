@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS block_reason TEXT;
 
 -- =========================================================
 -- 4. Books (with Google Drive support)
@@ -268,16 +270,61 @@ SECURITY DEFINER
 STABLE
 SET search_path = public, pg_catalog
 AS $$
+DECLARE
+  jwt_email TEXT;
+  user_role TEXT;
+  auth_user_id UUID;
 BEGIN
-  -- Service role / postgres always has admin privileges
+  -- 1. Service role / postgres internal bypass
   IF (auth.jwt() ->> 'role') = 'service_role' THEN
     RETURN TRUE;
   END IF;
 
-  RETURN EXISTS (
-    SELECT 1 FROM public.users
-    WHERE id = auth.uid() AND role = 'admin'
-  );
+  auth_user_id := auth.uid();
+  jwt_email := lower(coalesce(auth.jwt() ->> 'email', ''));
+
+  -- 2. Fast check: Known institutional admin emails in JWT claim
+  IF jwt_email IN (
+    'sistec.library@sistec.ac.in',
+    'cse.admin@sistec.ac.in',
+    'it.admin@sistec.ac.in',
+    'ec.admin@sistec.ac.in',
+    'me.admin@sistec.ac.in',
+    'ce.admin@sistec.ac.in',
+    'ee.admin@sistec.ac.in',
+    'admin@sistec.ac.in',
+    'admin@sistec.local'
+  ) OR jwt_email LIKE '%.admin@sistec.ac.in' OR jwt_email LIKE '%admin%@sistec.local' THEN
+    RETURN TRUE;
+  END IF;
+
+  -- 3. Check public.users table by auth.uid()
+  IF auth_user_id IS NOT NULL THEN
+    SELECT role INTO user_role
+    FROM public.users
+    WHERE id = auth_user_id;
+
+    IF user_role = 'admin' THEN
+      RETURN TRUE;
+    END IF;
+  END IF;
+
+  -- 4. Check public.users table by JWT email or username slug
+  IF jwt_email <> '' THEN
+    SELECT role INTO user_role
+    FROM public.users
+    WHERE lower(username) = jwt_email
+       OR lower(username) = replace(jwt_email, '@sistec.local', '')
+       OR lower(username) = split_part(jwt_email, '@', 1)
+       OR lower(roll_number) = jwt_email
+    LIMIT 1;
+
+    IF user_role = 'admin' THEN
+      RETURN TRUE;
+    END IF;
+  END IF;
+
+  RETURN FALSE;
 END;
 $$;
 
@@ -325,8 +372,9 @@ CREATE POLICY "Admins can delete users" ON users FOR DELETE
   USING (public.is_admin());
 
 -- 9e-1. Trigger: Enforce Role & Status Security on Users (IDOR / Privilege Escalation Prevention)
--- Without complex recursive RLS subqueries, this trigger prevents regular users from elevating
--- their role to 'admin', approving their own account status, or unblocking themselves.
+-- Allows legitimate edits by students (name, branch, roll, sem, year, bt, avatar, etc.)
+-- and all operations by admins (approvals, rejects, edits, blocks, deletes),
+-- while strictly preventing non-admin students from elevating to admin, self-approving, or unblocking.
 CREATE OR REPLACE FUNCTION public.protect_user_role_and_status()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -334,24 +382,53 @@ SECURITY DEFINER
 SET search_path = public, pg_catalog
 AS $$
 BEGIN
-  IF NOT public.is_admin() THEN
-    IF NEW.role IS DISTINCT FROM OLD.role THEN
-      RAISE EXCEPTION 'Unauthorized: Only administrators can modify user roles.';
+  -- 1. Full Administrator Bypass:
+  IF public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  -- 2. Non-Admin (Student / Public) Enforcement:
+  -- Role can never be set to 'admin' by a student
+  IF NEW.role = 'admin' THEN
+    RAISE EXCEPTION 'Security Policy Violation: Only administrators can grant admin privileges.';
+  END IF;
+  NEW.role := 'student';
+
+  -- INSERT Rules:
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'approved' THEN
+      RAISE EXCEPTION 'Security Policy Violation: Student accounts require administrator approval.';
     END IF;
+    NEW.status := 'pending';
+    NEW.is_blocked := 0;
+    NEW.admin_branch_id := NULL;
+  END IF;
+
+  -- UPDATE Rules:
+  IF TG_OP = 'UPDATE' THEN
+    -- Student cannot modify account status (pending -> approved, or approved -> anything)
     IF NEW.status IS DISTINCT FROM OLD.status THEN
-      RAISE EXCEPTION 'Unauthorized: Only administrators can modify user account status.';
+      RAISE EXCEPTION 'Security Policy Violation: Only administrators can modify account status.';
     END IF;
-    IF NEW.is_blocked IS DISTINCT FROM OLD.is_blocked THEN
-      RAISE EXCEPTION 'Unauthorized: Only administrators can modify block status.';
+
+    -- Student cannot unblock themselves
+    IF coalesce(OLD.is_blocked, 0) = 1 AND NEW.is_blocked = 0 THEN
+      RAISE EXCEPTION 'Security Policy Violation: Only administrators can unblock an account.';
+    END IF;
+
+    -- Student cannot self-assign department administration rights
+    IF NEW.admin_branch_id IS NOT NULL AND NEW.admin_branch_id IS DISTINCT FROM OLD.admin_branch_id THEN
+      RAISE EXCEPTION 'Security Policy Violation: Only administrators can assign department administration rights.';
     END IF;
   END IF;
+
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS tr_protect_user_role_and_status ON public.users;
 CREATE TRIGGER tr_protect_user_role_and_status
-  BEFORE UPDATE ON public.users
+  BEFORE INSERT OR UPDATE ON public.users
   FOR EACH ROW
   EXECUTE FUNCTION public.protect_user_role_and_status();
 

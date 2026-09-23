@@ -2112,15 +2112,17 @@ export const AuthProvider = ({ children }) => {
       const updates = {};
       if (body.full_name !== undefined) updates.full_name = String(body.full_name).trim();
       if (body.fullName !== undefined) updates.full_name = String(body.fullName).trim();
+      if (body.username !== undefined && body.username) updates.username = String(body.username).trim();
       if (body.roll_number !== undefined) updates.roll_number = String(body.roll_number).trim();
       if (body.rollNumber !== undefined) updates.roll_number = String(body.rollNumber).trim();
       if (body.branch_name !== undefined) updates.branch_name = String(body.branch_name).trim();
       if (body.branchName !== undefined) updates.branch_name = String(body.branchName).trim();
-      if (body.year !== undefined) updates.year = String(body.year).trim();
-      if (body.semester !== undefined) updates.semester = String(body.semester).trim();
-      if (body.bt_number !== undefined) updates.bt_number = String(body.bt_number).trim();
-      if (body.btNumber !== undefined) updates.bt_number = String(body.btNumber).trim();
-      if (body.email !== undefined) updates.email = String(body.email).trim().toLowerCase();
+      if (body.year !== undefined) updates.year = body.year ? String(body.year).trim() : null;
+      if (body.semester !== undefined) updates.semester = body.semester ? String(body.semester).trim() : null;
+      if (body.bt_number !== undefined) updates.bt_number = body.bt_number ? String(body.bt_number).trim() : null;
+      if (body.btNumber !== undefined) updates.bt_number = body.btNumber ? String(body.btNumber).trim() : null;
+      if (body.email !== undefined) updates.email = body.email ? String(body.email).trim().toLowerCase() : null;
+      if (body.block_reason !== undefined) updates.block_reason = body.block_reason ? String(body.block_reason).trim() : null;
       if (body.status !== undefined) updates.status = String(body.status).trim().toLowerCase();
       if (body.is_blocked !== undefined) updates.is_blocked = Number(body.is_blocked);
 
