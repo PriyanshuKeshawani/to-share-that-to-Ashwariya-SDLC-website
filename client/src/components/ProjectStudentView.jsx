@@ -104,20 +104,108 @@ export default function ProjectStudentView({
     };
   }, [fetchProjects]);
 
-  // Realtime updates: single stable subscription on mount
+  const channelRef = useRef(null);
+
+  // In-place live like updater (ZERO refresh, zero list reload)
+  const applyLiveLikeUpdate = useCallback((projectId, newCount) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      return { ...p, likes_count: newCount };
+    }));
+
+    if (inMemoryStudentProjects) {
+      inMemoryStudentProjects = inMemoryStudentProjects.map(p => {
+        if (p.id !== projectId) return p;
+        return { ...p, likes_count: newCount };
+      });
+      setCachedProjects(inMemoryStudentProjects).catch(() => {});
+    }
+
+    setViewingProject(prev => {
+      if (!prev || prev.id !== projectId) return prev;
+      return { ...prev, likes_count: newCount };
+    });
+  }, []);
+
+  // Realtime updates: Live Broadcast + In-place Postgres Changes without any page/list reload
   useEffect(() => {
     let channel = null;
     try {
       channel = supabase
-        .channel('student-projects-sync')
+        .channel('sistec-projects-live', {
+          config: { broadcast: { self: false } }
+        })
+        .on('broadcast', { event: 'project_like_update' }, ({ payload }) => {
+          if (!payload || !payload.projectId) return;
+          // Ignore if sender is current user (already handled optimistically)
+          if (payload.senderId && payload.senderId === user?.id) return;
+
+          setProjects(prev => prev.map(p => {
+            if (p.id !== payload.projectId) return p;
+            const newCount = typeof payload.likes_count === 'number'
+              ? payload.likes_count
+              : Math.max(0, (p.likes_count || 0) + (payload.delta || 0));
+            return { ...p, likes_count: newCount };
+          }));
+
+          if (inMemoryStudentProjects) {
+            inMemoryStudentProjects = inMemoryStudentProjects.map(p => {
+              if (p.id !== payload.projectId) return p;
+              const newCount = typeof payload.likes_count === 'number'
+                ? payload.likes_count
+                : Math.max(0, (p.likes_count || 0) + (payload.delta || 0));
+              return { ...p, likes_count: newCount };
+            });
+            setCachedProjects(inMemoryStudentProjects).catch(() => {});
+          }
+
+          setViewingProject(prev => {
+            if (!prev || prev.id !== payload.projectId) return prev;
+            const newCount = typeof payload.likes_count === 'number'
+              ? payload.likes_count
+              : Math.max(0, (prev.likes_count || 0) + (payload.delta || 0));
+            return { ...prev, likes_count: newCount };
+          });
+        })
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'projects' },
+          { event: 'UPDATE', schema: 'public', table: 'projects' },
+          (payload) => {
+            // Live like count update in-place (ZERO reload/refresh)
+            if (payload.new && payload.new.id) {
+              const updatedId = payload.new.id;
+              const newCount = typeof payload.new.likes_count === 'number' ? payload.new.likes_count : null;
+              if (newCount !== null) {
+                applyLiveLikeUpdate(updatedId, newCount);
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'projects' },
           () => {
+            // Silent sync only when admin adds a brand-new project
             fetchProjectsRef.current?.(true);
           }
         )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'projects' },
+          (payload) => {
+            if (payload.old && payload.old.id) {
+              const deletedId = payload.old.id;
+              setProjects(prev => prev.filter(p => p.id !== deletedId));
+              if (inMemoryStudentProjects) {
+                inMemoryStudentProjects = inMemoryStudentProjects.filter(p => p.id !== deletedId);
+                setCachedProjects(inMemoryStudentProjects).catch(() => {});
+              }
+            }
+          }
+        )
         .subscribe();
+
+      channelRef.current = channel;
     } catch (e) {
       console.warn('Realtime projects sync note:', e.message);
     }
@@ -125,7 +213,7 @@ export default function ProjectStudentView({
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id, applyLiveLikeUpdate]);
 
   // Handle Instagram-style Heart Like toggle with instant optimistic UI and Supabase persistence
   const handleVote = async (projectId, reactionType = 'like') => {
@@ -146,7 +234,7 @@ export default function ProjectStudentView({
     const optimisticLiked = !prevLiked;
     const optimisticCount = optimisticLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
 
-    // 3. Optimistic UI update
+    // 3. Instant Optimistic UI update on current screen (0ms)
     setProjects(prev => {
       const updated = prev.map(p => {
         if (p.id !== projectId) return p;
@@ -171,7 +259,23 @@ export default function ProjectStudentView({
       };
     });
 
-    // 3b. Cache optimistic state locally
+    // 3b. Broadcast immediately over WebSocket to all open tabs & users (instant live sync)
+    try {
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'project_like_update',
+        payload: {
+          projectId,
+          likes_count: optimisticCount,
+          delta: optimisticLiked ? 1 : -1,
+          senderId: user.id
+        }
+      });
+    } catch (bcErr) {
+      console.warn('Realtime broadcast note:', bcErr);
+    }
+
+    // 3c. Cache optimistic state locally
     if (user?.id) {
       setCachedLike(user.id, projectId, 'project', optimisticLiked ? 'like' : null, 'pending');
     }
@@ -214,6 +318,19 @@ export default function ProjectStudentView({
           likes_count: verifiedCount
         };
       });
+
+      // Broadcast verified authoritative count to ensure all peers stay in sync
+      try {
+        channelRef.current?.send({
+          type: 'broadcast',
+          event: 'project_like_update',
+          payload: {
+            projectId,
+            likes_count: verifiedCount,
+            senderId: user.id
+          }
+        });
+      } catch (bcErr) {}
 
       return {
         success: true,
@@ -263,6 +380,19 @@ export default function ProjectStudentView({
           likes_count: prevCount
         };
       });
+
+      // Broadcast rollback
+      try {
+        channelRef.current?.send({
+          type: 'broadcast',
+          event: 'project_like_update',
+          payload: {
+            projectId,
+            likes_count: prevCount,
+            senderId: user.id
+          }
+        });
+      } catch (bcErr) {}
 
       setFeedback({
         type: 'error',

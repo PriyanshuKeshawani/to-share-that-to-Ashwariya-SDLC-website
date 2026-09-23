@@ -91,15 +91,71 @@ export default function ProjectManagement({
     fetchProjects(hasData);
   }, [fetchProjects]);
 
-  // Realtime Supabase Channel
+  // Realtime Supabase Channel: live broadcast + in-place like updates
   useEffect(() => {
     let channel = null;
     try {
       channel = supabase
-        .channel('admin-projects-sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-          fetchProjectsRef.current?.(true);
+        .channel('sistec-projects-live', {
+          config: { broadcast: { self: false } }
         })
+        .on('broadcast', { event: 'project_like_update' }, ({ payload }) => {
+          if (!payload || !payload.projectId) return;
+
+          setProjects(prev => prev.map(p => {
+            if (p.id !== payload.projectId) return p;
+            const newCount = typeof payload.likes_count === 'number'
+              ? payload.likes_count
+              : Math.max(0, (p.likes_count || 0) + (payload.delta || 0));
+            return { ...p, likes_count: newCount };
+          }));
+
+          if (inMemoryAdminProjects) {
+            inMemoryAdminProjects = inMemoryAdminProjects.map(p => {
+              if (p.id !== payload.projectId) return p;
+              const newCount = typeof payload.likes_count === 'number'
+                ? payload.likes_count
+                : Math.max(0, (p.likes_count || 0) + (payload.delta || 0));
+              return { ...p, likes_count: newCount };
+            });
+          }
+        })
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'projects' },
+          (payload) => {
+            if (payload.new && payload.new.id) {
+              const updatedId = payload.new.id;
+              const newCount = typeof payload.new.likes_count === 'number' ? payload.new.likes_count : null;
+              if (newCount !== null) {
+                setProjects(prev => prev.map(p => p.id === updatedId ? { ...p, likes_count: newCount } : p));
+                if (inMemoryAdminProjects) {
+                  inMemoryAdminProjects = inMemoryAdminProjects.map(p => p.id === updatedId ? { ...p, likes_count: newCount } : p);
+                }
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'projects' },
+          () => {
+            fetchProjectsRef.current?.(true);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'projects' },
+          (payload) => {
+            if (payload.old && payload.old.id) {
+              const deletedId = payload.old.id;
+              setProjects(prev => prev.filter(p => p.id !== deletedId));
+              if (inMemoryAdminProjects) {
+                inMemoryAdminProjects = inMemoryAdminProjects.filter(p => p.id !== deletedId);
+              }
+            }
+          }
+        )
         .subscribe();
     } catch (e) {
       console.warn('Realtime projects subscribe note:', e.message);

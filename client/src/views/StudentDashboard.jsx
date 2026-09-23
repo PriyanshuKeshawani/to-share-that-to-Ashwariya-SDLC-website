@@ -283,7 +283,10 @@ const StudentDashboard = ({ onSelectBook }) => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'senior_academic_profiles' }, () => {
           silentRefreshRef.current?.();
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, () => {
+          silentRefreshRef.current?.();
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'projects' }, () => {
           silentRefreshRef.current?.();
         })
         .on(
