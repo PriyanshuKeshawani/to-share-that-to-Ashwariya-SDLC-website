@@ -53,46 +53,27 @@ export function initDeveloperCredits() {
       'background: #2563eb; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 0 4px 4px 0; border: 1px solid #2563eb; font-family: system-ui, -apple-system, sans-serif;'
     );
 
-    // 2. Card Header Banner Chips
-    console.log(
-      '%c DOMAINEXPANDERS // %c CORE DEV TEAM %c VERIFIED BUILD ',
-      'background: #2563eb; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px 0 0 4px;',
-      'background: #0f172a; color: #38bdf8; font-weight: 700; font-size: 11px; padding: 3px 8px; border: 1px solid #1e3a8a;',
-      'background: #059669; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 0 4px 4px 0;'
-    );
+    // 2. Unified Developer Card (Single clean card with 1-click active links, zero quote artifacts, no table noise)
+    const cardContent = [
+      '╭────────────────────────────────────────────────────────────╮',
+      '│  🚀 DOMAINEXPANDERS // CORE ENGINEERING TEAM               │',
+      '├────────────────────────────────────────────────────────────┤',
+      '│  🏢 DOMAINEXPANDERS//                                      │',
+      '│     🌐 https://www.domainexpanders.in/                     │',
+      '│                                                            │',
+      '│  👤 Anshul Soni (Senior Developer)                         │',
+      '│     📸 https://www.instagram.com/otaku_anshul_             │',
+      '│                                                            │',
+      '│  👤 Adarah Mishra (Junior Developer & Non-Dev Works)       │',
+      '│     📸 https://www.instagram.com/adarshmishra121325        │',
+      '│                                                            │',
+      '│  💡 Run anshul() or domainexpanders() in console to open   │',
+      '╰────────────────────────────────────────────────────────────╯'
+    ].join('\n');
 
-    // 3. Interactive Graphical Card Table (DevTools natively renders as a rich interactive card with 1-click hyperlinks)
-    if (typeof console.table === 'function') {
-      console.table([
-        {
-          'Developer / Organization': '🏢 DOMAINEXPANDERS//',
-          'Role & Responsibilities': 'Engineering & Product Architecture',
-          'Direct Profile Link (Clickable)': 'https://www.domainexpanders.in/'
-        },
-        {
-          'Developer / Organization': '👨‍💻 Anshul Soni',
-          'Role & Responsibilities': 'Senior Developer (Fullstack & Core)',
-          'Direct Profile Link (Clickable)': 'https://www.instagram.com/otaku_anshul_'
-        },
-        {
-          'Developer / Organization': '👨‍💻 Adarah Mishra',
-          'Role & Responsibilities': 'Junior Developer & Non-Dev Works',
-          'Direct Profile Link (Clickable)': 'https://www.instagram.com/adarshmishra121325'
-        }
-      ]);
-    }
-
-    // 4. Quick-access console shortcuts & pro-tip
     console.log(
-      '%c💡 ProTip:%c Click any URL in the table above, or type %canshul()%c, %cadarsh()%c, or %cdomainexpanders()%c in the console to open directly.',
-      'color: #38bdf8; font-weight: bold;',
-      'color: #94a3b8;',
-      'color: #fbbf24; font-family: monospace; font-weight: bold;',
-      'color: #94a3b8;',
-      'color: #fbbf24; font-family: monospace; font-weight: bold;',
-      'color: #94a3b8;',
-      'color: #fbbf24; font-family: monospace; font-weight: bold;',
-      'color: #94a3b8;'
+      '%c' + cardContent,
+      'color: #38bdf8; font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; line-height: 1.45; font-weight: 600;'
     );
 
     // 5. Register global console helper functions for effortless 1-command navigation
