@@ -256,76 +256,130 @@ BEGIN
   END LOOP;
 END $$;
 
--- 9b. Branches & Categories: Public Read, Admin Write
+-- 9b. Non-Recursive Admin Verification Function
+-- CRITICAL FIX for Postgres 42P17 ("infinite recursion detected in policy for relation 'users'"):
+-- Functions marked SECURITY DEFINER execute with the privileges of the owner (postgres),
+-- which BYPASSES RLS on public.users. This allows checking admin status cleanly without
+-- triggering recursive policy evaluation loops.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  -- Service role / postgres always has admin privileges
+  IF (auth.jwt() ->> 'role') = 'service_role' THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$;
+
+-- 9c. Branches & Categories: Public Read, Admin Write
 DROP POLICY IF EXISTS "Public can view branches" ON branches;
 CREATE POLICY "Public can view branches" ON branches FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins can manage branches" ON branches;
 CREATE POLICY "Admins can manage branches" ON branches FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 DROP POLICY IF EXISTS "Public can view categories" ON categories;
 CREATE POLICY "Public can view categories" ON categories FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins can manage categories" ON categories;
 CREATE POLICY "Admins can manage categories" ON categories FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
--- 9c. Books: Public Read, Admin Write
+-- 9d. Books: Public Read, Admin Write
 DROP POLICY IF EXISTS "Public can view books" ON books;
 CREATE POLICY "Public can view books" ON books FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins can manage books" ON books;
 CREATE POLICY "Admins can manage books" ON books FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
--- 9d. Users: Public Read profiles, Self Registration & Profile Updates, Admin Management
+-- 9e. Users: Public Read profiles, Self Registration & Profile Updates, Admin Management
 DROP POLICY IF EXISTS "Public can view user profiles" ON users;
 CREATE POLICY "Public can view user profiles" ON users FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Users can insert own record" ON users;
 CREATE POLICY "Users can insert own record" ON users FOR INSERT WITH CHECK (
-  auth.uid() = id OR auth.uid() IS NULL
+  auth.uid() = id OR auth.uid() IS NULL OR public.is_admin()
 );
 
 DROP POLICY IF EXISTS "Users can update own basic profile" ON users;
-CREATE POLICY "Users can update own basic profile" ON users FOR UPDATE 
-  USING (auth.uid() = id)
-  WITH CHECK (
-    auth.uid() = id 
-    AND (
-      -- Student cannot elevate role or approve themselves without being admin
-      role = (SELECT u.role FROM public.users u WHERE u.id = auth.uid())
-      AND status = (SELECT u.status FROM public.users u WHERE u.id = auth.uid())
-      AND is_blocked = (SELECT u.is_blocked FROM public.users u WHERE u.id = auth.uid())
-    )
-  );
-
 DROP POLICY IF EXISTS "Admins can manage all users" ON users;
-CREATE POLICY "Admins can manage all users" ON users FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+DROP POLICY IF EXISTS "Users and admins can update users" ON users;
+CREATE POLICY "Users and admins can update users" ON users FOR UPDATE 
+  USING (auth.uid() = id OR public.is_admin())
+  WITH CHECK (auth.uid() = id OR public.is_admin());
 
--- 9e. Permissions: User view own, Admin manage all
+DROP POLICY IF EXISTS "Admins can delete users" ON users;
+CREATE POLICY "Admins can delete users" ON users FOR DELETE 
+  USING (public.is_admin());
+
+-- 9e-1. Trigger: Enforce Role & Status Security on Users (IDOR / Privilege Escalation Prevention)
+-- Without complex recursive RLS subqueries, this trigger prevents regular users from elevating
+-- their role to 'admin', approving their own account status, or unblocking themselves.
+CREATE OR REPLACE FUNCTION public.protect_user_role_and_status()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+      RAISE EXCEPTION 'Unauthorized: Only administrators can modify user roles.';
+    END IF;
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+      RAISE EXCEPTION 'Unauthorized: Only administrators can modify user account status.';
+    END IF;
+    IF NEW.is_blocked IS DISTINCT FROM OLD.is_blocked THEN
+      RAISE EXCEPTION 'Unauthorized: Only administrators can modify block status.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tr_protect_user_role_and_status ON public.users;
+CREATE TRIGGER tr_protect_user_role_and_status
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_user_role_and_status();
+
+-- 9f. Permissions: User view own, Admin manage all
 DROP POLICY IF EXISTS "Users can view own permissions" ON permissions;
 CREATE POLICY "Users can view own permissions" ON permissions FOR SELECT 
-  USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (auth.uid() = user_id OR public.is_admin());
 
 DROP POLICY IF EXISTS "Users can request permissions" ON permissions;
 CREATE POLICY "Users can request permissions" ON permissions FOR INSERT 
-  WITH CHECK (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 DROP POLICY IF EXISTS "Admins can update permissions" ON permissions;
 CREATE POLICY "Admins can update permissions" ON permissions FOR UPDATE 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 DROP POLICY IF EXISTS "Admins can delete permissions" ON permissions;
 CREATE POLICY "Admins can delete permissions" ON permissions FOR DELETE 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin());
 
--- 9f. User Book Progress: User isolated (IDOR Prevention)
+-- 9g. User Book Progress: User isolated (IDOR Prevention)
 DROP POLICY IF EXISTS "Users manage own reading progress" ON user_book_progress;
 CREATE POLICY "Users manage own reading progress" ON user_book_progress FOR ALL 
-  USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'))
-  WITH CHECK (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (auth.uid() = user_id OR public.is_admin())
+  WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
--- 9g. Notes & Bookmarks: Strict IDOR Prevention
+-- 9h. Notes & Bookmarks: Strict IDOR Prevention
 DROP POLICY IF EXISTS "Users manage own notes" ON notes;
 CREATE POLICY "Users manage own notes" ON notes FOR ALL 
   USING (auth.uid() = user_id)
@@ -336,10 +390,10 @@ CREATE POLICY "Users manage own bookmarks" ON bookmarks FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- 9h. Notifications & Activity Logs
+-- 9i. Notifications & Activity Logs
 DROP POLICY IF EXISTS "Users view own notifications" ON notifications;
 CREATE POLICY "Users view own notifications" ON notifications FOR SELECT 
-  USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (auth.uid() = user_id OR public.is_admin());
 
 DROP POLICY IF EXISTS "Users update own notification read state" ON notifications;
 CREATE POLICY "Users update own notification read state" ON notifications FOR UPDATE 
@@ -351,19 +405,20 @@ CREATE POLICY "System and admins insert notifications" ON notifications FOR INSE
 
 DROP POLICY IF EXISTS "Users view own activity logs" ON activity_logs;
 CREATE POLICY "Users view own activity logs" ON activity_logs FOR SELECT 
-  USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (auth.uid() = user_id OR public.is_admin());
 
 DROP POLICY IF EXISTS "Users insert activity logs" ON activity_logs;
 CREATE POLICY "Users insert activity logs" ON activity_logs FOR INSERT 
-  WITH CHECK (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
--- 9i. System Settings: Public Read, Admin Write
+-- 9j. System Settings: Public Read, Admin Write
 DROP POLICY IF EXISTS "Public can view system settings" ON system_settings;
 CREATE POLICY "Public can view system settings" ON system_settings FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Admins can manage system settings" ON system_settings;
 CREATE POLICY "Admins can manage system settings" ON system_settings FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin'));
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- =========================================================
 -- 10. Indexes
@@ -406,10 +461,7 @@ DROP POLICY IF EXISTS "Admins can upload pdfs" ON storage.objects;
 CREATE POLICY "Admins can upload pdfs" ON storage.objects FOR INSERT 
   WITH CHECK (
     bucket_id IN ('pdfs', 'covers')
-    AND (
-      EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin')
-      OR auth.role() = 'service_role'
-    )
+    AND (public.is_admin() OR auth.role() = 'service_role')
   );
 
 DROP POLICY IF EXISTS "Anyone can update pdfs" ON storage.objects;
@@ -417,10 +469,7 @@ DROP POLICY IF EXISTS "Admins can update pdfs" ON storage.objects;
 CREATE POLICY "Admins can update pdfs" ON storage.objects FOR UPDATE 
   USING (
     bucket_id IN ('pdfs', 'covers')
-    AND (
-      EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin')
-      OR auth.role() = 'service_role'
-    )
+    AND (public.is_admin() OR auth.role() = 'service_role')
   );
 
 DROP POLICY IF EXISTS "Anyone can delete pdfs" ON storage.objects;
@@ -428,10 +477,7 @@ DROP POLICY IF EXISTS "Admins can delete pdfs" ON storage.objects;
 CREATE POLICY "Admins can delete pdfs" ON storage.objects FOR DELETE 
   USING (
     bucket_id IN ('pdfs', 'covers')
-    AND (
-      EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND public.users.role = 'admin')
-      OR auth.role() = 'service_role'
-    )
+    AND (public.is_admin() OR auth.role() = 'service_role')
   );
 
 -- =========================================================
@@ -510,11 +556,7 @@ CREATE POLICY "Public and students can view published senior profiles"
   USING (
     is_published = true 
     OR 
-    EXISTS (
-      SELECT 1 FROM public.users 
-      WHERE public.users.id = auth.uid() 
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can insert senior profiles" ON public.senior_academic_profiles;
@@ -522,11 +564,7 @@ CREATE POLICY "Admins can insert senior profiles"
   ON public.senior_academic_profiles
   FOR INSERT
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users 
-      WHERE public.users.id = auth.uid() 
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can update senior profiles" ON public.senior_academic_profiles;
@@ -534,18 +572,10 @@ CREATE POLICY "Admins can update senior profiles"
   ON public.senior_academic_profiles
   FOR UPDATE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users 
-      WHERE public.users.id = auth.uid() 
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users 
-      WHERE public.users.id = auth.uid() 
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can delete senior profiles" ON public.senior_academic_profiles;
@@ -553,11 +583,7 @@ CREATE POLICY "Admins can delete senior profiles"
   ON public.senior_academic_profiles
   FOR DELETE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users 
-      WHERE public.users.id = auth.uid() 
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DO $$
@@ -662,11 +688,7 @@ CREATE POLICY "Public and students can view published active projects"
   USING (
     (is_published = true AND is_active = true)
     OR
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE public.users.id = auth.uid()
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can insert projects" ON public.projects;
@@ -674,11 +696,7 @@ CREATE POLICY "Admins can insert projects"
   ON public.projects
   FOR INSERT
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE public.users.id = auth.uid()
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can update projects" ON public.projects;
@@ -686,18 +704,10 @@ CREATE POLICY "Admins can update projects"
   ON public.projects
   FOR UPDATE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE public.users.id = auth.uid()
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE public.users.id = auth.uid()
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 -- Allow students and public users to update project like / reaction counts
@@ -713,11 +723,7 @@ CREATE POLICY "Admins can delete projects"
   ON public.projects
   FOR DELETE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE public.users.id = auth.uid()
-      AND public.users.role = 'admin'
-    )
+    public.is_admin()
   );
 
 -- ==============================================================================
