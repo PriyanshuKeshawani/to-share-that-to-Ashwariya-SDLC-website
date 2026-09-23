@@ -157,6 +157,11 @@ ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS progress_percentage INTE
 ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'in_progress';
 ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS session_start_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS accessed_count INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS downloaded_count INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS is_downloaded INTEGER DEFAULT 0;
+ALTER TABLE user_book_progress ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;
 
 -- Add check constraint for status (idempotent)
 DO $$

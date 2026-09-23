@@ -2174,24 +2174,57 @@ export const AuthProvider = ({ children }) => {
     if (endpoint.startsWith('/students/') && endpoint.endsWith('/activity') && method === 'GET') {
       const studentId = endpoint.split('/')[2];
       const [
-        { data: studentUser },
-        { data: rawBookProgress },
-        { data: permissionsData },
-        { data: activityLogs },
-        { data: allBooksList }
+        studentUser,
+        rawBookProgress,
+        permissionsData,
+        activityLogs,
+        allBooksList
       ] = await Promise.all([
-        supabase.from('users').select('*').eq('id', studentId).maybeSingle(),
-        supabase.from('user_book_progress').select(`
-          *,
-          book:book_id(id, title, author, total_pages, category:category_id(name), branch:branch_id(name))
-        `).eq('user_id', studentId).order('last_accessed_at', { ascending: false }),
-        supabase.from('permissions').select('*, branch:branch_id(name), book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }),
-        supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(100),
+        supabase.from('users').select('*').eq('id', studentId).maybeSingle().then(r => r.data || null).catch(() => null),
+        (async () => {
+          try {
+            const res = await supabase.from('user_book_progress').select(`
+              *,
+              book:book_id(id, title, author, total_pages, category:category_id(name), branch:branch_id(name))
+            `).eq('user_id', studentId).order('last_accessed_at', { ascending: false });
+            if (!res.error && res.data && res.data.length > 0) return res.data;
+          } catch {}
+          try {
+            const flat = await supabase.from('user_book_progress').select('*').eq('user_id', studentId);
+            return flat.data || [];
+          } catch {
+            return [];
+          }
+        })(),
+        (async () => {
+          try {
+            const res = await supabase.from('permissions').select('*, branch:branch_id(name), book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false });
+            if (!res.error && res.data && res.data.length > 0) return res.data;
+          } catch {}
+          try {
+            const flat = await supabase.from('permissions').select('*').eq('user_id', studentId);
+            return flat.data || [];
+          } catch {
+            return [];
+          }
+        })(),
+        (async () => {
+          try {
+            const res = await supabase.from('activity_logs').select('*, book:book_id(title)').eq('user_id', studentId).order('created_at', { ascending: false }).limit(100);
+            if (!res.error && res.data && res.data.length > 0) return res.data;
+          } catch {}
+          try {
+            const flat = await supabase.from('activity_logs').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(100);
+            return flat.data || [];
+          } catch {
+            return [];
+          }
+        })(),
         Promise.all([
           supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(0, 999),
           supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(1000, 1999),
           supabase.from('books').select('id, title, author, total_pages, category:category_id(name), branch:branch_id(name)').range(2000, 2999)
-        ]).then(res => res.flatMap(r => r.data || []))
+        ]).then(res => res.flatMap(r => r.data || [])).catch(() => [])
       ]);
 
       const bookLookup = new Map((allBooksList || []).map(b => [b.id, b]));
@@ -2683,8 +2716,8 @@ export const AuthProvider = ({ children }) => {
           book_id: targetBookId,
           action_type: actionType,
           details: details
-        }]).select().single();
-        if (!error) logData = data;
+        }]).select();
+        if (!error && data && data.length > 0) logData = data[0];
       } catch (err) {
         console.warn('Notice writing activity_logs:', err);
       }
@@ -2723,36 +2756,63 @@ export const AuthProvider = ({ children }) => {
             const isDl = actionType === 'download' ? 1 : (existing.is_downloaded || 0);
             const dlCount = actionType === 'download' ? ((existing.downloaded_count || 0) + 1) : (existing.downloaded_count || 0);
 
-            await supabase
-              .from('user_book_progress')
-              .update({
-                last_page_read: finalPage,
-                total_pages: bookTotalPages,
-                progress_percentage: progressPercentage,
-                status: completionStatus,
-                accessed_count: (existing.accessed_count || 0) + (actionType === 'open' ? 1 : 0),
-                is_downloaded: isDl,
-                downloaded_count: dlCount,
-                last_accessed_at: nowIso,
-                last_active_at: nowIso
-              })
-              .eq('id', existing.id);
+            try {
+              await supabase
+                .from('user_book_progress')
+                .update({
+                  last_page_read: finalPage,
+                  total_pages: bookTotalPages,
+                  progress_percentage: progressPercentage,
+                  status: completionStatus,
+                  accessed_count: (existing.accessed_count || 0) + (actionType === 'open' ? 1 : 0),
+                  is_downloaded: isDl,
+                  downloaded_count: dlCount,
+                  last_accessed_at: nowIso,
+                  last_active_at: nowIso
+                })
+                .eq('id', existing.id);
+            } catch {
+              // Fallback update without optional timestamp columns
+              await supabase
+                .from('user_book_progress')
+                .update({
+                  last_page_read: finalPage,
+                  total_pages: bookTotalPages,
+                  progress_percentage: progressPercentage,
+                  status: completionStatus
+                })
+                .eq('id', existing.id);
+            }
           } else {
-            await supabase
-              .from('user_book_progress')
-              .insert([{
-                user_id: effectiveId,
-                book_id: targetBookId,
-                last_page_read: finalPage,
-                total_pages: bookTotalPages,
-                progress_percentage: progressPercentage,
-                status: completionStatus,
-                accessed_count: 1,
-                is_downloaded: actionType === 'download' ? 1 : 0,
-                downloaded_count: actionType === 'download' ? 1 : 0,
-                last_accessed_at: nowIso,
-                last_active_at: nowIso
-              }]);
+            try {
+              await supabase
+                .from('user_book_progress')
+                .insert([{
+                  user_id: effectiveId,
+                  book_id: targetBookId,
+                  last_page_read: finalPage,
+                  total_pages: bookTotalPages,
+                  progress_percentage: progressPercentage,
+                  status: completionStatus,
+                  accessed_count: 1,
+                  is_downloaded: actionType === 'download' ? 1 : 0,
+                  downloaded_count: actionType === 'download' ? 1 : 0,
+                  last_accessed_at: nowIso,
+                  last_active_at: nowIso
+                }]);
+            } catch {
+              // Fallback insert with essential columns
+              await supabase
+                .from('user_book_progress')
+                .insert([{
+                  user_id: effectiveId,
+                  book_id: targetBookId,
+                  last_page_read: finalPage,
+                  total_pages: bookTotalPages,
+                  progress_percentage: progressPercentage,
+                  status: completionStatus
+                }]);
+            }
           }
         } catch (progErr) {
           console.warn('Notice updating user_book_progress in Supabase:', progErr);
@@ -2817,8 +2877,32 @@ export const AuthProvider = ({ children }) => {
           supabase.from('books').select(bookAnalyticsFields).order('created_at', { ascending: false }).range(2000, 2999)
         ]),
         supabase.from('users').select('id, full_name, roll_number, branch_name, role, status, is_blocked, created_at, avatar_url, year, semester, bt_number').order('full_name', { ascending: true }),
-        supabase.from('user_book_progress').select('id, user_id, book_id, accessed_count, downloaded_count, is_downloaded, last_page_read, total_pages, session_count, reading_time_minutes, progress_percentage, status, last_accessed_at, last_active_at'),
-        logsQuery
+        (async () => {
+          try {
+            const res = await supabase.from('user_book_progress').select('id, user_id, book_id, accessed_count, downloaded_count, is_downloaded, last_page_read, total_pages, session_count, reading_time_minutes, progress_percentage, status, last_accessed_at, last_active_at');
+            if (!res.error && res.data) return { data: res.data, error: null };
+          } catch {}
+          try {
+            const flat = await supabase.from('user_book_progress').select('*');
+            return { data: flat.data || [], error: null };
+          } catch {
+            return { data: [], error: null };
+          }
+        })(),
+        (async () => {
+          try {
+            const res = await logsQuery;
+            if (!res.error && res.data) return { data: res.data, error: null };
+          } catch {}
+          try {
+            let fallback = supabase.from('activity_logs').select('id, action_type, book_id, user_id, details, created_at').order('created_at', { ascending: false });
+            if (startDate) fallback = fallback.gte('created_at', startDate);
+            const flat = await fallback;
+            return { data: flat.data || [], error: null };
+          } catch {
+            return { data: [], error: null };
+          }
+        })()
       ]);
 
       const allBooks = booksChunks.flatMap(res => res.data || []);
@@ -3068,29 +3152,53 @@ export const AuthProvider = ({ children }) => {
       const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveId) return [];
       try {
-        const [{ data: logsData, error: logError }, { data: progressData }] = await Promise.all([
-          supabase.from('activity_logs').select('*, book:book_id(title, author)').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(20),
-          supabase.from('user_book_progress').select('*, book:book_id(title, author, total_pages)').eq('user_id', effectiveId)
+        const [logsRes, progRes] = await Promise.all([
+          (async () => {
+            try {
+              const res = await supabase.from('activity_logs').select('*, book:book_id(title, author)').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(50);
+              if (!res.error && res.data && res.data.length > 0) return res.data;
+            } catch {}
+            try {
+              const flat = await supabase.from('activity_logs').select('*').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(50);
+              return flat.data || [];
+            } catch {
+              return [];
+            }
+          })(),
+          (async () => {
+            try {
+              const res = await supabase.from('user_book_progress').select('*, book:book_id(title, author, total_pages)').eq('user_id', effectiveId);
+              if (!res.error && res.data && res.data.length > 0) return res.data;
+            } catch {}
+            try {
+              const flat = await supabase.from('user_book_progress').select('*').eq('user_id', effectiveId);
+              return flat.data || [];
+            } catch {
+              return [];
+            }
+          })()
         ]);
-        if (logError) {
-          console.warn('Notice loading my-history activity logs:', logError.message);
-          return [];
-        }
 
-        const progressMap = new Map((progressData || []).map(p => [p.book_id, p]));
-        const progressByTitle = new Map((progressData || []).map(p => [p.book?.title, p]));
+        const logsData = logsRes || [];
+        const progressData = progRes || [];
+
+        const progressMap = new Map((progressData || []).map(p => [String(p.book_id), p]));
+        const progressByTitle = new Map((progressData || []).map(p => [String(p.book?.title || '').toLowerCase(), p]));
 
         return (logsData || []).map(l => {
-          const prog = progressMap.get(l.book_id) || (l.book?.title ? progressByTitle.get(l.book.title) : null);
-          const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
           const fallbackTitle = l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null;
+          const prog = progressMap.get(String(l.book_id)) || (fallbackTitle ? progressByTitle.get(fallbackTitle.toLowerCase()) : null);
+          const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
+          const totalPages = prog?.total_pages || prog?.book?.total_pages || 100;
+          const pageRead = prog ? (prog.last_page_read || 1) : parsedPage;
+
           return {
             ...l,
-            book_title: l.book ? l.book.title : fallbackTitle,
+            book_title: l.book ? l.book.title : (fallbackTitle || 'Library E-Book'),
             book_author: l.book ? l.book.author : null,
-            last_page_read: prog ? (prog.last_page_read || 1) : parsedPage,
-            total_pages: prog?.total_pages || prog?.book?.total_pages || 100,
-            progress_percentage: prog?.progress_percentage || 0
+            last_page_read: pageRead,
+            total_pages: totalPages,
+            progress_percentage: prog?.progress_percentage || Math.min(100, Math.round((pageRead / totalPages) * 100))
           };
         });
       } catch (err) {
