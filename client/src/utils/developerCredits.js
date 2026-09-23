@@ -46,11 +46,10 @@ export function initDeveloperCredits() {
       ? console.groupEnd.bind(console)
       : () => {};
 
-    // 1. Collapsed heading with stylish pill badge (Dark & Light mode friendly)
+    // 1. Collapsed heading with discreet badge (Only '🛠️ Developer Information', no visible company name until expanded)
     groupCollapsed(
-      '%c 🛠️ Developer Information %c DOMAINEXPANDERS // ',
-      'background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px 0 0 4px; border: 1px solid #334155; font-family: system-ui, -apple-system, sans-serif;',
-      'background: #2563eb; color: #ffffff; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 0 4px 4px 0; border: 1px solid #2563eb; font-family: system-ui, -apple-system, sans-serif;'
+      '%c 🛠️ Developer Information ',
+      'background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #334155; font-family: system-ui, -apple-system, sans-serif;'
     );
 
     // 2. Unified Developer Card (Single clean card with 1-click active links, zero quote artifacts, no table noise)
@@ -76,7 +75,7 @@ export function initDeveloperCredits() {
       'color: #38bdf8; font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; line-height: 1.45; font-weight: 600;'
     );
 
-    // 5. Register global console helper functions for effortless 1-command navigation
+    // 3. Register global console helper functions for effortless 1-command navigation
     if (typeof window !== 'undefined') {
       window.domainexpanders = () => {
         safeOpenUrl('https://www.domainexpanders.in/');
@@ -84,11 +83,12 @@ export function initDeveloperCredits() {
       };
       window.anshul = () => {
         safeOpenUrl('https://www.instagram.com/otaku_anshul_');
-        return '👨‍💻 Opening Anshul Soni (Senior Developer) profile...';
+        return '👤 Opening Anshul Soni (Senior Developer) profile...';
       };
+      window.anshu = window.anshul;
       window.adarsh = () => {
         safeOpenUrl('https://www.instagram.com/adarshmishra121325');
-        return '👨‍💻 Opening Adarah Mishra profile...';
+        return '👤 Opening Adarah Mishra profile...';
       };
     }
 
