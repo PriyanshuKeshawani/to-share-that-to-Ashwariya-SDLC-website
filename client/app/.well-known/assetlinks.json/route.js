@@ -1,0 +1,33 @@
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const assetLinks = [
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.sistec.libraryportal",
+        "sha256_cert_fingerprints": [
+          "03:F2:6E:36:0D:AD:E1:21:B7:18:B0:C1:7F:57:BE:58:00:2B:85:6D:38:11:AE:FF:04:1D:07:FE:30:13:13:A9"
+        ]
+      }
+    },
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.sistec.elibrary",
+        "sha256_cert_fingerprints": [
+          "03:F2:6E:36:0D:AD:E1:21:B7:18:B0:C1:7F:57:BE:58:00:2B:85:6D:38:11:AE:FF:04:1D:07:FE:30:13:13:A9"
+        ]
+      }
+    }
+  ];
+
+  return NextResponse.json(assetLinks, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800'
+    }
+  });
+}

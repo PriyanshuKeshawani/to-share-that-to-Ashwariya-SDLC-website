@@ -13,6 +13,7 @@
     "cap:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
     "@supabase/supabase-js": "^2.112.3",
     "dexie": "^4.4.6",
     "firebase": "^12.19.0",

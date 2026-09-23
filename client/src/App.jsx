@@ -14,6 +14,7 @@ import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { initNativeBackManager } from './utils/nativeBackManager';
 import useNativeBack from './hooks/useNativeBack';
 import NativeExitToast from './components/NativeExitToast';
+import SmartAppBanner from './components/SmartAppBanner';
 
 class GlobalErrorBoundary extends Component {
   constructor(props) {
@@ -236,6 +237,61 @@ const AppContent = () => {
     isRegistering,
     { id: 'app-register-view', priority: 15, label: 'register-view' }
   );
+
+  // Listen for native deep linking events from Android / Capacitor
+  useEffect(() => {
+    let removeListener = null;
+
+    const setupDeepLinks = async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        const listenerHandle = await CapApp.addListener('appUrlOpen', (event) => {
+          if (!event || !event.url) return;
+          let urlStr = event.url;
+
+          // Normalize custom scheme (e.g. sisteclib://?book=uuid -> http://localhost/?book=uuid)
+          if (urlStr.startsWith('sisteclib://')) {
+            urlStr = urlStr.replace(/^sisteclib:\/\/?/, 'http://localhost/');
+          }
+
+          try {
+            const parsed = new URL(urlStr);
+            const bookId = parsed.searchParams.get('book') || parsed.searchParams.get('read');
+            const projectId = parsed.searchParams.get('project');
+
+            if (bookId) {
+              const currentParams = new URLSearchParams(window.location.search);
+              currentParams.set('book', bookId);
+              window.history.pushState(null, '', `?${currentParams.toString()}`);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            } else if (projectId) {
+              const currentParams = new URLSearchParams(window.location.search);
+              currentParams.set('tab', 'projects');
+              currentParams.set('project', projectId);
+              window.history.pushState(null, '', `?${currentParams.toString()}`);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          } catch (err) {
+            console.warn('[DeepLink] URL parse error:', err);
+          }
+        });
+
+        removeListener = () => {
+          if (listenerHandle && listenerHandle.remove) {
+            listenerHandle.remove();
+          }
+        };
+      } catch {
+        // Not in Capacitor environment
+      }
+    };
+
+    setupDeepLinks();
+
+    return () => {
+      if (removeListener) removeListener();
+    };
+  }, []);
 
   // Listen to popstate for browser back/forward buttons
   useEffect(() => {
@@ -470,6 +526,7 @@ const AppContent = () => {
 function App() {
   return (
     <GlobalErrorBoundary>
+      <SmartAppBanner />
       <AppContent />
       <NativeExitToast />
     </GlobalErrorBoundary>

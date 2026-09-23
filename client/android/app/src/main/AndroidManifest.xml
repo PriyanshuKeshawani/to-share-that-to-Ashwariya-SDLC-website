@@ -23,6 +23,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- 1. Custom URL Scheme (sisteclib://...) for instant deep linking -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sisteclib" />
+            </intent-filter>
+
+            <!-- 2. Universal HTTPS / HTTP Deep Links (App Links) for shared web URLs -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="library.sistec.ac.in" />
+                <data android:host="*.sistec.ac.in" />
+                <data android:host="sistec-library-portal.vercel.app" />
+            </intent-filter>
+
         </activity>
 
         <provider
