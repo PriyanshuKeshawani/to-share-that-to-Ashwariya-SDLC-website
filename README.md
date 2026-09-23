@@ -207,25 +207,34 @@ The database schema is self-contained in **`supabase_schema.sql`** at the root o
    - `branches`: Institutional engineering, pharmacy, and management branches.
    - `categories`: Subject taxonomy and department classifications.
    - `books`: Master book catalog (titles, authors, drive links, PDF URLs, covers).
-   - `users`: Student and faculty profiles with approval status and roll numbers.
-   - `reading_sessions` & `reading_goals`: Student reading analytics and activity logs.
-   - `user_fcm_tokens`: Push notification registration for devices.
+   - `users`: Student and faculty profiles with approval status, branch, and roll numbers.
+   - `user_book_progress`: Real-time reading progress, session duration, and page completion metrics.
+   - `notes` & `bookmarks`: Personal student study notes and chapter bookmarks.
+   - `senior_academic_profiles`: Directory of senior majors & minors with career and mentorship guidance.
+   - `projects`: Student innovation & hackathon projects showcase with live URLs, GitHub repositories, and team members.
+   - `project_likes` & `project_reactions`: Real-time peer reactions and synchronized like counters.
+   - `user_fcm_tokens`: Push notification device registration for Web and Android.
    - **Row-Level Security (RLS)**: Enforces access control so users can only access authorized data.
-   - **Triggers & Stored Procedures**: Automatic timestamps, book page counters, and stats aggregation.
+   - **Triggers & Stored Procedures**: Automatic timestamps, like counters, and stats aggregation.
 
 ---
 
 ## Deployment Guide
 
-### Option 1: Vercel (Recommended)
+### Option 1: Hostinger K2 VPS / On-Premise Deployment (College Server)
+For deploying directly on the college's Hostinger KVM 2 VPS (8GB RAM) with Nginx reverse proxy, PM2 process management, automated database backups, and SSL, consult our comprehensive guide:
+👉 **[DEPLOYMENT_AND_VPS_SETUP_GUIDE.md](file:///d:/CODE%20JAANI%20CODE/company%20work/Sistech%20libraray/SISTEC-LIBRARY-PORTAL-/DEPLOYMENT_AND_VPS_SETUP_GUIDE.md)**
+
+### Option 2: Vercel (Cloud-Native SSR)
 This repository is configured with a root `vercel.json` pointing to `client/`:
 1. Connect your GitHub repository to [vercel.com](https://vercel.com).
 2. Set Root Directory to `client` (or leave default as `vercel.json` automatically manages this).
 3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Environment Variables.
 4. Click **Deploy**.
 
-### Option 2: Cloudflare Pages / Static Edge
-For zero egress costs and high student concurrency, consult [architecture_100k_free_tier.md](file:///d:/CODE%20JAANI%20CODE/company%20work/Sistech%20libraray/SISTEC-LIBRARY-PORTAL-/architecture_100k_free_tier.md) for full architectural guidelines.
+### Option 3: Cloudflare Pages / Static Edge (100k Users Zero Cost)
+For zero egress costs and high student concurrency, consult our detailed architecture blueprint:
+👉 **[architecture_100k_free_tier.md](file:///d:/CODE%20JAANI%20CODE/company%20work/Sistech%20libraray/SISTEC-LIBRARY-PORTAL-/architecture_100k_free_tier.md)**
 
 ---
 

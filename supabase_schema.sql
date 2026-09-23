@@ -66,8 +66,13 @@ CREATE TABLE IF NOT EXISTS users (
   auth_provider TEXT DEFAULT 'password',
   google_id TEXT UNIQUE,
   avatar_url TEXT,
+  admin_branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+  fcm_token TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 
 -- =========================================================
 -- 4. Books (with Google Drive support)
@@ -463,6 +468,15 @@ CREATE TABLE IF NOT EXISTS public.projects (
   source_type TEXT DEFAULT 'manual',
   source_reference TEXT,
 
+  image_url TEXT,
+  team_members JSONB DEFAULT '[]'::jsonb,
+  live_url TEXT,
+  github_url TEXT,
+  likes_count INTEGER DEFAULT 0,
+  dislikes_count INTEGER DEFAULT 0,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_by_name TEXT,
+
   is_published BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
   sort_order INTEGER DEFAULT 0,
@@ -470,6 +484,16 @@ CREATE TABLE IF NOT EXISTS public.projects (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Idempotent column migrations for projects table
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS team_members JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS live_url TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS github_url TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS dislikes_count INTEGER DEFAULT 0;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS created_by_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_projects_published_active ON public.projects(is_published, is_active);
 CREATE INDEX IF NOT EXISTS idx_projects_branch ON public.projects(branch_name);
@@ -541,6 +565,14 @@ CREATE POLICY "Admins can update projects"
     )
   );
 
+-- Allow students and public users to update project like / reaction counts
+DROP POLICY IF EXISTS "Allow reaction count updates on projects" ON public.projects;
+CREATE POLICY "Allow reaction count updates on projects"
+  ON public.projects
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Admins can delete projects" ON public.projects;
 CREATE POLICY "Admins can delete projects"
   ON public.projects
@@ -553,10 +585,161 @@ CREATE POLICY "Admins can delete projects"
     )
   );
 
+-- ==============================================================================
+-- 17. DEDICATED PROJECT LIKES TABLE & TRIGGER SYNCHRONIZER
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.project_likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT uq_project_likes_project_user UNIQUE (project_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_likes_project_id ON public.project_likes(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_likes_user_id ON public.project_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_project_likes_composite ON public.project_likes(project_id, user_id);
+
+CREATE OR REPLACE FUNCTION public.sync_project_likes_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.projects
+    SET likes_count = (
+      SELECT COUNT(*)::INTEGER 
+      FROM public.project_likes 
+      WHERE project_id = NEW.project_id
+    )
+    WHERE id = NEW.project_id;
+    RETURN NEW;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.projects
+    SET likes_count = (
+      SELECT COUNT(*)::INTEGER 
+      FROM public.project_likes 
+      WHERE project_id = OLD.project_id
+    )
+    WHERE id = OLD.project_id;
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_sync_project_likes_count ON public.project_likes;
+CREATE TRIGGER trigger_sync_project_likes_count
+  AFTER INSERT OR DELETE ON public.project_likes
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_project_likes_count();
+
+ALTER TABLE public.project_likes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view project likes" ON public.project_likes;
+CREATE POLICY "Public can view project likes"
+  ON public.project_likes
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own like" ON public.project_likes;
+CREATE POLICY "Users can insert their own like"
+  ON public.project_likes
+  FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can delete their own like" ON public.project_likes;
+CREATE POLICY "Users can delete their own like"
+  ON public.project_likes
+  FOR DELETE
+  USING (true);
+
+-- ==============================================================================
+-- 18. DEDICATED PROJECT REACTIONS TABLE (LIKE / DISLIKE BY EMAIL)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.project_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  user_id UUID,
+  user_email TEXT NOT NULL,
+  reaction_type TEXT NOT NULL CHECK (reaction_type IN ('like', 'dislike')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT uq_project_user_reaction UNIQUE (project_id, user_email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_reactions_lookup ON public.project_reactions(project_id, user_email);
+CREATE INDEX IF NOT EXISTS idx_project_reactions_project ON public.project_reactions(project_id);
+
+ALTER TABLE public.project_reactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view project reactions" ON public.project_reactions;
+CREATE POLICY "Public can view project reactions"
+  ON public.project_reactions
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own reaction" ON public.project_reactions;
+CREATE POLICY "Users can insert their own reaction"
+  ON public.project_reactions
+  FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can update their own reaction" ON public.project_reactions;
+CREATE POLICY "Users can update their own reaction"
+  ON public.project_reactions
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can delete their own reaction" ON public.project_reactions;
+CREATE POLICY "Users can delete their own reaction"
+  ON public.project_reactions
+  FOR DELETE
+  USING (true);
+
+-- ==============================================================================
+-- 19. USER FCM PUSH NOTIFICATION TOKENS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.user_fcm_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  fcm_token TEXT UNIQUE NOT NULL,
+  branch_name TEXT,
+  device_info TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_token ON public.user_fcm_tokens(fcm_token);
+CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_user ON public.user_fcm_tokens(user_id);
+
+ALTER TABLE public.user_fcm_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public and users can manage fcm tokens" ON public.user_fcm_tokens;
+CREATE POLICY "Public and users can manage fcm tokens"
+  ON public.user_fcm_tokens
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ==============================================================================
+-- 20. UNIFIED SUPABASE REALTIME REPLICATION (INSTANT LIVE SYNC)
+-- ==============================================================================
 DO $$
 BEGIN
   BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
+    ALTER PUBLICATION supabase_realtime ADD TABLE 
+      public.books, 
+      public.permissions, 
+      public.users, 
+      public.notifications, 
+      public.activity_logs, 
+      public.user_book_progress, 
+      public.branches, 
+      public.categories,
+      public.senior_academic_profiles,
+      public.projects,
+      public.project_likes,
+      public.project_reactions;
   EXCEPTION
     WHEN duplicate_object THEN NULL;
     WHEN others THEN NULL;

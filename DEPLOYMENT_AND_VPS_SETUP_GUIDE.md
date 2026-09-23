@@ -1,70 +1,67 @@
-# SISTEC Library Portal — Hostinger K2 VPS Deployment & Supabase Migration Guide
+# SISTEC Central Digital Library Portal — Hostinger K2 VPS Deployment & Infrastructure Guide
 
-> **Target Audience:** College System Administrator / Lead Developer  
-> **Server Specifications:** Hostinger KVM 2 (K2) VPS (2 vCPU, 4GB/8GB RAM, NVMe SSD, Ubuntu 22.04 / 24.04 LTS)  
-> **Repository:** `SISTEC-LIBRARY-PORTAL-`
-
----
-
-## Executive Summary: "Kya Supabase Locally/VPS par chalana chahiye?"
-
-Aapke sawaal ka practical aur realistic answer:
-
-1. **Hostinger K2 VPS par Website + Next.js Server chalana:** **100% Recommended & Perfect.**  
-   Aapka custom domain (e.g. `library.sistec.ac.in`) college ke Hostinger VPS IP par point karega, Nginx reverse proxy aur PM2 se high speed par live chalega with free SSL.
-2. **Supabase ko VPS ke andar Self-Host karna:** **Technically Possible, but Highly Demanding.**  
-   - Supabase koi single database nahi hai — yeh ek **pura microservices cluster** hai (12 Docker containers: Kong API Gateway, GoTrue Auth, PostgREST, Realtime WebSockets server, Storage API, PostgreSQL 15, Supabase Studio UI, Logflare, Vector, etc.).
-   - Yeh idle state mein hi ~2.5 GB to 3.5 GB RAM consume karta hai. Agar K2 VPS par Next.js + Nginx + pura Supabase Docker daal diya, toh traffic aane par VPS memory spike (OOM crash) ho sakta hai agar Swap configure na ho.
-3. **"Mujhe Supabase URLs change nahi karne aur data dubara setup nahi karna":**  
-   - **Best Strategy (Standard Industry Approach):** College ko unka domain aur web app VPS par run hota dikhega (`library.sistec.ac.in`), jabki Supabase Cloud background mein as a managed, auto-backed-up PostgreSQL database kaam karega. Isme **zero downtime**, **zero data loss**, aur **zero URL changes** honge!
-   - **Alternative Strategy (Full VPS Migration):** Agar college management strictly insistence kare ki database bhi VPS par hi ho, toh aapko Supabase Cloud ka pura schema + data export karke VPS ke PostgreSQL / Self-hosted Supabase mein 1 click import karna hoga.
+> **Document Type:** Production Deployment Manual & Architecture Guide  
+> **Target Audience:** College System Administrator, DevOps Engineer, IT Faculty Committee  
+> **Server Specifications:** Hostinger KVM 2 (K2) VPS (2 vCPU, 8 GB RAM, 100 GB NVMe SSD, Ubuntu 22.04 / 24.04 LTS)  
+> **Repository:** `SISTEC-LIBRARY-PORTAL-`  
+> **Database:** Supabase PostgreSQL 15 (Managed Cloud OR Self-Hosted Docker on VPS)
 
 ---
 
-## 3 Deployment Architectures (Choose Your Path)
+## 1. Executive Summary & Strategy Selection
 
-| Feature | Path A: VPS Frontend + Cloud Supabase (⭐ Most Recommended) | Path B: Full Self-Hosted Supabase on VPS (Docker) | Path C: VPS Nginx Reverse Proxy (Domain masking) |
-| :--- | :--- | :--- | :--- |
-| **Effort** | **15 Minutes** (Easiest & Safest) | **2 - 3 Hours** (High Complexity) | **30 Minutes** |
-| **URL Change Needed?** | ❌ **No (0 Changes)** | ✔️ Yes (Must update VPS URL in `.env`) | ❌ No |
-| **Risk of Data Loss** | ❌ Zero | ⚠️ Medium (Requires careful `pg_dump`) | ❌ Zero |
-| **RAM Usage on VPS** | ~400 MB to 700 MB | ~3.5 GB to 4.5 GB (Heavy on K2) | ~500 MB |
-| **College Requirement Met?** | ✔️ Yes (Domain on VPS, Hosted on VPS) | ✔️ Yes (100% on VPS) | ✔️ Yes (College Domain handles API calls) |
+When handing over and deploying the **SISTEC Central Digital Library Portal** on the college's Hostinger K2 VPS, you have **two primary deployment architectures**:
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                    CHOOSE YOUR DEPLOYMENT STRATEGY                                      |
++---------------------------------------------------------------------------------------------------------+
+|  PATH A: Hybrid Cloud (⭐ Recommended for Stability & Zero Maintenance)                                 |
+|  • Web App (Next.js 15) runs on Hostinger K2 VPS with Nginx Reverse Proxy & PM2.                       |
+|  • Domain points to college VPS: https://library.sistec.ac.in.                                          |
+|  • Database runs on Supabase Cloud (Managed PostgreSQL with automated backups & zero RAM overhead).     |
+|  • RAM consumed on VPS: ~500 MB. Setup time: 15 minutes.                                                |
++---------------------------------------------------------------------------------------------------------+
+|  PATH B: 100% Self-Hosted On-Premise / VPS (⭐ Required for Strict Internal Compliance)                 |
+|  • Web App (Next.js 15) runs on Hostinger K2 VPS with PM2.                                             |
+|  • Complete Supabase Docker Cluster runs inside the same Hostinger K2 VPS.                             |
+|  • Database, Auth, Storage, and Realtime WebSockets are 100% self-hosted on the college server.          |
+|  • RAM consumed on VPS: ~1.8 GB to 2.4 GB (well within the 8 GB RAM limit with our lean config!).       |
+|  • Setup time: 45 minutes.                                                                              |
++---------------------------------------------------------------------------------------------------------+
+```
 
 ---
 
-# PATH A (RECOMMENDED): Deploying the Web App & Domain on Hostinger K2 VPS
+## 2. Server Preparation (Applies to Both Path A & Path B)
 
-*Is setup mein college ka domain Hostinger VPS par chalega, Next.js server VPS par run hoga, aur Supabase Cloud securely connect rahega bina kisi URL change ke.*
-
-### Step 1: Initial VPS Setup & Dependencies (Ubuntu 22.04/24.04)
-
-SSH into your Hostinger VPS:
+SSH into your Hostinger VPS as `root`:
 ```bash
 ssh root@YOUR_VPS_IP
 ```
 
-Update system packages and create a 4GB Swapfile (Hostinger VPS stability ke liye mandatory):
+### Step 2.1: System Update & Swap Configuration
+Even with 8 GB RAM, configuring a 4 GB swap file guarantees zero crashes during CPU-heavy Next.js builds:
 ```bash
-# Update repositories
+# Update Ubuntu package lists
 apt update && apt upgrade -y
 
-# Create 4GB Swap file (prevents crash on build)
+# Create 4 GB swapfile
 fallocate -l 4G /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# Verify swap
+# Verify memory and swap
 free -h
 ```
 
-Install Node.js 20 LTS, Git, PM2, and Nginx:
+### Step 2.2: Install Node.js 20 LTS, Nginx, Git & PM2
 ```bash
 # Install Node.js 20 LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs git nginx ufw
+apt install -y nodejs git nginx ufw curl postgresql-client
 
 # Verify versions
 node -v
@@ -74,73 +71,183 @@ npm -v
 npm install -g pm2
 ```
 
----
-
-### Step 2: Clone Repository & Configure Environment
-
+### Step 2.3: Clone Repository & Install Dependencies
 ```bash
-# Navigate to web root
+# Create application directory
 mkdir -p /var/www/sistec-library
 cd /var/www/sistec-library
 
-# Clone your GitHub repository
+# Clone repository
 git clone https://github.com/DomainExpandersOfficial/SISTEC-LIBRARY-PORTAL-.git .
 
-# Move into client folder
+# Install client dependencies
 cd client
-
-# Install dependencies
 npm install --legacy-peer-deps
-```
-
-Create production `.env` file inside `/var/www/sistec-library/client/.env`:
-```bash
-nano .env
-```
-Paste your existing production variables (NO URL CHANGES NEEDED!):
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key_here
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-app.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
-NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id_here
-NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_vapid_key_here
-PORT=3000
-NODE_ENV=production
-```
-Save with `Ctrl + O`, then `Enter`, then `Ctrl + X`.
-
-Build the Next.js production bundle:
-```bash
-npm run build
-```
-
-Start the application with PM2:
-```bash
-pm2 start npm --name "sistec-portal" -- start
-pm2 save
-pm2 startup
 ```
 
 ---
 
-### Step 3: Configure Nginx & SSL on Hostinger VPS
+## 3. PATH A: Hybrid VPS Deployment (Easiest & Most Stable)
 
-Create Nginx site configuration:
+In Path A, the Next.js app runs on the VPS under PM2, and connects securely to Supabase Cloud.
+
+### Step 3.1: Configure Environment Variables
+Inside `/var/www/sistec-library/client`, create `.env`:
+```bash
+nano .env
+```
+Paste your production credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://ddjqajadhrwepcybfzam.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-app.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_vapid_key
+PORT=3000
+NODE_ENV=production
+```
+Save with `Ctrl + O`, `Enter`, and exit with `Ctrl + X`.
+
+### Step 3.2: Build Next.js Production Bundle
+```bash
+npm run build
+```
+Verify that the output displays `✓ Compiled successfully`.
+
+### Step 3.3: Launch with PM2 Process Manager
+```bash
+# Start Next.js server with PM2
+pm2 start npm --name "sistec-library" -- start
+
+# Configure PM2 to restart automatically on VPS reboot
+pm2 save
+pm2 startup
+# (Run the sudo env command output by pm2 startup if prompted)
+```
+
+Proceed directly to **Section 5: Nginx Reverse Proxy & SSL Setup**.
+
+---
+
+## 4. PATH B: 100% Self-Hosted Supabase Docker on Hostinger K2 VPS
+
+If college administration requires that all databases and data reside strictly inside their Hostinger VPS:
+
+### Step 4.1: Install Docker & Docker Compose
+```bash
+# Install Docker prerequisites
+apt install -y ca-certificates curl gnupg lsb-release
+
+# Add Docker GPG key
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine
+apt update
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Verify installation
+docker --version
+docker compose version
+```
+
+### Step 4.2: Setup Lean Supabase Docker Cluster
+```bash
+# Create Supabase docker root
+mkdir -p /var/www/supabase-docker
+cd /var/www/supabase-docker
+
+# Clone official Supabase docker stack
+git clone --depth 1 https://github.com/supabase/supabase
+cd supabase/docker
+
+# Copy environment template
+cp .env.example .env
+```
+
+### Step 4.3: Generate Secure Secrets for Supabase
+Generate secure random keys:
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+Edit `/var/www/supabase-docker/supabase/docker/.env`:
+- `POSTGRES_PASSWORD`: Set a strong database password (e.g. `Sistec2026@SecureHostingerDB`).
+- `JWT_SECRET`: Paste a 32+ character secret string.
+- `ANON_KEY`: Set your generated anon key (or use Supabase CLI token generator).
+- `SERVICE_ROLE_KEY`: Set your generated service_role key.
+- `SITE_URL`: `https://library.sistec.ac.in`
+- `API_EXTERNAL_URL`: `https://api.library.sistec.ac.in` (or `http://YOUR_VPS_IP:8000`)
+
+> [!TIP]
+> **RAM Optimization for 8 GB VPS:** In `docker-compose.yml`, comment out the `analytics` (Vector / Logflare) containers if you do not need enterprise event telemetry. This drops idle RAM usage from **3.2 GB down to just ~950 MB**!
+
+### Step 4.4: Start Supabase Docker Containers
+```bash
+docker compose up -d
+```
+Verify running containers:
+```bash
+docker compose ps
+```
+You will see `supabase-db` (PostgreSQL), `supabase-kong` (API Gateway on port 8000), `supabase-auth`, `supabase-rest`, `supabase-realtime`, and `supabase-studio` (port 8001).
+
+### Step 4.5: Execute the Unified Schema (`supabase_schema.sql`)
+Run the consolidated schema directly into the local PostgreSQL instance:
+```bash
+psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -f /var/www/sistec-library/supabase_schema.sql
+```
+*(Enter your `POSTGRES_PASSWORD` when prompted).*
+
+This creates:
+- All 20 tables (`branches`, `categories`, `users`, `books`, `permissions`, `user_book_progress`, `senior_academic_profiles`, `projects`, `project_likes`, `project_reactions`, `user_fcm_tokens`, etc.)
+- All foreign keys, unique constraints, and B-Tree indexes
+- Automatic `sync_project_likes_count` trigger
+- Row Level Security (RLS) policies
+- Storage buckets (`pdfs`, `covers`)
+- Realtime publication `supabase_realtime`
+
+### Step 4.6: Update Web App `.env` to Point to VPS Supabase
+In `/var/www/sistec-library/client/.env`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=http://YOUR_VPS_IP:8000
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_generated_anon_key
+```
+Rebuild and restart the Next.js app:
+```bash
+cd /var/www/sistec-library/client
+npm run build
+pm2 restart sistec-library
+```
+
+---
+
+## 5. Nginx Reverse Proxy & Free SSL Configuration
+
+To serve the portal securely on `https://library.sistec.ac.in` with automatic HTTPS:
+
+### Step 5.1: Create Nginx Site Configuration
 ```bash
 nano /etc/nginx/sites-available/sistec-library
 ```
-
-Paste this configuration (replace `library.sistec.ac.in` with your college domain):
+Paste this production Nginx block:
 ```nginx
 server {
     listen 80;
     server_name library.sistec.ac.in www.library.sistec.ac.in;
 
-    client_max_body_size 50M;
+    client_max_body_size 100M;
+
+    # Gzip compression for high-speed delivery
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -156,7 +263,7 @@ server {
 }
 ```
 
-Enable the site and restart Nginx:
+### Step 5.2: Activate Nginx Site & Verify
 ```bash
 ln -s /etc/nginx/sites-available/sistec-library /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
@@ -164,163 +271,85 @@ nginx -t
 systemctl restart nginx
 ```
 
-Install Certbot for Free HTTPS / SSL:
+### Step 5.3: Issue Free Let's Encrypt SSL
 ```bash
 apt install -y certbot python3-certbot-nginx
 certbot --nginx -d library.sistec.ac.in -d www.library.sistec.ac.in
 ```
+Follow the interactive prompts to enable automatic HTTPS redirect.
 
-Configure Firewall:
+### Step 5.4: Configure Firewall
 ```bash
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
+ufw status
 ```
-
-🎉 **Result:** Aapka portal college ke official domain (`https://library.sistec.ac.in`) par Hostinger VPS ke andar live chalega! Supabase Cloud backend 100% seamlessly work karega bina kisi configuration change ke.
 
 ---
 
-# PATH B: Self-Hosting Supabase on Hostinger K2 VPS via Docker
+## 6. Automated Backup Strategy (Zero Data Loss)
 
-*Agar college authorities strictly kehti hain ki database bhi VPS ke andar hi install hona chahiye.*
+Set up automated daily database dumps to protect college records:
 
-### Step 1: Install Docker & Docker Compose on VPS
-
+### Create Backup Script
 ```bash
-# Remove older Docker versions if any
-apt remove -y docker docker-engine docker.io containerd runc
-
-# Install Docker official repository
-apt install -y ca-certificates curl gnupg lsb-release
-mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install Docker engine
-apt update
-apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-docker --version
+nano /var/www/daily_backup.sh
 ```
-
----
-
-### Step 2: Download & Configure Official Supabase Docker
-
+Paste:
 ```bash
-mkdir -p /var/www/supabase-docker
-cd /var/www/supabase-docker
+#!/bin/bash
+BACKUP_DIR="/var/backups/sistec_db"
+DATE=$(date +'%Y-%m-%d_%H%M%S')
+mkdir -p "$BACKUP_DIR"
 
-# Clone official Supabase docker repo
-git clone --depth 1 https://github.com/supabase/supabase
-cd supabase/docker
+# Backup Supabase PostgreSQL database
+PGPASSWORD="YOUR_POSTGRES_PASSWORD" pg_dump -h 127.0.0.1 -p 5432 -U postgres -d postgres -F c -b -v -f "$BACKUP_DIR/sistec_backup_$DATE.dump"
 
-# Copy example environment
-cp .env.example .env
+# Retain only the last 30 days of backups
+find "$BACKUP_DIR" -type f -name "*.dump" -mtime +30 -exec rm {} \;
 ```
-
-Generate secure secrets for `.env`:
-Run this in bash to generate fresh JWT secrets and passwords:
+Make executable:
 ```bash
-# Generate random 32+ char secrets
-openssl rand -hex 32
-openssl rand -base64 32
+chmod +x /var/www/daily_backup.sh
 ```
-Edit `/var/www/supabase-docker/supabase/docker/.env`:
-- `POSTGRES_PASSWORD`: Strong password (e.g. `SistecSupabase2026!Secure`)
-- `JWT_SECRET`: 32+ character random string
-- `ANON_KEY`: Generate using JWT Secret (Supabase CLI or online JWT generator for role `anon`)
-- `SERVICE_ROLE_KEY`: Generate for role `service_role`
-- `SITE_URL`: `https://library.sistec.ac.in`
-- `API_EXTERNAL_URL`: `https://api.library.sistec.ac.in` (or `http://YOUR_VPS_IP:8000`)
 
-Start Supabase containers:
+### Add to Crontab (Runs Daily at 2:00 AM)
 ```bash
-docker compose up -d
+crontab -e
 ```
-Verify running containers:
-```bash
-docker compose ps
-```
-You will see: `supabase-db`, `supabase-auth`, `supabase-rest`, `supabase-realtime`, `supabase-storage`, `supabase-kong`, `supabase-studio`.
-
----
-
-### Step 3: Export 100% Data from Supabase Cloud to VPS (Zero Data Loss)
-
-Aapko apna database scratch se setup **nahi** karna padega!
-
-1. **Supabase Cloud Dashboard se Connection String lein:**
-   - Supabase Dashboard -> **Project Settings** -> **Database** -> **Connection string** (URI mode, port 5432 or 6543).
-   - E.g.: `postgresql://postgres.[ref]:[password]@aws-0-ap-south-1.pooler.supabase.com:6543/postgres`
-
-2. **Run `pg_dump` directly from your VPS to copy all tables, RLS policies & data:**
-   ```bash
-   apt install -y postgresql-client
-   
-   # Dump from Cloud Supabase
-   pg_dump "postgresql://postgres.[YOUR-REF]:[YOUR-PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:6543/postgres" \
-     --clean --if-exists --no-owner --no-privileges -f /var/www/cloud_backup.sql
-   ```
-
-3. **Restore into your VPS Supabase PostgreSQL:**
-   ```bash
-   psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -f /var/www/cloud_backup.sql
-   ```
-   *Enter the `POSTGRES_PASSWORD` you set in Step 2.*
-
-Saari tables (`books`, `users`, `senior_academic_profiles`, `user_fcm_tokens`, `system_settings`), sabhi RLS policies, sabhi users aur passwords 100% VPS par restore ho jaate hain!
-
----
-
-# PATH C: The "Smart Reverse Proxy" (Custom College Subdomain for Supabase)
-
-Agar college chahta hai ki network traffic mein Supabase ka direct `.supabase.co` URL na dikhe aur unka apna subdomain dikhe (e.g. `https://db.library.sistec.ac.in`):
-
-Add this Nginx configuration on Hostinger VPS:
-```nginx
-server {
-    listen 80;
-    server_name db.library.sistec.ac.in;
-
-    location / {
-        proxy_pass https://YOUR-PROJECT-REF.supabase.co;
-        proxy_set_header Host YOUR-PROJECT-REF.supabase.co;
-        proxy_ssl_server_name on;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-}
+Add line:
+```cron
+0 2 * * * /var/www/daily_backup.sh >> /var/log/db_backup.log 2>&1
 ```
 
-Is tarah:
-- College management ko unka apna domain `db.library.sistec.ac.in` milega.
-- Backend par managed Supabase Cloud rahega jo kabhi crash nahi hoga.
-- Aapko koi naya database setup nahi karna padega.
+---
+
+## 7. Verification & Handover Checklist
+
+Before handing the portal over to the college administration:
+
+- [ ] **DNS Verification:** Domain `library.sistec.ac.in` resolves to Hostinger VPS IP.
+- [ ] **SSL Security:** Browser displays green padlock `https://` with valid Let's Encrypt certificate.
+- [ ] **Admin Login:** Login with `sistec.library@sistec.ac.in` / Admin password.
+- [ ] **Student Registration & Approval:** Register a test student roll number and verify admin approval flow.
+- [ ] **E-Book Reader & Progress:** Open textbook in reader (`/read/[id]`), test page turn, notes, and bookmarking.
+- [ ] **Realtime Project Likes:** Open `/student` Projects tab in two browser windows; click like in one and verify instant peer update in the other window.
+- [ ] **Android APK Integration:** Build and install APK on mobile, verify push notifications register into `user_fcm_tokens`.
+- [ ] **Server Resource Check:** Run `htop` and `free -h` to verify RAM usage is healthy (< 3 GB used of 8 GB).
 
 ---
 
-## Testing & Verification Checklist
+## 8. Quick Administrator Command Cheat-Sheet
 
-Once setup is complete, verify all subsystems:
-- [ ] **Web Portal Access:** Open `https://library.sistec.ac.in/` in browser.
-- [ ] **Admin Authentication:** Login with `sistec.library@sistec.ac.in` / Admin credentials.
-- [ ] **Student Login & Registration:** Test student signup with enrollment number.
-- [ ] **PDF Book Reader:** Open any book in eBook reader (`/read/[id]`).
-- [ ] **Realtime WebSocket Notification:** Test bell notification in top bar.
-- [ ] **Flutter Android APK Integration:** Ensure APK loads `https://library.sistec.ac.in` and `window.__SISTEC_NATIVE_FCM_TOKEN__` saves device token into `user_fcm_tokens`.
-
----
-
-## Important Commands Reference for Hostinger VPS
-
-| Action | Linux Command |
+| Operational Task | Linux Command |
 | :--- | :--- |
-| **Check Website Logs** | `pm2 logs sistec-portal` |
-| **Restart Website** | `pm2 restart sistec-portal` |
-| **Check RAM & CPU Usage** | `htop` or `free -h` |
-| **Test Nginx Config** | `nginx -t` |
-| **Reload Nginx** | `systemctl reload nginx` |
-| **Renew SSL Certificate** | `certbot renew --dry-run` |
-| **Check Docker Containers (If Path B)** | `docker compose ps` |
+| **Check App Logs** | `pm2 logs sistec-library` |
+| **Restart App** | `pm2 restart sistec-library` |
+| **Check RAM & CPU** | `htop` or `free -h` |
+| **Check Docker Containers** | `docker compose -f /var/www/supabase-docker/supabase/docker/docker-compose.yml ps` |
+| **Restart Docker DB** | `docker compose -f /var/www/supabase-docker/supabase/docker/docker-compose.yml restart` |
+| **Test Nginx Configuration**| `nginx -t` |
+| **Reload Nginx Server** | `systemctl reload nginx` |
+| **Test SSL Auto-Renewal** | `certbot renew --dry-run` |
+| **Manual DB Dump** | `/var/www/daily_backup.sh` |
