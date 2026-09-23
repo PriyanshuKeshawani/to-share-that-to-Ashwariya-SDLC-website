@@ -29,7 +29,7 @@ const FALLBACK_BRANCHES = [
 ];
 
 const GoogleProfileCompletion = () => {
-  const { completeGoogleProfile, pendingGoogleUser } = useAuth();
+  const { completeGoogleProfile, pendingGoogleUser, logout } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     fullName: '',
@@ -301,6 +301,23 @@ const GoogleProfileCompletion = () => {
               <>Complete & Enter Portal <ArrowRight size={16} /></>
             )}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <button
+              type="button"
+              onClick={logout}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary, #94a3b8)',
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Sign out / Use a different account
+            </button>
+          </div>
         </form>
       </div>
     </div>

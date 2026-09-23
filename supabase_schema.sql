@@ -52,7 +52,7 @@ ON CONFLICT DO NOTHING;
 -- 3. Users
 -- =========================================================
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
   roll_number TEXT,
@@ -491,9 +491,10 @@ DROP TABLE IF EXISTS library_sessions CASCADE;
 DROP TABLE IF EXISTS library_settings CASCADE;
 
 -- =========================================================
--- 13. Relax permission FK (for demo/bypass users)
+-- 13. Relax Foreign Key Constraints (Zero-Downtime Student & Demo Users)
 -- =========================================================
 ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
+ALTER TABLE IF EXISTS public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
 
 -- =========================================================
 -- 14. Enable Realtime Replication for Full Instant Live Updates

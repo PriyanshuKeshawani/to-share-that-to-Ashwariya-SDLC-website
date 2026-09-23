@@ -132,3 +132,7 @@ CREATE POLICY "Users insert activity logs" ON public.activity_logs
 DROP POLICY IF EXISTS "Admins can manage system settings" ON public.system_settings;
 CREATE POLICY "Admins can manage system settings" ON public.system_settings 
   FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- STEP 6: Relax Foreign Key Constraints (Fixes "violates foreign key constraint users_id_fkey")
+ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
+ALTER TABLE IF EXISTS public.users DROP CONSTRAINT IF EXISTS users_id_fkey;

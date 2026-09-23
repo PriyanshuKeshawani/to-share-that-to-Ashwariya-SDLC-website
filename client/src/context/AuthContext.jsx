@@ -3593,7 +3593,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const completeGoogleProfile = async (profileData) => {
-    if (!pendingGoogleUser) throw new Error('No pending Google user');
+    const { data: activeAuth } = await supabase.auth.getUser();
+    const activeUser = activeAuth?.user || pendingGoogleUser;
+
+    if (!activeUser) {
+      await supabase.auth.signOut();
+      clearSession();
+      throw new Error('Your session has expired. Please log in with Google again.');
+    }
 
     const { username, fullName, rollNumber, branchName, year, semester, btNumber } = profileData;
 
@@ -3603,15 +3610,15 @@ export const AuthProvider = ({ children }) => {
       .eq('username', username)
       .maybeSingle();
 
-    if (existing && existing.id !== pendingGoogleUser.id) {
+    if (existing && existing.id !== activeUser.id) {
       throw new Error('Username is already taken');
     }
 
     // Institutional security: Students always require manual administrator approval
     const initialStatus = 'pending';
 
-    const userId = pendingGoogleUser.id;
-    const avatarUrl = pendingGoogleUser.user_metadata?.avatar_url || pendingGoogleUser.user_metadata?.picture || pendingGoogleUser.identities?.[0]?.identity_data?.avatar_url || pendingGoogleUser.identities?.[0]?.identity_data?.picture || null;
+    const userId = activeUser.id;
+    const avatarUrl = activeUser.user_metadata?.avatar_url || activeUser.user_metadata?.picture || activeUser.identities?.[0]?.identity_data?.avatar_url || activeUser.identities?.[0]?.identity_data?.picture || null;
 
     const { data, error } = await supabase.from('users').upsert([{
       id: userId,
@@ -3626,11 +3633,16 @@ export const AuthProvider = ({ children }) => {
       status: initialStatus,
       is_blocked: 0,
       auth_provider: 'google',
-      google_id: pendingGoogleUser.id,
+      google_id: activeUser.id,
       avatar_url: avatarUrl
     }], { onConflict: 'id' }).select().single();
 
-    if (error) throw new Error('Failed to create profile: ' + error.message);
+    if (error) {
+      if (error.message?.includes('users_id_fkey') || error.message?.includes('foreign key constraint')) {
+        throw new Error('Database foreign key update required: Please run the SQL fix in Supabase SQL editor.');
+      }
+      throw new Error('Failed to create profile: ' + error.message);
+    }
 
     const formattedUser = {
       id: data.id,
