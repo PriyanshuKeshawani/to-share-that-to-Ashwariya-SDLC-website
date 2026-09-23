@@ -2001,8 +2001,9 @@ export const AuthProvider = ({ children }) => {
 
     if (endpoint.startsWith('/auth/approve-user/')) {
       const userId = endpoint.split('/').pop();
-      const { data, error } = await supabase.from('users').update({ status: body.status }).eq('id', userId).select().single();
+      const { data, error } = await supabase.from('users').update({ status: body.status }).eq('id', userId).select();
       if (error) throw error;
+      const updatedUser = Array.isArray(data) && data.length > 0 ? data[0] : { id: userId, status: body.status };
 
       // Activity log & notification in Supabase
       try {
@@ -2024,7 +2025,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('Notice writing audit log/notification:', logErr);
       }
 
-      return { message: `User status updated to ${body.status}`, data };
+      return { message: `User status updated to ${body.status}`, data: updatedUser };
     }
 
     // Bulk Approve or Reject Pending Student Registrations
@@ -2094,17 +2095,17 @@ export const AuthProvider = ({ children }) => {
     if (endpoint.endsWith('/block')) {
       const parts = endpoint.split('/');
       const userId = parts[parts.length - 2];
-      const { data, error } = await supabase.from('users').update({ is_blocked: 1 }).eq('id', userId).select().single();
+      const { data, error } = await supabase.from('users').update({ is_blocked: 1 }).eq('id', userId).select();
       if (error) throw error;
-      return { message: 'User blocked', data };
+      return { message: 'User blocked', data: data?.[0] };
     }
 
     if (endpoint.endsWith('/unblock')) {
       const parts = endpoint.split('/');
       const userId = parts[parts.length - 2];
-      const { data, error } = await supabase.from('users').update({ is_blocked: 0 }).eq('id', userId).select().single();
+      const { data, error } = await supabase.from('users').update({ is_blocked: 0 }).eq('id', userId).select();
       if (error) throw error;
-      return { message: 'User unblocked', data };
+      return { message: 'User unblocked', data: data?.[0] };
     }
 
     if (endpoint.startsWith('/auth/users/') && (method === 'PUT' || method === 'PATCH')) {
@@ -2126,7 +2127,7 @@ export const AuthProvider = ({ children }) => {
       if (body.status !== undefined) updates.status = String(body.status).trim().toLowerCase();
       if (body.is_blocked !== undefined) updates.is_blocked = Number(body.is_blocked);
 
-      const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select().single();
+      const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select();
       if (error) throw error;
 
       try {

@@ -9,7 +9,7 @@
 -- 4. All admin edits, student registrations, approvals, and profile updates will work seamlessly!
 -- ==============================================================================
 
--- STEP 1: Ensure All Required Columns Exist in public.users
+-- STEP 1: Ensure All Required Tables and Columns Exist
 ALTER TABLE IF EXISTS public.users ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE IF EXISTS public.users ADD COLUMN IF NOT EXISTS block_reason TEXT;
 ALTER TABLE IF EXISTS public.users ADD COLUMN IF NOT EXISTS admin_branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL;
@@ -20,6 +20,24 @@ ALTER TABLE IF EXISTS public.users ADD COLUMN IF NOT EXISTS google_id TEXT;
 -- Drop foreign key constraints that cause 23503 lockouts for custom auth
 ALTER TABLE IF EXISTS permissions DROP CONSTRAINT IF EXISTS permissions_user_id_fkey;
 ALTER TABLE IF EXISTS public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+
+-- Ensure Project Likes and Reactions tables exist
+CREATE TABLE IF NOT EXISTS public.project_likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.project_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL,
+  user_id UUID,
+  user_email TEXT NOT NULL,
+  reaction_type TEXT NOT NULL CHECK (reaction_type IN ('like', 'dislike')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- STEP 2: Non-Recursive Admin Verification Function (SECURITY DEFINER bypasses RLS)
 CREATE OR REPLACE FUNCTION public.is_admin()
