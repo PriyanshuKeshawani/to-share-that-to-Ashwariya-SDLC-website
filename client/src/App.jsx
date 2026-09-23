@@ -14,7 +14,7 @@ import { Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { initNativeBackManager } from './utils/nativeBackManager';
 import useNativeBack from './hooks/useNativeBack';
 import NativeExitToast from './components/NativeExitToast';
-import { initDeveloperCredits } from './utils/developerCredits';
+import { initSystemDiagnostics } from './utils/systemDiagnostics';
 
 class GlobalErrorBoundary extends Component {
   constructor(props) {
@@ -218,7 +218,7 @@ const AppContent = () => {
   // Initialize native back interceptor and developer credits once on mount
   useEffect(() => {
     initNativeBackManager();
-    initDeveloperCredits();
+    initSystemDiagnostics();
   }, []);
 
   // Trap back navigation when reading a book -> smoothly returns to catalog

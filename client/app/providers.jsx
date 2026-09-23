@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import { AuthProvider } from '../src/context/AuthContext';
-import { initDeveloperCredits } from '../src/utils/developerCredits';
+import { initSystemDiagnostics } from '../src/utils/systemDiagnostics';
 
 export default function Providers({ children }) {
   useEffect(() => {
-    initDeveloperCredits();
+    initSystemDiagnostics();
   }, []);
 
   return (
