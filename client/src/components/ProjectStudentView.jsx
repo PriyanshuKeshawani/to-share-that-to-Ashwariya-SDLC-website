@@ -11,6 +11,7 @@ import { supabase } from '../supabaseClient';
 import ProjectDetailsModal from './ProjectDetailsModal';
 import EmptyState from './EmptyState';
 import { setCachedLike, queueSyncAction, getCachedProjects, setCachedProjects } from '../db/cacheService';
+import useNativeBack from '../hooks/useNativeBack';
 
 export const PROJECT_TYPES = [
   'Major Project',
@@ -46,6 +47,9 @@ export default function ProjectStudentView({
 
   const [viewingProject, setViewingProject] = useState(null);
   const [feedback, setFeedback] = useState(null);
+
+  // Trap Android hardware back button when viewing project details modal
+  useNativeBack(() => setViewingProject(null), Boolean(viewingProject), { id: 'student-view-project-modal', priority: 20 });
 
   const fetchProjects = useCallback(async (isSilent = false) => {
     try {

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import SeniorMajorsMinorsModal from './SeniorMajorsMinorsModal';
 import EmptyState from './EmptyState';
+import useNativeBack from '../hooks/useNativeBack';
 
 export default function SeniorMajorsMinorsAdminView({
   branches = [],
@@ -32,6 +33,11 @@ export default function SeniorMajorsMinorsAdminView({
   const [deleteConfirmProfile, setDeleteConfirmProfile] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusLoadingId, setStatusLoadingId] = useState(null);
+
+  // Trap Android hardware back button for modals in Senior Academic Profiles
+  useNativeBack(() => setIsModalOpen(false), isModalOpen, { id: 'admin-senior-create-modal', priority: 20 });
+  useNativeBack(() => setEditingProfile(null), Boolean(editingProfile), { id: 'admin-senior-edit-modal', priority: 20 });
+  useNativeBack(() => setDeleteConfirmProfile(null), Boolean(deleteConfirmProfile), { id: 'admin-senior-delete-confirm', priority: 30 });
 
   const fetchProfiles = useCallback(async (isSilent = false) => {
     try {

@@ -13,6 +13,7 @@ import ProjectDetailsModal from './ProjectDetailsModal';
 import GoogleFormTemplateModal from './GoogleFormTemplateModal';
 import ProjectImportWizard from './ProjectImportWizard';
 import EmptyState from './EmptyState';
+import useNativeBack from '../hooks/useNativeBack';
 
 // Module-level RAM cache so tab switching in admin portal is 100% instantaneous (0ms) without any skeleton flash
 let inMemoryAdminProjects = null;
@@ -54,6 +55,14 @@ export default function ProjectManagement({
   const [deleteConfirmProject, setDeleteConfirmProject] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusLoadingId, setStatusLoadingId] = useState(null);
+
+  // Trap Android hardware back button for modals in Project Management
+  useNativeBack(() => setIsFormOpen(false), isFormOpen, { id: 'admin-project-create-modal', priority: 20 });
+  useNativeBack(() => setEditingProject(null), Boolean(editingProject), { id: 'admin-project-edit-modal', priority: 20 });
+  useNativeBack(() => setViewingProject(null), Boolean(viewingProject), { id: 'admin-project-view-modal', priority: 20 });
+  useNativeBack(() => setIsFormTemplateOpen(false), isFormTemplateOpen, { id: 'admin-project-template-modal', priority: 20 });
+  useNativeBack(() => setIsImportWizardOpen(false), isImportWizardOpen, { id: 'admin-project-wizard-modal', priority: 20 });
+  useNativeBack(() => setDeleteConfirmProject(null), Boolean(deleteConfirmProject), { id: 'admin-project-delete-confirm', priority: 30 });
 
   const fetchProjects = useCallback(async (isSilent = false) => {
     try {
