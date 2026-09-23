@@ -53,13 +53,20 @@ const SmartAppBanner = () => {
     if (typeof window === 'undefined') return;
 
     const pathAndQuery = window.location.pathname + window.location.search;
-    const customSchemeUrl = `sisteclib://${pathAndQuery.replace(/^\/+/, '')}`;
-    const androidIntentUrl = `intent://${window.location.host}${pathAndQuery}#Intent;scheme=https;package=com.sistec.libraryportal;end;`;
+    const cleanPath = pathAndQuery.replace(/^\/+/, '');
+    const customSchemeUrl = `sistec-elibrary://${cleanPath}`;
+    const altSchemeUrl = `sisteclib://${cleanPath}`;
+    // Explicit Android Intent targeting the installed SISTec eLibrary package (com.sistec.elibrary)
+    const androidIntentUrl = `intent://${window.location.host}${pathAndQuery}#Intent;scheme=https;package=com.sistec.elibrary;fallback_url=${encodeURIComponent(window.location.href)};end;`;
 
-    // Try opening custom scheme, fallback to Android intent
     const isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
+      // Direct intent to open APK
       window.location.href = androidIntentUrl;
+      // Backup attempt via custom URI scheme after short timeout if intent doesn't grab immediately
+      setTimeout(() => {
+        window.location.href = customSchemeUrl;
+      }, 350);
     } else {
       window.location.href = customSchemeUrl;
     }

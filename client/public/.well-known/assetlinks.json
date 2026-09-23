@@ -3,8 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.sistec.libraryportal",
+      "package_name": "com.sistec.elibrary",
       "sha256_cert_fingerprints": [
+        "6D:AD:45:38:33:B8:C8:D3:C2:CE:9D:07:5F:A1:1D:C4:D6:95:49:40:B2:69:B5:1F:41:CA:19:74:CB:FA:9C:F2",
         "03:F2:6E:36:0D:AD:E1:21:B7:18:B0:C1:7F:57:BE:58:00:2B:85:6D:38:11:AE:FF:04:1D:07:FE:30:13:13:A9"
       ]
     }
@@ -13,8 +14,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.sistec.elibrary",
+      "package_name": "com.sistec.libraryportal",
       "sha256_cert_fingerprints": [
+        "6D:AD:45:38:33:B8:C8:D3:C2:CE:9D:07:5F:A1:1D:C4:D6:95:49:40:B2:69:B5:1F:41:CA:19:74:CB:FA:9C:F2",
         "03:F2:6E:36:0D:AD:E1:21:B7:18:B0:C1:7F:57:BE:58:00:2B:85:6D:38:11:AE:FF:04:1D:07:FE:30:13:13:A9"
       ]
     }
