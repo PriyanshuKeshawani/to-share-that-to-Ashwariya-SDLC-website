@@ -1,0 +1,169 @@
+================================================================================
+          SISTEC CENTRAL DIGITAL LIBRARY PORTAL - GOOGLE AUTH SETUP GUIDE
+================================================================================
+Document Purpose: Complete, step-by-step instructions for College IT Administrators
+                  and Developers to configure Google Single Sign-On (OAuth 2.0).
+Created Date    : September 2026
+Applicable For  : Production College VPS, Custom Domain (e.g. library.sistec.ac.in),
+                  Vercel Deployments, and Local Testing.
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. Architecture & How Google Auth Works in This Portal
+2. Step 1: Google Cloud Console Configuration (OAuth 2.0 Credentials)
+3. Step 2: Supabase Dashboard Configuration (Provider & Redirects)
+4. Step 3: Student Onboarding & Admin Approval Flow
+5. Troubleshooting & Frequently Asked Questions (FAQ)
+
+================================================================================
+1. ARCHITECTURE & HOW GOOGLE AUTH WORKS IN THIS PORTAL
+================================================================================
+The frontend code uses dynamic origin redirection:
+   redirectTo: window.location.origin
+
+This means YOU NEVER NEED TO HARDCODE DOMAINS IN THE FRONTEND JAVASCRIPT CODE!
+The flow is:
+   1. Student clicks "Continue with Google" on Login or Register page.
+   2. Browser opens Google's secure OAuth consent screen.
+   3. Google verifies the student and redirects back to Supabase's Auth Callback URL.
+   4. Supabase validates the token and redirects the student back to your College VPS
+      or production website domain.
+   5. If the student is new, the portal guides them to complete their academic
+      profile (Branch, Year, Semester, Roll Number).
+
+================================================================================
+2. STEP 1: GOOGLE CLOUD CONSOLE CONFIGURATION
+================================================================================
+Follow these steps to create your Google OAuth Client ID and Secret:
+
+A. Access Google Cloud Console:
+   1. Open: https://console.cloud.google.com/
+   2. Sign in with the official College IT Google Account (e.g. it@sistec.ac.in).
+   3. At the top navigation bar, click the Project dropdown and click "NEW PROJECT".
+   4. Project Name: "SISTec Digital Library" -> Click "CREATE".
+
+B. Configure the OAuth Consent Screen:
+   1. In the left navigation menu, go to:
+      APIs & Services ➔ OAuth consent screen.
+   2. Choose User Type:
+      - "Internal": If you only want @sistec.ac.in Google accounts to log in.
+      - "External": Recommended if students use personal Gmail accounts.
+      Click "CREATE".
+   3. App Information:
+      - App name: SISTec Central Digital Library
+      - User support email: Select your college admin email.
+      - App logo (optional): Upload college logo.
+      - Developer contact email: Enter your IT administrator email.
+      Click "SAVE AND CONTINUE".
+   4. Scopes:
+      - Click "ADD OR REMOVE SCOPES".
+      - Check: ".../auth/userinfo.email", ".../auth/userinfo.profile", "openid".
+      - Click "UPDATE" ➔ Click "SAVE AND CONTINUE".
+   5. Test Users (Only if "External" and in Testing mode):
+      - If you keep the app in "Testing" mode, add student emails here.
+      - OR click "PUBLISH APP" under OAuth consent screen to allow all students.
+
+C. Create OAuth 2.0 Credentials:
+   1. In the left menu, click "Credentials".
+   2. Click "+ CREATE CREDENTIALS" at the top ➔ Select "OAuth client ID".
+   3. Application type: Select "Web application".
+   4. Name: "SISTec Library Web Client".
+   5. Authorized JavaScript origins:
+      Click "+ ADD URI" and add your website origins:
+      - https://library.sistec.ac.in       (Your College VPS Domain)
+      - http://localhost:3000              (For Local Development/Testing)
+      - http://YOUR_VPS_IP:3000            (If accessing directly via VPS IP)
+   6. Authorized redirect URIs:
+      Click "+ ADD URI" and enter your Supabase Auth Callback URL:
+      - Format: https://<YOUR-SUPABASE-PROJECT-ID>.supabase.co/auth/v1/callback
+      * For your current project, this is:
+        https://ddjqajadhrwepcybfzam.supabase.co/auth/v1/callback
+      * (If using Self-Hosted Local Supabase on VPS, enter:
+        https://library.sistec.ac.in/supabase/auth/v1/callback or http://YOUR_VPS_IP:8000/auth/v1/callback)
+   7. Click "CREATE".
+   8. A popup will show:
+      - "Client ID" (e.g., 1076845729176-xxx.apps.googleusercontent.com)
+      - "Client Secret" (e.g., GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx)
+      COPY BOTH KEYS! Keep them secure.
+
+================================================================================
+3. STEP 2: SUPABASE DASHBOARD CONFIGURATION
+================================================================================
+A. Enable Google Provider in Supabase:
+   1. Open: https://supabase.com/dashboard/project/ddjqajadhrwepcybfzam
+   2. In the left navigation, go to: Authentication ➔ Providers.
+   3. Scroll down to "Google" and click to expand it.
+   4. Toggle "Enable Sign in with Google" to ON (Green).
+   5. Paste your "Client ID" from Step 1.
+   6. Paste your "Client Secret" from Step 1.
+   7. Click "Save".
+
+B. Configure Allowed Redirect URLs:
+   1. In the left navigation, go to: Authentication ➔ URL Configuration.
+   2. Site URL:
+      Enter your primary production website address:
+      https://library.sistec.ac.in
+      (Or your Vercel URL / VPS IP if not yet on a custom domain).
+   3. Redirect URLs (Allow list):
+      Click "Add URL" and add the following patterns (using /** wildcard):
+      - https://library.sistec.ac.in/**
+      - http://localhost:3000/**
+      - http://YOUR_VPS_IP:3000/**
+      - https://*.vercel.app/**
+   4. Click "Save".
+
+================================================================================
+4. STEP 3: STUDENT ONBOARDING & ADMIN APPROVAL WORKFLOW
+================================================================================
+Institutional Security Features Built into This Portal:
+
+1. Student First Login:
+   When a student signs in with Google for the first time, the portal detects
+   that they do not have an institutional roll number and BT number yet.
+   The student is automatically routed to `/complete-profile`.
+
+2. Profile Completion:
+   The student fills in:
+   - Full Name (pre-filled from Google)
+   - Username
+   - Institutional Roll / Enrollment Number (e.g. 0187CS241032)
+   - BT Library Card Number
+   - Department / Branch (CSE, AI/DS, ME, Civil, Pharmacy, MBA, etc.)
+   - Year & Semester
+
+3. Verification Queue:
+   - Once submitted, the account status is set to 'pending'.
+   - The student cannot browse or download restricted textbooks until approved.
+   - College Administrators log into `/admin` ➔ "Student Verification Queue".
+   - Admin reviews the student's Roll Number and BT Number, then clicks "Approve".
+   - The student receives an instant realtime push notification and gets access.
+
+================================================================================
+5. TROUBLESHOOTING & FREQUENTLY ASKED QUESTIONS (FAQ)
+================================================================================
+Q1: Error: "redirect_uri_mismatch" (Google Error 400)
+    Reason: The redirect URI in Google Cloud Console does not match Supabase.
+    Fix: In Google Cloud Console ➔ Credentials ➔ OAuth Client ID, verify that
+    "Authorized redirect URIs" contains:
+    https://ddjqajadhrwepcybfzam.supabase.co/auth/v1/callback
+    (Make sure there are no trailing spaces or missing characters).
+
+Q2: Error: "Access blocked: This app has not been verified"
+    Reason: In Google Cloud Console, your OAuth consent screen is in "Testing" mode.
+    Fix: In Google Cloud Console ➔ OAuth consent screen, click "PUBLISH APP"
+    to move it to Production mode. Alternatively, add test student emails under
+    "Test users".
+
+Q3: When we change the college domain in the future, what code needs to change?
+    Answer: ZERO code changes!
+    Only update:
+    1. Google Cloud Console ➔ Authorized JavaScript origins (add new domain).
+    2. Supabase ➔ Authentication ➔ URL Configuration (update Site URL & Redirect URLs).
+    The portal frontend will dynamically adapt automatically.
+
+================================================================================
+Support & Development Team:
+SISTec Central Digital Library Engineering Team
+DomainExpanders Official (https://www.domainexpanders.in)
+================================================================================
