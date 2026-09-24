@@ -18,17 +18,16 @@ export default function ProjectDetailsModal({
     setMounted(true);
   }, []);
 
-  if (!project) return null;
-
-  const [currentLikes, setCurrentLikes] = useState(typeof project.likes_count === 'number' ? project.likes_count : 0);
-  const [userReaction, setUserReaction] = useState((project.is_liked || project.user_reaction === 'like') ? 'like' : null);
+  const [currentLikes, setCurrentLikes] = useState(typeof project?.likes_count === 'number' ? project.likes_count : 0);
+  const [userReaction, setUserReaction] = useState((project?.is_liked || project?.user_reaction === 'like') ? 'like' : null);
   const [voting, setVoting] = useState(false);
 
   // Sync state whenever project prop updates
   useEffect(() => {
+    if (!project) return;
     setCurrentLikes(typeof project.likes_count === 'number' ? project.likes_count : 0);
     setUserReaction((project.is_liked || project.user_reaction === 'like') ? 'like' : null);
-  }, [project.id, project.likes_count, project.is_liked, project.user_reaction]);
+  }, [project?.id, project?.likes_count, project?.is_liked, project?.user_reaction]);
 
   // Lock background body scroll and bind Escape key
   useEffect(() => {
@@ -105,7 +104,7 @@ export default function ProjectDetailsModal({
 
   const isLiked = userReaction === 'like';
 
-  if (!mounted || typeof document === 'undefined') {
+  if (!project || !mounted || typeof document === 'undefined') {
     return null;
   }
 

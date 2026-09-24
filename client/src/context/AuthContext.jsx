@@ -1224,7 +1224,7 @@ export const AuthProvider = ({ children }) => {
         category:category_id(name),
         branch:branch_id(name)
       `;
-      let data = [];
+      let data;
       try {
         const [res1, res2, res3] = await Promise.all([
           supabase.from('books').select(bookSelectFields).order('created_at', { ascending: false }).range(0, 999),

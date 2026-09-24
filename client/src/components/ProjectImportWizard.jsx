@@ -49,7 +49,7 @@ export function parseTeamMembers(rawText, defaultBranch = '', defaultBatch = '')
     const parts = line.split(/,(?![^()]*\))/).map(s => s.trim()).filter(Boolean);
     parts.forEach(part => {
       let linkedin = '';
-      const linkedinMatch = part.match(/https?:\/\/(?:www\.)?linkedin\.com\/[^\s\)]+/i);
+      const linkedinMatch = part.match(/https?:\/\/(?:www\.)?linkedin\.com\/[^\s)]+/i);
       if (linkedinMatch) {
         linkedin = linkedinMatch[0];
         part = part.replace(linkedin, '').trim();
@@ -82,7 +82,7 @@ export function parseTeamMembers(rawText, defaultBranch = '', defaultBatch = '')
         }
       }
 
-      name = name.replace(/^[\d\.\s*-]+/, '').trim();
+      name = name.replace(/^[\d.\s*-]+/, '').trim();
       if (name) {
         results.push({
           name,

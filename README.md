@@ -221,20 +221,37 @@ The database schema is self-contained in **`supabase_schema.sql`** at the root o
 
 ## Deployment Guide
 
-### Option 1: Hostinger K2 VPS / On-Premise Deployment (College Server)
-For deploying directly on the college's Hostinger KVM 2 VPS (8GB RAM) with Nginx reverse proxy, PM2 process management, automated database backups, and SSL, consult our comprehensive guide:
-👉 **[DEPLOYMENT_AND_VPS_SETUP_GUIDE.md](file:///d:/CODE%20JAANI%20CODE/company%20work/Sistech%20libraray/SISTEC-LIBRARY-PORTAL-/DEPLOYMENT_AND_VPS_SETUP_GUIDE.md)**
+### Option 1: Institutional Linux / VPS Server (Ubuntu / Hostinger)
+For deploying directly on an institutional Linux server or KVM VPS:
+1. **Install Node.js 20 LTS, Nginx, and PM2**:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt install -y nodejs nginx certbot python3-certbot-nginx
+   sudo npm install -g pm2
+   ```
+2. **Install Dependencies & Build**:
+   ```bash
+   npm install
+   npm run install-all
+   cp .env.example client/.env.local
+   # (Edit client/.env.local with your Supabase credentials)
+   npm run build
+   ```
+3. **Start with PM2 High-Concurrency Cluster**:
+   ```bash
+   npm run start:cluster
+   pm2 save
+   pm2 startup
+   ```
+4. **Configure Nginx Reverse Proxy**:
+   Proxy incoming traffic on port 80/443 to `http://127.0.0.1:3000` with WebSocket support, static micro-caching, and Let's Encrypt SSL (`certbot --nginx`).
 
 ### Option 2: Vercel (Cloud-Native SSR)
-This repository is configured with a root `vercel.json` pointing to `client/`:
+This repository is pre-configured with a root `vercel.json` pointing to `client/`:
 1. Connect your GitHub repository to [vercel.com](https://vercel.com).
-2. Set Root Directory to `client` (or leave default as `vercel.json` automatically manages this).
-3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Environment Variables.
+2. Set Root Directory to `client` (managed automatically by `vercel.json`).
+3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Environment Variables.
 4. Click **Deploy**.
-
-### Option 3: Cloudflare Pages / Static Edge (100k Users Zero Cost)
-For zero egress costs and high student concurrency, consult our detailed architecture blueprint:
-👉 **[architecture_100k_free_tier.md](file:///d:/CODE%20JAANI%20CODE/company%20work/Sistech%20libraray/SISTEC-LIBRARY-PORTAL-/architecture_100k_free_tier.md)**
 
 ---
 

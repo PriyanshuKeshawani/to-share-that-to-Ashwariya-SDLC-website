@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useId } from 'react';
 import { registerBackHandler, unregisterBackHandler } from '../utils/nativeBackManager';
 
 /**
@@ -20,19 +20,21 @@ import { registerBackHandler, unregisterBackHandler } from '../utils/nativeBackM
  */
 export const useNativeBack = (handler, isEnabled = true, options = {}) => {
   const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  useEffect(() => {
+    handlerRef.current = handler;
+  });
 
-  const idRef = useRef(options.id || `nbh-${Math.random().toString(36).substring(2, 9)}`);
+  const generatedId = useId();
+  const currentId = options.id || generatedId;
   const priority = options.priority !== undefined ? options.priority : 10;
   const label = options.label || '';
 
   useEffect(() => {
     if (!isEnabled) {
-      unregisterBackHandler(idRef.current);
+      unregisterBackHandler(currentId);
       return;
     }
 
-    const currentId = idRef.current;
     registerBackHandler({
       id: currentId,
       handler: () => {
@@ -47,7 +49,7 @@ export const useNativeBack = (handler, isEnabled = true, options = {}) => {
     return () => {
       unregisterBackHandler(currentId);
     };
-  }, [isEnabled, priority, label]);
+  }, [isEnabled, priority, label, currentId]);
 };
 
 export default useNativeBack;
