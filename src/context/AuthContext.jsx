@@ -3152,14 +3152,18 @@ export const AuthProvider = ({ children }) => {
       const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveId) return [];
       try {
-        const [logsRes, progRes] = await Promise.all([
+        const [progRes, logsRes] = await Promise.all([
           (async () => {
             try {
-              const res = await supabase.from('activity_logs').select('*, book:book_id(title, author)').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(50);
+              const res = await supabase
+                .from('user_book_progress')
+                .select('*, book:book_id(id, title, author, total_pages, category:category_id(name), branch:branch_id(name))')
+                .eq('user_id', effectiveId)
+                .order('last_accessed_at', { ascending: false });
               if (!res.error && res.data && res.data.length > 0) return res.data;
             } catch {}
             try {
-              const flat = await supabase.from('activity_logs').select('*').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(50);
+              const flat = await supabase.from('user_book_progress').select('*').eq('user_id', effectiveId).order('last_accessed_at', { ascending: false });
               return flat.data || [];
             } catch {
               return [];
@@ -3167,11 +3171,16 @@ export const AuthProvider = ({ children }) => {
           })(),
           (async () => {
             try {
-              const res = await supabase.from('user_book_progress').select('*, book:book_id(title, author, total_pages)').eq('user_id', effectiveId);
+              const res = await supabase
+                .from('activity_logs')
+                .select('*, book:book_id(id, title, author, total_pages, category:category_id(name), branch:branch_id(name))')
+                .eq('user_id', effectiveId)
+                .order('created_at', { ascending: false })
+                .limit(100);
               if (!res.error && res.data && res.data.length > 0) return res.data;
             } catch {}
             try {
-              const flat = await supabase.from('user_book_progress').select('*').eq('user_id', effectiveId);
+              const flat = await supabase.from('activity_logs').select('*').eq('user_id', effectiveId).order('created_at', { ascending: false }).limit(100);
               return flat.data || [];
             } catch {
               return [];
@@ -3179,28 +3188,109 @@ export const AuthProvider = ({ children }) => {
           })()
         ]);
 
-        const logsData = logsRes || [];
         const progressData = progRes || [];
+        const logsData = logsRes || [];
 
-        const progressMap = new Map((progressData || []).map(p => [String(p.book_id), p]));
-        const progressByTitle = new Map((progressData || []).map(p => [String(p.book?.title || '').toLowerCase(), p]));
+        const bookMap = new Map();
 
-        return (logsData || []).map(l => {
-          const fallbackTitle = l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null;
-          const prog = progressMap.get(String(l.book_id)) || (fallbackTitle ? progressByTitle.get(fallbackTitle.toLowerCase()) : null);
-          const parsedPage = l.details?.match(/page (\d+)/i)?.[1] ? parseInt(l.details.match(/page (\d+)/i)[1], 10) : 1;
-          const totalPages = prog?.total_pages || prog?.book?.total_pages || 100;
-          const pageRead = prog ? (prog.last_page_read || 1) : parsedPage;
+        // 1. Ingest verified per-book reading progress
+        progressData.forEach(p => {
+          const bk = p.book || null;
+          const key = String(p.book_id || bk?.id || '');
+          if (!key) return;
 
-          return {
-            ...l,
-            book_title: l.book ? l.book.title : (fallbackTitle || 'Library E-Book'),
-            book_author: l.book ? l.book.author : null,
-            last_page_read: pageRead,
+          const lastPage = Math.max(1, parseInt(p.last_page_read || 1, 10));
+          const totalPages = parseInt(p.total_pages || bk?.total_pages || 100, 10);
+          const pct = p.progress_percentage && p.progress_percentage > 0
+            ? p.progress_percentage
+            : Math.min(100, Math.max(1, Math.round((lastPage / totalPages) * 100)));
+          const title = bk?.title || 'Library E-Book';
+          const isDl = Boolean(p.is_downloaded || (p.downloaded_count > 0));
+          const time = p.last_accessed_at || p.last_active_at || p.created_at || new Date().toISOString();
+
+          bookMap.set(key, {
+            id: p.id,
+            user_id: p.user_id,
+            book_id: p.book_id || bk?.id,
+            title: title,
+            book_title: title,
+            author: bk?.author || 'SISTec Faculty Resource',
+            book_author: bk?.author || 'SISTec Faculty Resource',
+            branch_name: bk?.branch?.name || 'General Engineering',
+            category_name: bk?.category?.name || 'Standard Catalog',
+            last_page_read: lastPage,
             total_pages: totalPages,
-            progress_percentage: prog?.progress_percentage || Math.min(100, Math.round((pageRead / totalPages) * 100))
-          };
+            progress_percentage: pct,
+            status: pct >= 95 ? 'completed' : (p.status || 'in_progress'),
+            action_type: isDl && lastPage <= 1 ? 'download' : (pct >= 95 ? 'completed' : 'reading'),
+            accessed_count: Math.max(1, Number(p.accessed_count) || 1),
+            downloaded_count: Number(p.downloaded_count) || (isDl ? 1 : 0),
+            is_downloaded: isDl ? 1 : 0,
+            created_at: time,
+            last_accessed_at: time,
+            details: isDl && lastPage <= 1
+              ? 'Downloaded offline reference copy'
+              : `Page ${lastPage} of ${totalPages} • ${pct}% completed`
+          });
         });
+
+        // 2. Intelligently reconcile with activity_logs (e.g. offline downloads or older read sessions)
+        logsData.forEach(l => {
+          const key = String(l.book_id || l.book?.id || '');
+          const titleFromDetails = l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null;
+          const pageFromDetails = l.details?.match(/page\s+(\d+)(?:\s+of\s+(\d+))?/i);
+          const parsedPage = pageFromDetails ? parseInt(pageFromDetails[1], 10) : 1;
+          const parsedTotal = pageFromDetails && pageFromDetails[2] ? parseInt(pageFromDetails[2], 10) : 100;
+
+          if (key && bookMap.has(key)) {
+            const existing = bookMap.get(key);
+            if (new Date(l.created_at) > new Date(existing.created_at)) {
+              existing.created_at = l.created_at;
+              existing.last_accessed_at = l.created_at;
+            }
+            if (l.action_type === 'download') {
+              existing.downloaded_count = (existing.downloaded_count || 0) + 1;
+              existing.is_downloaded = 1;
+            }
+            if (parsedPage > existing.last_page_read) {
+              existing.last_page_read = parsedPage;
+              existing.progress_percentage = Math.min(100, Math.round((parsedPage / (existing.total_pages || parsedTotal)) * 100));
+              existing.details = `Page ${existing.last_page_read} of ${existing.total_pages} • ${existing.progress_percentage}% completed`;
+            }
+          } else if (titleFromDetails || l.book_id) {
+            const fallbackKey = key || titleFromDetails;
+            if (!bookMap.has(fallbackKey)) {
+              const title = l.book?.title || titleFromDetails || 'Library E-Book';
+              const isDl = l.action_type === 'download';
+              const pct = Math.min(100, Math.round((parsedPage / parsedTotal) * 100));
+              const time = l.created_at || new Date().toISOString();
+              bookMap.set(fallbackKey, {
+                id: `log-${l.id}`,
+                user_id: effectiveId,
+                book_id: l.book_id || null,
+                title: title,
+                book_title: title,
+                author: l.book?.author || 'SISTec Faculty Resource',
+                book_author: l.book?.author || 'SISTec Faculty Resource',
+                branch_name: l.book?.branch?.name || 'General Engineering',
+                category_name: l.book?.category?.name || 'Standard Catalog',
+                last_page_read: parsedPage,
+                total_pages: parsedTotal,
+                progress_percentage: pct,
+                status: pct >= 95 ? 'completed' : 'in_progress',
+                action_type: isDl ? 'download' : (pct >= 95 ? 'completed' : 'reading'),
+                accessed_count: 1,
+                downloaded_count: isDl ? 1 : 0,
+                is_downloaded: isDl ? 1 : 0,
+                created_at: time,
+                last_accessed_at: time,
+                details: isDl ? 'Downloaded offline reference copy' : `Page ${parsedPage} of ${parsedTotal} • ${pct}% completed`
+              });
+            }
+          }
+        });
+
+        return Array.from(bookMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       } catch (err) {
         console.warn('Error loading my-history:', err.message);
         return [];

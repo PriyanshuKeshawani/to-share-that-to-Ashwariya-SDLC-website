@@ -982,7 +982,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                 onClick={() => setActiveTab('history')}
                 className="glass-panel motion-stat-card animate-stagger-in stagger-4"
                 style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-                title="View your reading history"
+                title={`View your reading history & in-progress books (${history.length} books tracked)`}
               >
                 <div className="motion-card-icon" style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(99, 102, 241, 0.14)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Activity size={18} />
@@ -1066,18 +1066,23 @@ const StudentDashboard = ({ onSelectBook }) => {
                       </thead>
                       <tbody>
                         {history.map(h => {
-                          const matchingBook = books.find(b => b.id === h.book_id || b.title === h.book_title);
+                          const matchingBook = books.find(b => String(b.id) === String(h.book_id) || b.title === h.book_title || b.title === h.title);
+                          const isCompleted = h.status === 'completed' || h.progress_percentage >= 95;
+                          const isDownload = h.action_type === 'download';
                           return (
                             <tr key={h.id}>
                               <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                                {new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(h.created_at || h.last_accessed_at).toLocaleDateString()} {new Date(h.created_at || h.last_accessed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </td>
-                              <td style={{ fontWeight: 600 }}>{h.book_title || 'Reference Reading'}</td>
+                              <td style={{ fontWeight: 600 }}>{h.book_title || h.title || 'Reference Reading'}</td>
                               <td>
-                                <StatusBadge status={h.action_type === 'download' ? 'approved' : 'available'} customLabel={h.action_type?.toUpperCase()} />
+                                <StatusBadge
+                                  status={isDownload ? 'borrowed' : (isCompleted ? 'approved' : 'available')}
+                                  customLabel={isDownload ? 'DOWNLOAD' : (isCompleted ? 'COMPLETED' : 'READING')}
+                                />
                               </td>
                               <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-                                {h.details || 'Completed reading session'}
+                                {h.details || `Page ${h.last_page_read || 1} of ${h.total_pages || 100} • ${h.progress_percentage || 1}% completed`}
                               </td>
                               <td style={{ textAlign: 'right' }}>
                                 {matchingBook && (
@@ -1101,7 +1106,9 @@ const StudentDashboard = ({ onSelectBook }) => {
                 {/* Mobile Cards View (< 768px) */}
                 <div className="mobile-cards-view">
                   {history.map(h => {
-                    const matchingBook = books.find(b => b.id === h.book_id || b.title === h.book_title);
+                    const matchingBook = books.find(b => String(b.id) === String(h.book_id) || b.title === h.book_title || b.title === h.title);
+                    const isCompleted = h.status === 'completed' || h.progress_percentage >= 95;
+                    const isDownload = h.action_type === 'download';
                     return (
                       <div key={h.id} className="mobile-data-card">
                         <div className="mobile-card-header">
@@ -1110,28 +1117,31 @@ const StudentDashboard = ({ onSelectBook }) => {
                               width: '40px',
                               height: '40px',
                               borderRadius: '10px',
-                              background: h.action_type === 'download' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                              color: h.action_type === 'download' ? '#f59e0b' : 'var(--primary)',
+                              background: isDownload ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                              color: isDownload ? '#f59e0b' : 'var(--primary)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               flexShrink: 0
                             }}>
-                              {h.action_type === 'download' ? <Download size={20} /> : <BookOpen size={20} />}
+                              {isDownload ? <Download size={20} /> : <BookOpen size={20} />}
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <h4 style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
-                                {h.book_title || 'Reference Reading'}
+                                {h.book_title || h.title || 'Reference Reading'}
                               </h4>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                                 <Clock size={12} />
                                 <span>
-                                  {new Date(h.created_at).toLocaleDateString()} at {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(h.created_at || h.last_accessed_at).toLocaleDateString()} at {new Date(h.created_at || h.last_accessed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
                             </div>
                           </div>
-                          <StatusBadge status={h.action_type === 'download' ? 'approved' : 'available'} customLabel={h.action_type?.toUpperCase()} />
+                          <StatusBadge
+                            status={isDownload ? 'borrowed' : (isCompleted ? 'approved' : 'available')}
+                            customLabel={isDownload ? 'DOWNLOAD' : (isCompleted ? 'COMPLETED' : 'READING')}
+                          />
                         </div>
 
                         {h.details && (
