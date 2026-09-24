@@ -840,10 +840,6 @@ export default function ProjectManagement({
       <GoogleFormTemplateModal
         isOpen={isFormTemplateOpen}
         onClose={() => setIsFormTemplateOpen(false)}
-        onOpenImportWizard={() => {
-          setIsFormTemplateOpen(false);
-          setIsImportWizardOpen(true);
-        }}
       />
 
       {/* Intelligent Google Form / Sheets Project Import Wizard */}
