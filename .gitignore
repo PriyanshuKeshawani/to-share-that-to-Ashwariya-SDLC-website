@@ -1,23 +1,18 @@
 # Node dependencies
 node_modules/
-client/node_modules/
-server/node_modules/
 
 # Production build outputs
 dist/
-client/dist/
 .next/
-client/.next/
 out/
-client/out/
 build/
 
 # Android build outputs & caches
 .gradle/
-client/android/.gradle/
-client/android/app/build/
-client/android/build/
-client/android/captures/
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
 *.apk
 *.aab
 
@@ -47,19 +42,7 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Temporary & AI Agent directories
-.kilo/
-plans/
-ALL_PLANS_COMBINED.md
-
-# Large backup & archive files
+# Temporary & Archive files
 *.zip
 *.tar.gz
 *.bak
-
-# Local Data Feed & Large Books
-data_feed/
-books/
-
-# College VPS Deployment Bundle (Private, Never Push)
-clg_vps_setup/

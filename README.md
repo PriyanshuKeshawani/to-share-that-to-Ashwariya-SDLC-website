@@ -75,9 +75,8 @@ From a clean machine, clone the repository and install all required dependencies
 git clone https://github.com/DomainExpandersOfficial/SISTEC-LIBRARY-PORTAL-.git
 cd SISTEC-LIBRARY-PORTAL-
 
-# 2. Install dependencies for the root and client
+# 2. Install dependencies
 npm install
-npm run install-all
 ```
 
 > **Note**: An `.npmrc` file is included with `legacy-peer-deps=true` to guarantee deterministic package installation across all environments with React 19.
@@ -89,8 +88,8 @@ npm run install-all
 Copy the example environment file to create your local `.env.local` configuration:
 
 ```bash
-# Copy template from root to client
-cp .env.example client/.env.local
+# Copy template to .env.local
+cp .env.example .env.local
 ```
 
 ### Environment Variables Reference
@@ -116,11 +115,6 @@ cp .env.example client/.env.local
 Start the local development server:
 
 ```bash
-# From the root directory:
-npm run dev
-
-# Or directly from client/:
-cd client
 npm run dev
 ```
 
@@ -142,11 +136,6 @@ The application will be live at: **`http://localhost:3000`**
 To verify and generate the production build:
 
 ```bash
-# From the root directory:
-npm run build
-
-# Or within the client directory:
-cd client
 npm run build
 ```
 
@@ -163,7 +152,7 @@ This compiles all dynamic and static pages:
 
 ## Android / Capacitor Mobile App
 
-The repository includes a pre-configured native Android application under `client/android/`.
+The repository includes a pre-configured native Android application under `android/`.
 
 ### Android Project Specifications
 - **Application ID / Namespace**: `com.sistec.libraryportal`
@@ -185,13 +174,13 @@ The repository includes a pre-configured native Android application under `clien
    ```
 3. **Build APK / Bundle via Gradle CLI**:
    ```bash
-   cd client/android
+   cd android
    ./gradlew assembleDebug
    # Release build:
    ./gradlew assembleRelease
    ```
    The generated APK will be available in:
-   `client/android/app/build/outputs/apk/debug/app-debug.apk`
+   `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
@@ -232,9 +221,8 @@ For deploying directly on an institutional Linux server or KVM VPS:
 2. **Install Dependencies & Build**:
    ```bash
    npm install
-   npm run install-all
-   cp .env.example client/.env.local
-   # (Edit client/.env.local with your Supabase credentials)
+   cp .env.example .env.local
+   # (Edit .env.local with your Supabase credentials)
    npm run build
    ```
 3. **Start with PM2 High-Concurrency Cluster**:
@@ -247,9 +235,9 @@ For deploying directly on an institutional Linux server or KVM VPS:
    Proxy incoming traffic on port 80/443 to `http://127.0.0.1:3000` with WebSocket support, static micro-caching, and Let's Encrypt SSL (`certbot --nginx`).
 
 ### Option 2: Vercel (Cloud-Native SSR)
-This repository is pre-configured with a root `vercel.json` pointing to `client/`:
+This repository is a standard Next.js root application that Vercel auto-detects:
 1. Connect your GitHub repository to [vercel.com](https://vercel.com).
-2. Set Root Directory to `client` (managed automatically by `vercel.json`).
+2. Root Directory is the project root (`./`).
 3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Environment Variables.
 4. Click **Deploy**.
 

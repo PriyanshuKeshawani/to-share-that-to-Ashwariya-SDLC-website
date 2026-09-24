@@ -1,6 +1,5 @@
 {
   "framework": "nextjs",
-  "rootDirectory": "client",
   "headers": [
     {
       "source": "/.well-known/assetlinks.json",

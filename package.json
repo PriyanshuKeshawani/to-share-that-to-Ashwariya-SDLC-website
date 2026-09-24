@@ -1,13 +1,41 @@
 {
   "name": "sistec-library-portal",
-  "version": "1.0.0",
   "private": true,
-  "description": "SISTEC Central Digital Library Portal",
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "npm run dev --prefix client",
-    "build": "npm run install-all && npm run build --prefix client",
-    "start": "npm run start --prefix client",
-    "start:cluster": "pm2 start npm --name sistec-library -i max -- start --prefix client",
-    "install-all": "npm install --prefix client --legacy-peer-deps"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "start:cluster": "pm2 start npm --name sistec-library -i max -- start",
+    "lint": "eslint .",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@supabase/supabase-js": "^2.112.3",
+    "dexie": "^4.4.6",
+    "firebase": "^12.19.0",
+    "lucide-react": "^0.475.0",
+    "next": "^15.5.25",
+    "page-flip": "^2.0.7",
+    "pdfjs-dist": "^6.3.289",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "globals": "^17.6.0"
   }
 }
