@@ -1,319 +1,342 @@
-# SISTEC Central Digital Library Portal
+# SISTEC Central Digital Library & Innovation Portal
 
-> Official digital library management system and e-book reading platform for **Sagar Institute of Science & Technology (SISTEC)**.  
-> Designed for high concurrency, zero operational cost on free tiers, and cross-platform access across Web and Android devices.
-
----
-
-## Table of Contents
-1. [Project Overview](#project-overview)
-2. [Technology Stack](#technology-stack)
-3. [System Requirements](#system-requirements)
-4. [Quick Start & Installation](#quick-start--installation)
-5. [Environment Configuration](#environment-configuration)
-6. [Development Workflow](#development-workflow)
-7. [Production Build](#production-build)
-8. [Android / Capacitor Mobile App](#android--capacitor-mobile-app)
-9. [Database & Backend Setup](#database--backend-setup)
-10. [Deployment Guide](#deployment-guide)
-11. [Administrator Setup & Approval Flow](#administrator-setup--approval-flow)
-12. [Maintenance & Keep-Alive Automation](#maintenance--keep-alive-automation)
-13. [Troubleshooting](#troubleshooting)
-14. [College IT Handover Notes](#college-it-handover-notes)
+> **INSTITUTIONAL NOTICE**:  
+> This software is the private, proprietary property of **Sagar Institute of Science & Technology (SISTec), Bhopal**.  
+> Developed for internal institutional operation across the **College Hostinger VPS (Ubuntu 22.04 LTS)**, **Supabase PostgreSQL Backend**, and **Campus Android Devices**.  
+> *Confidential & Restricted — Not for public redistribution.*
 
 ---
 
-## Project Overview
+## 📌 Document Overview for College Administration & IT Cell
 
-The **SISTEC Central Digital Library Portal** is an institutional digital library platform providing students and faculty with instant access to academic textbooks, reference guides, lecture notes, syllabus materials, and past-year question papers.
-
-### Key Capabilities
-- **Academic Catalog & Search**: Instant filtering by branch (CSE, AI/DS, IT, ME, CE, Pharmacy, MBA, etc.), semester, category, and subject keyword.
-- **In-Browser Flipbook & PDF Reader**: High-performance reader powered by `pdfjs-dist` and `page-flip` with page caching, full-screen reading mode, zoom, and background streaming.
-- **Student Dashboard**: Real-time tracking of reading time, streak counter, completed books, bookmarks, and activity logs.
-- **Admin Management Portal**: Bulk book uploads, category management, student approval/rejection queue, student verification badge toggling, and audit reporting.
-- **Push Notification Center**: Firebase Cloud Messaging (FCM) integration delivering broadcast announcements and reading reminders to web browsers and Android devices.
-- **Cross-Platform Native Android App**: Built with Capacitor 8, packaging the portal into an optimized native Android application.
+This documentation is prepared specifically for **SISTec College Management, Principal Office, HODs, Department Coordinators, and the Campus IT Infrastructure Team**. It details how the digital library and student project showcase portal operates, how to manage it on the college server, and how to conduct administrative workflows.
 
 ---
 
-## Technology Stack
+## 📑 Table of Contents
 
-| Layer | Technologies Used |
-| :--- | :--- |
-| **Frontend Framework** | **Next.js 15** (App Router), **React 19**, **Vanilla CSS** (Design System) |
-| **Icons & UI Utilities** | `lucide-react`, `page-flip`, `pdfjs-dist`, `qrcode` |
-| **Mobile Runtime** | **Capacitor 8** (`@capacitor/core`, `@capacitor/android`, `@capacitor/cli`) |
-| **Backend & Database** | **Supabase PostgreSQL** (Relational tables, Row-Level Security, Database Triggers, Stored Procedures) |
-| **Cloud Storage** | **Supabase Storage** / Cloudflare R2 / Google Drive Direct Streaming |
-| **Push Notifications** | **Firebase Cloud Messaging (FCM)** + Service Worker (`firebase-messaging-sw.js`) |
-| **CI / Automation** | **GitHub Actions** (Automated keep-alive pings to prevent database pause) |
-| **Hosting Targets** | **Vercel** (SSR/Edge) or **Cloudflare Pages** (Static Export / Zero Egress) |
-
----
-
-## System Requirements
-
-To build and run this repository from a clean machine, ensure the following software is installed:
-
-- **Node.js**: `v18.18.0` or higher (Recommended: `v20.x LTS` or `v22.x LTS`)
-- **Package Manager**: `npm` (v9.x or v10.x)
-- **Git**: `2.30+`
-- **For Android Development (Optional)**:
-  - **Android Studio** (Ladybug / Hedgehog or newer)
-  - **Java JDK**: Version 17 or Version 21
-  - **Android SDK**: API Level 34 or 35
+1. [System Architecture & Working](#1-system-architecture--working)
+2. [Key Capabilities & Modules](#2-key-capabilities--modules)
+3. [College VPS Deployment Guide (Hostinger Ubuntu 22.04)](#3-college-vps-deployment-guide-hostinger-ubuntu-2204)
+4. [Environment Configuration (.env.local)](#4-environment-configuration-envlocal)
+5. [Database Setup & Supabase PostgreSQL](#5-database-setup--supabase-postgresql)
+6. [Administrator Setup & Approval Workflows](#6-administrator-setup--approval-workflows)
+7. [⚡ 1-Click Google Forms & Google Sheets Project Showcase](#7--1-click-google-forms--google-sheets-project-showcase)
+8. [Testing Google Sheet & CSV Import](#8-testing-google-sheet--csv-import)
+9. [Android APK Packaging & Distribution](#9-android-apk-packaging--distribution)
+10. [Automated Backups & Server Maintenance](#10-automated-backups--server-maintenance)
+11. [Troubleshooting & Emergency Reference](#11-troubleshooting--emergency-reference)
 
 ---
 
-## Quick Start & Installation
+## 1. System Architecture & Working
 
-From a clean machine, clone the repository and install all required dependencies:
+```
+  ┌────────────────────────────────────────────────────────┐
+  │                 STUDENT & FACULTY ACCESS               │
+  │     Web Browser (Desktop / Mobile)  &  Android App     │
+  └───────────────────────────┬────────────────────────────┘
+                              │ HTTPS (Port 443)
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │         COLLEGE HOSTINGER VPS (Ubuntu 22.04 LTS)       │
+  │                                                        │
+  │   [ Nginx Reverse Proxy ]                              │
+  │   ├── SSL/TLS (Let's Encrypt automated certificate)   │
+  │   ├── DDoS Rate Limiting (25 requests/sec burst 40)    │
+  │   └── Static Microcache for Next.js chunks & assets    │
+  │                           │                            │
+  │                           ▼ (Port 3000)                │
+  │   [ PM2 Cluster Manager ]                              │
+  │   ├── Next.js 15 (App Router) + React 19 Engine        │
+  │   └── Multi-core cluster mode ('max' CPU utilization)  │
+  └───────────────────────────┬────────────────────────────┘
+                              │
+                              ▼ Secure HTTPS / WSS
+  ┌────────────────────────────────────────────────────────┐
+  │              CENTRAL CLOUD INFRASTRUCTURE              │
+  │                                                        │
+  │   [ Supabase PostgreSQL ]                              │
+  │   ├── Institutional E-Book Catalog (1,400+ books)      │
+  │   ├── Row-Level Security (RLS) & Branch Permissions    │
+  │   ├── Student Verification & Approval Queue            │
+  │   └── Innovation & Final Year Projects Showcase        │
+  │                                                        │
+  │   [ Firebase Cloud Messaging ]                         │
+  │   └── Instant Push Notifications to Web & Mobile       │
+  └────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Key Capabilities & Modules
+
+1. **Central E-Book Catalog & Interactive Reader**:
+   - Access to over 1,400+ technical textbooks, reference guides, syllabus notes, and previous year papers.
+   - Built-in flipbook reader (`pdfjs-dist` + `page-flip`) with offline client caching, multi-page layout, zoom, and chapter bookmarks.
+2. **Departmental & Branch Access Control**:
+   - Automatic catalog filtering for CSE, AIML, Cyber Security, IT, ME, EC, Civil, EX, and MBA.
+   - Cross-branch book permission request and approval workflow.
+3. **Student Learning & Activity Dashboard**:
+   - Tracks student reading streaks, total minutes spent reading, books completed, personal notes, and bookmarks.
+4. **Administrator Control Center (`/admin`)**:
+   - **Student Verification Queue**: Verify student roll numbers, branches, and enrollments before granting access.
+   - **Book Manager**: Upload, edit, categorize, and manage visibility of institutional books.
+   - **Branch Permissions**: Review and grant inter-departmental book access requests.
+   - **Student Activity Auditor**: View real-time reading progress and audit logs.
+5. **Innovation & Final Year Projects Showcase**:
+   - Platform for students to showcase Major Projects, Minor Projects, Hackathon entries, and Research papers.
+   - Peer reactions, likes, live demo links, GitHub repositories, and mentor acknowledgments.
+
+---
+
+## 3. College VPS Deployment Guide (Hostinger Ubuntu 22.04)
+
+### Step 1: Install Required Server Packages
+Connect to your college VPS via SSH (`ssh root@YOUR_SERVER_IP`) and execute:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/DomainExpandersOfficial/SISTEC-LIBRARY-PORTAL-.git
-cd SISTEC-LIBRARY-PORTAL-
+# Update package lists
+sudo apt update && sudo apt upgrade -y
 
-# 2. Install dependencies for the root and client
+# Install Node.js 20 LTS (Recommended long-term release)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs nginx certbot python3-certbot-nginx git
+
+# Install PM2 Process Manager globally
+sudo npm install -g pm2
+```
+
+### Step 2: Clone Repository & Install Dependencies
+
+```bash
+cd /var/www
+git clone https://github.com/DomainExpandersOfficial/SISTEC-LIBRARY-PORTAL-.git sistec-portal
+cd sistec-portal
+
+# Install root & client packages
 npm install
 npm run install-all
 ```
 
-> **Note**: An `.npmrc` file is included with `legacy-peer-deps=true` to guarantee deterministic package installation across all environments with React 19.
-
----
-
-## Environment Configuration
-
-Copy the example environment file to create your local `.env.local` configuration:
+### Step 3: Configure Environment File
+Create the production environment file:
 
 ```bash
-# Copy template from root to client
 cp .env.example client/.env.local
+nano client/.env.local
 ```
+*(Paste your live college Supabase credentials as described in Section 4 below).*
 
-### Environment Variables Reference
-
-| Variable Name | Purpose | Required | Example Source |
-| :--- | :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project API URL | **Yes** | Supabase Dashboard → Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anonymous API key (governed by RLS) | **Yes** | Supabase Dashboard → Settings → API |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Web API Key | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Project ID | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Storage bucket domain | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | FCM Messaging Sender ID | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase Web App Identifier | Optional | Firebase Console → Project Settings |
-| `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | FCM Web Push Certificate Public Key | Optional | Firebase Console → Cloud Messaging |
-
-> **Security Note**: Never commit `.env` or `.env.local` containing actual credentials. Client-side security is strictly enforced at the database level using Supabase Row-Level Security (RLS) policies.
-
----
-
-## Development Workflow
-
-Start the local development server:
+### Step 4: Build & Launch with PM2 Cluster
 
 ```bash
-# From the root directory:
-npm run dev
+# Compile optimized production bundle
+npm run build
 
-# Or directly from client/:
-cd client
-npm run dev
+# Start multi-core high-concurrency PM2 cluster
+npm run start:cluster
+
+# Configure PM2 to restart automatically on server reboot
+pm2 save
+pm2 startup
 ```
 
-The application will be live at: **`http://localhost:3000`**
+### Step 5: Configure Nginx & SSL
 
-### Available Scripts
+Create `/etc/nginx/sites-available/sistec-library`:
 
-| Command | Action |
-| :--- | :--- |
-| `npm run dev` | Starts Next.js development server with Fast Refresh |
-| `npm run build` | Compiles an optimized production build |
-| `npm run start` | Starts the production server locally |
-| `npm run lint` | Runs ESLint analysis across client source code |
+```nginx
+server {
+    listen 80;
+    server_name library.sistec.ac.in; # (Replace with your actual domain or VPS IP)
 
----
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
 
-## Production Build
-
-To verify and generate the production build:
+Enable the configuration and issue free SSL:
 
 ```bash
-# From the root directory:
-npm run build
+sudo ln -s /etc/nginx/sites-available/sistec-library /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
 
-# Or within the client directory:
-cd client
-npm run build
+# Issue Let's Encrypt SSL Certificate
+sudo certbot --nginx -d library.sistec.ac.in
 ```
 
-This compiles all dynamic and static pages:
-- `/` (Home & Catalog)
-- `/login` (Institutional Auth)
-- `/register` (Student Registration)
-- `/student` (Student Learning Dashboard)
-- `/admin` (Administrator Control Center)
-- `/read/[id]` (Interactive Book Reader)
-- `/complete-profile` (Google OAuth Profile Onboarding)
+---
+
+## 4. Environment Configuration (.env.local)
+
+The application requires configuration in `client/.env.local`:
+
+```env
+# 1. SUPABASE DATABASE & AUTHENTICATION
+NEXT_PUBLIC_SUPABASE_URL=https://your-sistec-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# 2. FIREBASE PUSH NOTIFICATIONS (OPTIONAL BUT RECOMMENDED)
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_web_api_key_here
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=sistec-library-portal.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=sistec-library-portal
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=sistec-library-portal.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=1:your_sender_id:web:your_web_app_id
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_firebase_vapid_key_here
+```
 
 ---
 
-## Android / Capacitor Mobile App
+## 5. Database Setup & Supabase PostgreSQL
 
-The repository includes a pre-configured native Android application under `client/android/`.
+The database schema is self-contained in **`supabase_schema.sql`** at the repository root.
 
-### Android Project Specifications
-- **Application ID / Namespace**: `com.sistec.libraryportal`
-- **Minimum SDK**: 24 (Android 7.0 Nougat)
-- **Target SDK**: 35 (Android 15)
-- **Cleartext Traffic**: Enabled for campus intranet connectivity
-- **Deep Linking**: Digital Asset Links configured under `client/public/.well-known/assetlinks.json`
-
-### Android Build Steps
-
-1. **Synchronize Capacitor Assets**:
-   ```bash
-   cd client
-   npm run cap:sync
-   ```
-2. **Open in Android Studio**:
-   ```bash
-   npm run cap:open
-   ```
-3. **Build APK / Bundle via Gradle CLI**:
-   ```bash
-   cd client/android
-   ./gradlew assembleDebug
-   # Release build:
-   ./gradlew assembleRelease
-   ```
-   The generated APK will be available in:
-   `client/android/app/build/outputs/apk/debug/app-debug.apk`
+### Provisioning the Database:
+1. Open the [Supabase Dashboard](https://supabase.com).
+2. Navigate to **SQL Editor** in the left menu.
+3. Paste the contents of `supabase_schema.sql` and click **Run**.
+4. The script creates:
+   - `branches` & `categories`: Pre-populated with SISTec departments.
+   - `books`: Stores titles, authors, categories, drive links, and PDF URLs.
+   - `users`: Student and admin profiles with verification status and branch affiliations.
+   - `projects`: Student innovation projects, team structures, and deployment URLs.
+   - `user_book_progress`: Real-time reading logs, session times, and completed books.
+   - `notes` & `bookmarks`: Personal student study annotations.
+   - **Row-Level Security (RLS)**: Enforces strict data separation so unverified students cannot access protected materials.
 
 ---
 
-## Database & Backend Setup
+## 6. Administrator Setup & Approval Workflows
 
-The database schema is self-contained in **`supabase_schema.sql`** at the root of this repository.
+### Creating the First Administrator Account:
+1. Register on the portal at `/register` using your college email address.
+2. In the Supabase Dashboard → **Table Editor** → `users`:
+   - Locate your newly registered account.
+   - Change `role` to `'admin'`.
+   - Change `status` to `'approved'`.
+3. Sign in at `/login`. You will now have direct access to the **Admin Control Center** at `/admin`.
 
-### Initializing Supabase PostgreSQL
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Open the **SQL Editor** from the left navigation panel.
-3. Open `supabase_schema.sql`, copy all contents, paste into the SQL Editor, and click **Run**.
-4. The script provisions:
-   - `branches`: Institutional engineering, pharmacy, and management branches.
-   - `categories`: Subject taxonomy and department classifications.
-   - `books`: Master book catalog (titles, authors, drive links, PDF URLs, covers).
-   - `users`: Student and faculty profiles with approval status, branch, and roll numbers.
-   - `user_book_progress`: Real-time reading progress, session duration, and page completion metrics.
-   - `notes` & `bookmarks`: Personal student study notes and chapter bookmarks.
-   - `senior_academic_profiles`: Directory of senior majors & minors with career and mentorship guidance.
-   - `projects`: Student innovation & hackathon projects showcase with live URLs, GitHub repositories, and team members.
-   - `project_likes` & `project_reactions`: Real-time peer reactions and synchronized like counters.
-   - `user_fcm_tokens`: Push notification device registration for Web and Android.
-   - **Row-Level Security (RLS)**: Enforces access control so users can only access authorized data.
-   - **Triggers & Stored Procedures**: Automatic timestamps, like counters, and stats aggregation.
+### Student Verification Workflow:
+1. When new students register, their profile is marked as `pending`.
+2. Faculty/Admin opens `/admin` → **Student Verification Queue**.
+3. Admin reviews student name, department, enrollment number, and college ID.
+4. Clicking **Approve** enables their account instantly; the student receives a notification and can immediately log in.
 
 ---
 
-## Deployment Guide
+## 7. ⚡ 1-Click Google Forms & Google Sheets Project Showcase
 
-### Option 1: Institutional Linux / VPS Server (Ubuntu / Hostinger)
-For deploying directly on an institutional Linux server or KVM VPS:
-1. **Install Node.js 20 LTS, Nginx, and PM2**:
-   ```bash
-   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-   sudo apt install -y nodejs nginx certbot python3-certbot-nginx
-   sudo npm install -g pm2
-   ```
-2. **Install Dependencies & Build**:
-   ```bash
-   npm install
-   npm run install-all
-   cp .env.example client/.env.local
-   # (Edit client/.env.local with your Supabase credentials)
-   npm run build
-   ```
-3. **Start with PM2 High-Concurrency Cluster**:
-   ```bash
-   npm run start:cluster
-   pm2 save
-   pm2 startup
-   ```
-4. **Configure Nginx Reverse Proxy**:
-   Proxy incoming traffic on port 80/443 to `http://127.0.0.1:3000` with WebSocket support, static micro-caching, and Let's Encrypt SSL (`certbot --nginx`).
+Collecting student major/minor projects manually can be time-consuming. This portal includes an **automated 1-click Google Form & Sheet creator**:
 
-### Option 2: Vercel (Cloud-Native SSR)
-This repository is pre-configured with a root `vercel.json` pointing to `client/`:
-1. Connect your GitHub repository to [vercel.com](https://vercel.com).
-2. Set Root Directory to `client` (managed automatically by `vercel.json`).
-3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Environment Variables.
-4. Click **Deploy**.
+### How Department Coordinators Use It:
+1. In the Admin Portal → Navigate to **Projects Tab** → Click **Google Form Setup**.
+2. Select desired fields (Project Title, Category, Branch, Team Members, Drive Screenshot URL, GitHub Link, Live Demo URL, Mentor Name).
+3. Click the glowing button: **`⚡ 1-Click Auto-Create Form`**.
+4. **What happens automatically**:
+   - The system generates an automated Google Apps Script customized to your selected fields.
+   - It copies the script to your clipboard and opens `script.new` in Google.
+   - You simply press **Ctrl + V** and click **Run (▶)**.
+   - Google instantly generates:
+     - The **Google Form** with all 11 fields, descriptions, and branch dropdowns.
+     - A linked **Google Spreadsheet** (`SISTEC Project Submissions (Responses)`) in your Google Drive.
+5. Share the Form link with students. When students submit their projects, all rows are gathered into the Google Sheet automatically!
 
 ---
 
-## Administrator Setup & Approval Flow
+## 8. Testing Google Sheet & CSV Import
 
-### Initial Admin Account Creation
-1. Navigate to `/register` on the deployed web portal.
-2. Register an account with your institutional email.
-3. Open Supabase Dashboard → **Table Editor** → `users`.
-4. Locate your account record and update:
-   - `role`: Set to `'admin'`
-   - `status`: Set to `'approved'`
-5. Now sign in at `/login` or navigate to `/admin` to access the full administrator dashboard.
+Once student submissions are collected in Google Sheets, administrators can import dozens or hundreds of projects in 1 click:
 
-### Student Approval Workflow
-- When students register, their initial state is `pending`.
-- Administrators log in to `/admin` → **Student Verification Queue**.
-- Admins can verify the student's Roll Number and BT Number, then click **Approve Account** or **Reject**.
-- Once approved, students receive an instant push notification and can sign in.
+### Ways to Test Right Now:
 
----
+#### Method A: Direct Paste Testing (0 Seconds, Zero Setup)
+1. Open Admin Portal → **Projects Tab** → Click **Import from Form**.
+2. Stay on the **"Paste Google Sheet"** tab.
+3. Click the button: **`⚡ Load Sample Test Data`**.
+4. Click **Parse & Auto-Map Columns** → Review the 5 auto-matched sample projects → Click **Import Projects**.
+5. The projects will immediately appear live in the student and admin showcase!
 
-## Maintenance & Keep-Alive Automation
+#### Method B: CSV Upload Testing
+1. Download the pre-built sample file:
+   - Click **Download Sample CSV** inside the Import Wizard modal, or download [`sample_project_submissions.csv`](file:///client/public/sample_project_submissions.csv) directly.
+2. Select the **"CSV File"** tab in the Import Wizard.
+3. Choose the downloaded CSV → The intelligent engine maps all 11 columns automatically.
 
-Supabase free-tier databases automatically pause after 7 consecutive days of inactivity.
-
-To ensure **100% 24/7 uptime without manual intervention**, this repository includes an automated GitHub Actions workflow:
-- File: `.github/workflows/supabase-keepalive.yml`
-- Schedule: Runs every 3 days at 06:00 UTC (11:30 AM IST).
-- Performs an automated REST health ping against your database, resetting the inactivity timer.
-
-To customize for your own Supabase project:
-1. Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**.
-2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+#### Method C: Live Google Sheet Testing
+1. Create a Google Sheet with student responses at `sheets.new`.
+2. Click **Share** (top-right) → Under *General Access*, set to **"Anyone with the link can view"**.
+3. Copy the URL and paste it into the **Google Sheet URL** tab in the Import Wizard.
+4. Click **Load & Preview Sheet** to import directly via the server proxy!
 
 ---
 
-## Troubleshooting
+## 9. Android APK Packaging & Distribution
 
-### Issue: "Missing or invalid environment variables"
-- **Solution**: Ensure `.env.local` exists in `client/` and that variable names start with `NEXT_PUBLIC_`.
+The portal is equipped with **Capacitor 8** to build native Android APKs:
 
-### Issue: "Notifications blocked or VAPID key invalid"
-- **Solution**: Check that the browser window is not in Incognito/Private mode (Chrome disables service workers and push notifications in incognito). Verify `NEXT_PUBLIC_FIREBASE_VAPID_KEY` matches your Firebase console key.
+```bash
+# 1. Build web application & sync assets to Android
+cd client
+npm run build
+npm run cap:sync
 
-### Issue: "Cannot resolve module canvas / pdfjs-dist worker error"
-- **Solution**: Handled automatically in `client/next.config.mjs` via webpack alias `canvas: false` and custom TC39 map polyfills in `BookReader.jsx`.
+# 2. Build debug APK using Gradle CLI
+cd android
+./gradlew assembleDebug
+```
+The APK will be generated at:
+`client/android/app/build/outputs/apk/debug/app-debug.apk`
 
----
-
-## College IT Handover Notes
-
-1. **Ownership & Access**:
-   - Transfer Supabase project ownership to the institutional IT email.
-   - Transfer Firebase project ownership to the institutional Google workspace account.
-2. **Domain Mapping**:
-   - To link the college domain (e.g., `library.sistec.ac.in`), configure a CNAME record in your DNS provider pointing to your Vercel or Cloudflare deployment.
-3. **Database Backups**:
-   - Supabase automatically manages daily backups. For custom SQL dumps, use the Supabase CLI (`supabase db dump`).
-4. **Android Signing Keys**:
-   - When generating release APKs/AABs for the Google Play Store, generate a secure Java Keystore (`.jks`) file and store it safely in the college vault. Never commit `.jks` files to Git.
+Distribute this APK directly to students via the college website, WhatsApp groups, or institutional portals.
 
 ---
 
-*Handover Prepared by Sagar Institute of Science & Technology Development Team.*
+## 10. Automated Backups & Server Maintenance
+
+To safeguard college data, a dedicated backup script is provided in `clg_vps_setup/backup_database.sh`:
+
+```bash
+# Run manual backup
+bash clg_vps_setup/backup_database.sh
+```
+
+### Setup Nightly Automated Cron Backup:
+Open the crontab editor on your VPS (`sudo crontab -e`) and add:
+
+```cron
+# Runs every night at 2:00 AM IST to backup database and server configuration
+0 2 * * * /bin/bash /var/www/sistec-portal/clg_vps_setup/backup_database.sh >> /var/log/sistec_backup.log 2>&1
+```
+Backups are archived with timestamped archives and automatically retain the latest 14 days of backups while pruning older files.
+
+### 24/7 Database Keep-Alive:
+Supabase free tier databases pause after 7 days of inactivity. This repository includes `.github/workflows/supabase-keepalive.yml` which sends an automated ping every 3 days at 11:30 AM IST, keeping the database active 24/7/365 without manual intervention.
+
+---
+
+## 11. Troubleshooting & Emergency Reference
+
+| Symptom | Cause | Solution |
+| :--- | :--- | :--- |
+| **"Failed to fetch Google Sheet"** | Google Sheet is set to private | In Google Sheets, click **Share** → Change access to **"Anyone with the link" (Viewer)**. |
+| **"Rate limit exceeded (429)"** | Too many sheet requests in 1 minute | Wait 60 seconds; the security rate limiter automatically resets. |
+| **PM2 Process Crashed** | Memory limit exceeded or unhandled error | Check logs with `pm2 logs sistec-library`. Restart with `pm2 restart sistec-library`. |
+| **Port 3000 In Use** | A stale Node process is running | Run `sudo lsof -i :3000` and kill the PID with `sudo kill -9 <PID>`, then restart PM2. |
+| **Student Can't Sign In** | Account status is `pending` | Admin must open `/admin` → Student Verification Queue → Click **Approve**. |
+
+---
+
+*Prepared by the Development Team for Sagar Institute of Science & Technology (SISTec).*  
+*Restricted Institutional Property — All Rights Reserved.*

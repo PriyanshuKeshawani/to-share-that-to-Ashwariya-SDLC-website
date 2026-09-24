@@ -25,6 +25,13 @@ const DB_TARGET_FIELDS = [
   { value: 'is_published', label: 'Published Status (true/false)' }
 ];
 
+const SAMPLE_PASTE_DATA = `Timestamp\tProject Title\tProject Category / Type\tDepartment / Branch\tBatch / Graduation Year\tShort Description / Tagline\tFull Project Scope, Problem Statement & Tech Stack\tTeam Members\tProject Screenshot / Cover Poster\tLive Deployment Link\tGitHub Repository Link\tFaculty Mentor / Project Guide Name
+2026-09-24 10:00:00\tAI Campus Smart Surveillance & Attendance System\tMajor Project\tCSE (Artificial Intelligence & Data Science)\t2025\tAutomated computer vision attendance and security monitoring using CCTV edge nodes.\tDeveloped an end-to-end smart attendance system using OpenCV and YOLOv8 models deployed on NVIDIA Jetson nano. Integrates with college ERP database via REST APIs.\tAman Sharma (CSE, 2025, https://linkedin.com/in/amansharma); Neha Patel (AIML, 2025, https://linkedin.com/in/nehapatel); Rohan Gupta (CSE, 2025)\thttps://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800\thttps://ai-attendance-sistec.vercel.app\thttps://github.com/SistecInnovators/ai-campus-attendance\tDr. Rajiv Saxena
+2026-09-24 10:15:30\tSISTec Decentralized Library Book Tracker\tMinor Project\tComputer Science & Engineering\t2026\tDigital e-book and physical book reservation system with QR-code borrowing.\tNext.js web portal connecting Supabase PostgreSQL database for book searches, offline caching with IndexedDB, and automated push notifications via Firebase.\tPriya Verma (CSE, 2026, https://linkedin.com/in/priyaverma); Kunal Singh (IT, 2026)\thttps://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800\thttps://sistec-library.vercel.app\thttps://github.com/SistecInnovators/library-book-tracker\tProf. Ananya Sen
+2026-09-24 10:30:12\tIoT-Based Agricultural Soil & Crop Health Monitor\tHackathon / Innovation\tElectronics & Communication\t2025\tSolar-powered IoT sensor network monitoring soil moisture, NPK levels, and weather in real time.\tESP32 microcontroller with sensor probes transmitting telemetry data via LoRaWAN to a cloud dashboard. Provides crop health analytics and irrigation alerts via WhatsApp.\tVikas Mishra (EC, 2025); Sneha Joshi (EC, 2025, https://linkedin.com/in/snehajoshi)\thttps://images.unsplash.com/photo-1586771107445-d3ca888129ff?w=800\thttps://agri-iot-sistec.render.com\thttps://github.com/SistecInnovators/smart-agri-monitor\tDr. M. K. Chourasia
+2026-09-24 11:00:45\tAutomated EV Charging Station Locator & Booking\tMajor Project\tElectrical & Electronics\t2025\tCross-platform mobile application to find nearby EV stations and reserve charging slots.\tReact Native and Mapbox mobile app displaying live charger availability, slot reservation, and QR payment integration for electric two-wheelers and cars.\tDivya Rathore (EX, 2025, https://linkedin.com/in/divyarathore); Abhishek Jain (EX, 2025)\thttps://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800\t\thttps://github.com/SistecInnovators/ev-charging-locator\tProf. Sandeep Tiwari
+2026-09-24 11:45:00\tAI-Driven Resume Screening & Interview Assistant\tAcademic Coursework\tInformation Technology\t2026\tNLP-based resume parser and mock interview voice assistant for student placements.\tFastAPI backend with LangChain and Llama-3 parsing PDF resumes, matching skills with company job descriptions, and conducting speech-to-speech mock interviews.\tAditya Roy (IT, 2026, https://linkedin.com/in/adityaroy); Simran Kaur (CSE, 2026)\thttps://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800\thttps://resume-ai-sistec.vercel.app\thttps://github.com/SistecInnovators/ai-resume-screener\tProf. Meenakshi Dubey`;
+
 // Automatically converts Google Drive share links to fast direct preview URLs
 export function convertDriveImageUrl(url) {
   if (!url || typeof url !== 'string') return '';
@@ -594,9 +601,20 @@ export default function ProjectImportWizard({
                     <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       Paste Google Sheet Rows:
                     </label>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Tip: In Google Sheets, select rows including header and press Ctrl+C
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPasteText(SAMPLE_PASTE_DATA)}
+                        className="btn btn-secondary"
+                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '6px', gap: '4px' }}
+                        title="Fill sample student projects for instant testing"
+                      >
+                        ⚡ Load Sample Test Data
+                      </button>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Tip: Select rows in Google Sheet & press Ctrl+C
+                      </span>
+                    </div>
                   </div>
                   <textarea
                     className="glass-input"
@@ -650,13 +668,23 @@ export default function ProjectImportWizard({
                     onChange={handleFileChange}
                     style={{ display: 'none' }}
                   />
-                  <label
-                    htmlFor="project-import-file-input"
-                    className="btn btn-primary btn-shine"
-                    style={{ padding: '10px 24px', borderRadius: '10px', cursor: 'pointer', display: 'inline-flex' }}
-                  >
-                    {parsing ? 'Parsing...' : 'Browse Files on Device'}
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <label
+                      htmlFor="project-import-file-input"
+                      className="btn btn-primary btn-shine"
+                      style={{ padding: '10px 24px', borderRadius: '10px', cursor: 'pointer', display: 'inline-flex' }}
+                    >
+                      {parsing ? 'Parsing...' : 'Browse Files on Device'}
+                    </label>
+                    <a
+                      href="/sample_project_submissions.csv"
+                      download="sample_project_submissions.csv"
+                      className="btn btn-secondary"
+                      style={{ padding: '10px 18px', borderRadius: '10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem' }}
+                    >
+                      <Download size={14} color="#10b981" /> Download Sample CSV
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <div style={{
@@ -665,9 +693,19 @@ export default function ProjectImportWizard({
                   border: '1px solid var(--border-glass)',
                   background: 'rgba(255, 255, 255, 0.02)'
                 }}>
-                  <label style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                    Paste Google Sheet Shareable URL:
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Paste Google Sheet Shareable URL:
+                    </label>
+                    <a
+                      href="/sample_project_submissions.csv"
+                      download="sample_project_submissions.csv"
+                      className="btn btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Download size={12} color="#10b981" /> Download Sample CSV
+                    </a>
+                  </div>
                   <input
                     type="url"
                     className="glass-input"
