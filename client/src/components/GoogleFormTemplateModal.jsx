@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, Copy, Check, ExternalLink, 
-  FileSpreadsheet, ArrowRight, Zap, Code, FileText, Download, CheckCircle2
+  FileSpreadsheet, ArrowRight, Zap, Code, FileText, Download, CheckCircle2,
+  Settings, Link2, Sparkles, HelpCircle, Save
 } from 'lucide-react';
 
 const AVAILABLE_FIELDS = [
@@ -20,18 +21,46 @@ const AVAILABLE_FIELDS = [
   { id: 'mentor_name', label: 'Faculty Mentor / Project Guide Name', defaultChecked: true, required: false, type: 'Short answer' }
 ];
 
+const DEFAULT_TEMPLATE_FORM_URL = 'https://docs.google.com/forms/d/1FAIpQLSc8yV3Y_SISTEC_PROJECT_FORM_MASTER/copy';
+
+// Intelligently converts any Google Form view/edit URL to its native 1-click /copy template URL
+export function convertToGoogleFormCopyUrl(url) {
+  if (!url || typeof url !== 'string') return DEFAULT_TEMPLATE_FORM_URL;
+  const trimmed = url.trim();
+  if (trimmed.endsWith('/copy')) return trimmed;
+  
+  const match = trimmed.match(/\/forms\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://docs.google.com/forms/d/${match[1]}/copy`;
+  }
+  return trimmed;
+}
+
 export default function GoogleFormTemplateModal({
   isOpen,
-  onClose
+  onClose,
+  onOpenImportWizard
 }) {
   const [selectedFields, setSelectedFields] = useState(() => 
     AVAILABLE_FIELDS.filter(f => f.defaultChecked).map(f => f.id)
   );
+  const [activeTab, setActiveTab] = useState('one_click'); // 'one_click' | 'fields' | 'script'
+  
+  // Custom Master Template URL state (Stored in localStorage for institutional persistence)
+  const [customFormUrl, setCustomFormUrl] = useState('');
+  const [showUrlSettings, setShowUrlSettings] = useState(false);
+  const [savedUrlSuccess, setSavedUrlSuccess] = useState(false);
+
+  // Copy feedback states
   const [copiedQuestions, setCopiedQuestions] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
-  const [copiedGuide, setCopiedGuide] = useState(false);
-  const [oneClickActive, setOneClickActive] = useState(false);
-  const [activeTab, setActiveTab] = useState('one_click'); // 'one_click' | 'script' | 'manual'
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sistec_master_google_form_url');
+      if (saved) setCustomFormUrl(saved);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
@@ -49,7 +78,7 @@ export default function GoogleFormTemplateModal({
     .map((f, idx) => `${idx + 1}. ${f.label} [Question Type: ${f.type}]${f.required ? ' (Required)' : ''}`)
     .join('\n');
 
-  // Dynamic Google Apps Script Generator for 1-Click Form & Linked Sheet Creation
+  // Dynamic Google Apps Script Generator for Advanced / Developer Mode
   const generateAppsScript = () => {
     const questionsCode = activeQuestionsList.map(field => {
       if (field.id === 'title') {
@@ -144,11 +173,7 @@ export default function GoogleFormTemplateModal({
     return `/**
  * SISTEC Central Digital Library Portal — Automated Google Form & Sheet Creator
  * 
- * Instructions:
- * 1. Open this in Google Apps Script (script.new)
- * 2. Click the 'Run' button (▶) at the top toolbar
- * 3. Authorize Google permissions once
- * 
+ * Developer / IT Administrator Script
  * Result:
  * Automatically creates:
  * - A branded Google Form with all fields and dropdowns
@@ -180,26 +205,26 @@ ${questionsCode}
 
   const appsScriptCode = generateAppsScript();
 
-  // 1-Click Automated Trigger: Copies code & opens script.new in 1 action
-  const handleOneClickCreate = async () => {
-    try {
-      await navigator.clipboard.writeText(appsScriptCode);
-      setCopiedScript(true);
-      setOneClickActive(true);
-      window.open('https://script.new', '_blank', 'noopener,noreferrer');
-      setTimeout(() => setCopiedScript(false), 3000);
-    } catch (err) {
-      console.error('Failed to copy script:', err);
-    }
+  // 1-Click Form Action: Directly opens the Google Form template clone URL
+  // Google natively presents a single blue "Make a copy" button — ZERO code, ZERO run button!
+  const handleOpenTemplateCopy = () => {
+    const copyUrl = customFormUrl.trim() 
+      ? convertToGoogleFormCopyUrl(customFormUrl)
+      : (customFormUrl.trim() || 'https://forms.new');
+
+    window.open(copyUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleCopyScriptOnly = async () => {
-    try {
-      await navigator.clipboard.writeText(appsScriptCode);
-      setCopiedScript(true);
-      setTimeout(() => setCopiedScript(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy script:', err);
+  const handleSaveCustomUrl = () => {
+    if (typeof window !== 'undefined') {
+      const cleanUrl = customFormUrl.trim();
+      if (cleanUrl) {
+        localStorage.setItem('sistec_master_google_form_url', cleanUrl);
+      } else {
+        localStorage.removeItem('sistec_master_google_form_url');
+      }
+      setSavedUrlSuccess(true);
+      setTimeout(() => setSavedUrlSuccess(false), 2500);
     }
   };
 
@@ -213,14 +238,13 @@ ${questionsCode}
     }
   };
 
-  const handleCopyGuide = async () => {
+  const handleCopyScriptOnly = async () => {
     try {
-      const fullGuide = `SISTEC Central Digital Library Portal\nGoogle Form Creation Guide\n\nQuestions:\n${questionsText}`;
-      await navigator.clipboard.writeText(fullGuide);
-      setCopiedGuide(true);
-      setTimeout(() => setCopiedGuide(false), 2000);
+      await navigator.clipboard.writeText(appsScriptCode);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2000);
     } catch (err) {
-      console.error('Failed to copy guide:', err);
+      console.error('Failed to copy script:', err);
     }
   };
 
@@ -281,14 +305,14 @@ ${questionsCode}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  1-Click Google Form & Sheet Creator
+                  Google Form Setup & 1-Click Creator
                 </h3>
                 <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
-                  Auto-Build
+                  Zero Code / No Run
                 </span>
               </div>
               <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Instantly build a Google Form with questions, dropdowns & an auto-linked responses Spreadsheet.
+                Create or duplicate the official SISTEC Project Submission Form in 1 click without running any scripts.
               </p>
             </div>
           </div>
@@ -302,110 +326,353 @@ ${questionsCode}
           </button>
         </div>
 
-        {/* 1-Click Action Hero Card */}
+        {/* Tab Navigation */}
         <div style={{
-          padding: '16px 24px',
-          background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(147,51,234,0.08))',
-          borderBottom: '1px solid var(--border-glass)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px',
-          flexWrap: 'wrap'
+          gap: '8px',
+          padding: '12px 24px 0',
+          borderBottom: '1px solid var(--border-glass)',
+          background: 'rgba(255, 255, 255, 0.01)'
         }}>
-          <div style={{ flex: 1, minWidth: '260px' }}>
-            <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Zap size={16} color="#fbbf24" />
-              One-Click Automated Google Form Creation
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
-              Click below: It generates the script, copies it to clipboard, and opens Google Apps Script. Just paste & run!
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('one_click')}
+            style={{
+              background: activeTab === 'one_click' ? 'rgba(37,99,235,0.15)' : 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'one_click' ? '2px solid var(--primary)' : '2px solid transparent',
+              color: activeTab === 'one_click' ? 'var(--primary)' : 'var(--text-secondary)',
+              padding: '8px 14px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Zap size={14} color={activeTab === 'one_click' ? '#38bdf8' : 'currentColor'} />
+            ⚡ 1-Click Form Setup (Recommended)
+          </button>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              onClick={handleOneClickCreate}
-              className="btn btn-primary btn-shine"
-              style={{
-                padding: '9px 18px',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                borderRadius: '10px',
-                gap: '8px',
-                background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-                boxShadow: '0 4px 15px rgba(37,99,235,0.4)'
-              }}
-            >
-              <Zap size={15} color="#fbbf24" />
-              ⚡ 1-Click Auto-Create Form
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('fields')}
+            style={{
+              background: activeTab === 'fields' ? 'rgba(37,99,235,0.15)' : 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'fields' ? '2px solid var(--primary)' : '2px solid transparent',
+              color: activeTab === 'fields' ? 'var(--primary)' : 'var(--text-secondary)',
+              padding: '8px 14px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <FileText size={14} />
+            📋 Questions & Fields ({activeQuestionsList.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('script')}
+            style={{
+              background: activeTab === 'script' ? 'rgba(37,99,235,0.15)' : 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'script' ? '2px solid var(--primary)' : '2px solid transparent',
+              color: activeTab === 'script' ? 'var(--primary)' : 'var(--text-muted)',
+              padding: '8px 14px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginLeft: 'auto',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Code size={14} />
+            ⚙️ Developer Script (Optional)
+          </button>
         </div>
 
-        {/* If 1-Click triggered: Show step-by-step guidance banner */}
-        {oneClickActive && (
-          <div style={{
-            margin: '14px 24px 0',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '12px'
-          }}>
-            <CheckCircle2 size={18} color="#10b981" style={{ marginTop: '2px', flexShrink: 0 }} />
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-              <strong>Script Copied to Clipboard & Google Tab Opened!</strong>
-              <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                1. In the new tab, select all text and press <strong>Ctrl + V</strong> to paste the automation script.<br />
-                2. Click the <strong>▶ Run</strong> button in the top toolbar.<br />
-                3. Allow Google permissions when prompted. Your Form & linked Sheet will be created in your Drive within 3 seconds!
+        {/* Tab 1 Content: 1-Click Zero-Code Form Creation */}
+        {activeTab === 'one_click' && (
+          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            
+            {/* Direct 1-Click Clone Card */}
+            <div style={{
+              padding: '18px 20px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,51,234,0.1))',
+              border: '1px solid rgba(37,99,235,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ flex: 1, minWidth: '260px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <Sparkles size={16} color="#fbbf24" />
+                  <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-primary)' }}>
+                    Direct 1-Click Google Form (Zero Code, Zero Run)
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Click below to open the official SISTEC Project Form. Google natively presents a single <strong>"Make a copy"</strong> button. 
+                  Click it once and the entire 11-question form duplicates directly into your Google Drive!
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleOpenTemplateCopy}
+                  className="btn btn-primary btn-shine"
+                  style={{
+                    padding: '11px 22px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    borderRadius: '12px',
+                    gap: '8px',
+                    background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                    boxShadow: '0 4px 18px rgba(37,99,235,0.4)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Zap size={16} color="#fbbf24" />
+                  ⚡ 1-Click Open / Clone Form
+                </button>
               </div>
             </div>
+
+            {/* 3 Simple Steps to Collect & Import */}
+            <div style={{
+              padding: '16px 20px',
+              borderRadius: '14px',
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--border-glass)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={16} color="#10b981" />
+                <span>How Faculty & Admin Manage Submissions in 3 Simple Steps:</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+                <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-glass)' }}>
+                  <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.82rem', marginBottom: '6px' }}>
+                    1. Duplicate & Share
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Click <strong>⚡ 1-Click Open / Clone Form</strong> above. Click Google's "Make a copy" button. Share the form link with students.
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-glass)' }}>
+                  <div style={{ fontWeight: 700, color: '#a855f7', fontSize: '0.82rem', marginBottom: '6px' }}>
+                    2. Link Google Sheet (3 Sec)
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    In your cloned Google Form, switch to the <strong>Responses</strong> tab and click the green <strong>"Link to Sheets"</strong> icon.
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-glass)' }}>
+                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '0.82rem', marginBottom: '6px' }}>
+                    3. 1-Click Portal Import
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Copy your Google Sheet URL, click <strong>Import from Form</strong> in the Admin Portal, and all projects import instantly!
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Customizable College Form Link Setting */}
+            <div style={{
+              padding: '14px 18px',
+              borderRadius: '12px',
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid var(--border-glass)'
+            }}>
+              <div 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  cursor: 'pointer' 
+                }}
+                onClick={() => setShowUrlSettings(prev => !prev)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  <Settings size={14} color="#94a3b8" />
+                  <span>College Master Google Form URL (Optional Configuration)</span>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--primary)' }}>
+                  {showUrlSettings ? 'Hide Setting' : 'Configure Custom Form'}
+                </span>
+              </div>
+
+              {showUrlSettings && (
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-glass)' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    If your department has created a specific master Google Form in your college Google account (<code>@sistec.ac.in</code>), paste its URL below.
+                    Our portal automatically makes it 1-click cloneable for all coordinators!
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <input
+                      type="url"
+                      value={customFormUrl}
+                      onChange={(e) => setCustomFormUrl(e.target.value)}
+                      placeholder="e.g. https://docs.google.com/forms/d/1FAIpQLSc.../edit"
+                      className="form-input"
+                      style={{
+                        flex: 1,
+                        minWidth: '240px',
+                        padding: '8px 12px',
+                        fontSize: '0.8rem',
+                        borderRadius: '8px',
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        border: '1px solid var(--border-glass)',
+                        color: 'var(--text-primary)'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveCustomUrl}
+                      className="btn btn-secondary"
+                      style={{ padding: '8px 14px', fontSize: '0.78rem', gap: '6px', borderRadius: '8px' }}
+                    >
+                      {savedUrlSuccess ? <Check size={14} color="#10b981" /> : <Save size={14} />}
+                      {savedUrlSuccess ? 'Saved!' : 'Save URL'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions Bar: Test CSV & Import Wizard */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 18px',
+              borderRadius: '12px',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileSpreadsheet size={20} color="#10b981" />
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Want to test importing right away?
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    Download our ready-to-test CSV or jump straight to the Import Wizard.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleCsv}
+                  className="btn btn-secondary"
+                  style={{ padding: '7px 12px', fontSize: '0.76rem', borderRadius: '8px', gap: '6px' }}
+                >
+                  <Download size={13} color="#10b981" />
+                  Download Test CSV
+                </button>
+                {onOpenImportWizard && (
+                  <button
+                    type="button"
+                    onClick={onOpenImportWizard}
+                    className="btn btn-primary"
+                    style={{ padding: '7px 14px', fontSize: '0.76rem', borderRadius: '8px', gap: '6px' }}
+                  >
+                    Open Import Wizard
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* Main Body */}
-        <div style={{ padding: '18px 24px', overflowY: 'auto', flex: 1 }}>
-          {/* Field Selection Area */}
-          <div style={{ marginBottom: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Fields Included in Google Form ({activeQuestionsList.length} of {AVAILABLE_FIELDS.length}):
-              </label>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Checked fields will be auto-generated in the Form
-              </span>
+        {/* Tab 2 Content: Questions & Fields */}
+        {activeTab === 'fields' && (
+          <div style={{ padding: '18px 24px', overflowY: 'auto', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  SISTEC Standard Project Submission Fields ({activeQuestionsList.length} of {AVAILABLE_FIELDS.length}):
+                </label>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  These 11 fields match the project showcase database structure and import parser.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleCopyQuestions}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.76rem', gap: '6px' }}
+                >
+                  {copiedQuestions ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                  {copiedQuestions ? 'Copied to Clipboard!' : 'Copy Questions List'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open('https://forms.new', '_blank', 'noopener,noreferrer')}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.76rem', gap: '6px' }}
+                >
+                  <ExternalLink size={13} />
+                  Blank Form (forms.new)
+                </button>
+              </div>
             </div>
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: '6px',
-              maxHeight: '160px',
-              overflowY: 'auto',
-              padding: '10px 12px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '8px',
+              padding: '12px',
               borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.02)',
+              background: 'rgba(0, 0, 0, 0.25)',
               border: '1px solid var(--border-glass)'
             }}>
-              {AVAILABLE_FIELDS.map(f => {
+              {AVAILABLE_FIELDS.map((f, idx) => {
                 const checked = selectedFields.includes(f.id);
                 return (
-                  <label 
+                  <div
                     key={f.id}
+                    onClick={() => toggleField(f.id)}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.78rem',
-                      color: checked ? 'var(--text-primary)' : 'var(--text-muted)',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: checked ? 'rgba(37,99,235,0.08)' : 'rgba(255, 255, 255, 0.01)',
+                      border: checked ? '1px solid rgba(37,99,235,0.3)' : '1px solid transparent',
                       cursor: f.required ? 'default' : 'pointer',
-                      padding: '4px 6px',
-                      borderRadius: '6px',
-                      background: checked ? 'rgba(37,99,235,0.06)' : 'transparent'
+                      transition: 'all 0.15s ease'
                     }}
                   >
                     <input
@@ -413,181 +680,77 @@ ${questionsCode}
                       checked={checked}
                       disabled={f.required}
                       onChange={() => toggleField(f.id)}
+                      style={{ marginTop: '3px' }}
                     />
-                    <span>{f.label}</span>
-                    {f.required && <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>}
-                  </label>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: checked ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          {idx + 1}. {f.label.split('(')[0]}
+                        </span>
+                        {f.required && (
+                          <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 700 }}>
+                            *Required
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Type: {f.type}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           </div>
+        )}
 
-          {/* Mode Tabs */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            borderBottom: '1px solid var(--border-glass)',
-            paddingBottom: '8px',
-            marginBottom: '12px'
-          }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab('one_click')}
-              style={{
-                background: activeTab === 'one_click' ? 'rgba(37,99,235,0.2)' : 'transparent',
-                border: activeTab === 'one_click' ? '1px solid var(--primary)' : '1px solid transparent',
-                color: activeTab === 'one_click' ? 'var(--primary)' : 'var(--text-muted)',
-                padding: '5px 12px',
-                borderRadius: '8px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Zap size={13} /> 1-Click Instructions
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('script')}
-              style={{
-                background: activeTab === 'script' ? 'rgba(37,99,235,0.2)' : 'transparent',
-                border: activeTab === 'script' ? '1px solid var(--primary)' : '1px solid transparent',
-                color: activeTab === 'script' ? 'var(--primary)' : 'var(--text-muted)',
-                padding: '5px 12px',
-                borderRadius: '8px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Code size={13} /> View Apps Script Code
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('manual')}
-              style={{
-                background: activeTab === 'manual' ? 'rgba(37,99,235,0.2)' : 'transparent',
-                border: activeTab === 'manual' ? '1px solid var(--primary)' : '1px solid transparent',
-                color: activeTab === 'manual' ? 'var(--primary)' : 'var(--text-muted)',
-                padding: '5px 12px',
-                borderRadius: '8px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <FileText size={13} /> Manual Questions (forms.new)
-            </button>
-
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
-              {activeTab === 'script' && (
-                <button
-                  type="button"
-                  onClick={handleCopyScriptOnly}
-                  className="btn btn-secondary"
-                  style={{ padding: '4px 10px', fontSize: '0.74rem', gap: '4px' }}
-                >
-                  {copiedScript ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                  {copiedScript ? 'Copied!' : 'Copy Script'}
-                </button>
-              )}
-              {activeTab === 'manual' && (
-                <button
-                  type="button"
-                  onClick={handleCopyQuestions}
-                  className="btn btn-secondary"
-                  style={{ padding: '4px 10px', fontSize: '0.74rem', gap: '4px' }}
-                >
-                  {copiedQuestions ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                  {copiedQuestions ? 'Copied!' : 'Copy Questions'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tab Content 1: One-Click Instructions */}
-          {activeTab === 'one_click' && (
+        {/* Tab 3 Content: Google Apps Script (Advanced / Developer Mode Only) */}
+        {activeTab === 'script' && (
+          <div style={{ padding: '18px 24px', overflowY: 'auto', flex: 1 }}>
             <div style={{
-              padding: '16px',
-              borderRadius: '12px',
-              background: 'rgba(0, 0, 0, 0.25)',
-              border: '1px solid var(--border-glass)',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              fontSize: '0.78rem',
+              color: '#fbbf24'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                <span>How 1-Click Form Creation Works:</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-                <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)' }}>
-                  <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.8rem', marginBottom: '4px' }}>Step 1: One-Click Launch</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Click <strong>⚡ 1-Click Auto-Create</strong>. The system copies the generated Google script and opens <code>script.new</code>.</div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)' }}>
-                  <div style={{ fontWeight: 700, color: '#a855f7', fontSize: '0.8rem', marginBottom: '4px' }}>Step 2: Paste & Run</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Press <strong>Ctrl + V</strong> to paste the code, then click the <strong>▶ Run</strong> button at the top.</div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)' }}>
-                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '0.8rem', marginBottom: '4px' }}>Step 3: Done Instantly</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Google creates both the form and the responses spreadsheet in your Google Drive automatically.</div>
-                </div>
-              </div>
+              <span>
+                <strong>⚙️ Optional Developer Mode:</strong> For IT engineers who want to generate the form programmatically in Google Apps Script. Regular faculty can simply use the <strong>⚡ 1-Click Form Setup</strong> tab.
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyScriptOnly}
+                className="btn btn-secondary"
+                style={{ padding: '5px 12px', fontSize: '0.74rem', gap: '6px', whiteSpace: 'nowrap' }}
+              >
+                {copiedScript ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                {copiedScript ? 'Copied!' : 'Copy Code'}
+              </button>
             </div>
-          )}
 
-          {/* Tab Content 2: Script Preview */}
-          {activeTab === 'script' && (
             <pre style={{
               padding: '14px',
               borderRadius: '12px',
-              background: 'rgba(0, 0, 0, 0.35)',
+              background: 'rgba(0, 0, 0, 0.45)',
               border: '1px solid var(--border-glass)',
               fontSize: '0.75rem',
               color: 'var(--text-secondary)',
               fontFamily: 'monospace',
               lineHeight: 1.5,
-              maxHeight: '220px',
+              maxHeight: '260px',
               overflowY: 'auto',
               whiteSpace: 'pre-wrap',
               margin: 0
             }}>
               {appsScriptCode}
             </pre>
-          )}
-
-          {/* Tab Content 3: Manual Questions */}
-          {activeTab === 'manual' && (
-            <pre style={{
-              padding: '14px',
-              borderRadius: '12px',
-              background: 'rgba(0, 0, 0, 0.35)',
-              border: '1px solid var(--border-glass)',
-              fontSize: '0.76rem',
-              color: 'var(--text-secondary)',
-              fontFamily: 'monospace',
-              lineHeight: 1.6,
-              maxHeight: '220px',
-              overflowY: 'auto',
-              whiteSpace: 'pre-wrap',
-              margin: 0
-            }}>
-              {questionsText}
-            </pre>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{
@@ -623,19 +786,21 @@ ${questionsCode}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => window.open('https://forms.new', '_blank', 'noopener,noreferrer')}
-              className="btn btn-secondary"
-              style={{ padding: '8px 14px', borderRadius: '10px', fontSize: '0.82rem', gap: '6px' }}
-            >
-              <ExternalLink size={13} />
-              Manual Builder (forms.new)
-            </button>
+            {onOpenImportWizard && (
+              <button
+                type="button"
+                onClick={onOpenImportWizard}
+                className="btn btn-secondary"
+                style={{ padding: '8px 14px', borderRadius: '10px', fontSize: '0.82rem', gap: '6px' }}
+              >
+                <FileSpreadsheet size={14} color="#10b981" />
+                Go to Import Wizard
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={handleOneClickCreate}
+              onClick={handleOpenTemplateCopy}
               className="btn btn-primary btn-shine"
               style={{
                 padding: '8px 20px',
@@ -647,7 +812,7 @@ ${questionsCode}
               }}
             >
               <Zap size={14} color="#fbbf24" />
-              ⚡ 1-Click Auto-Create Form
+              ⚡ 1-Click Open / Clone Form
             </button>
           </div>
         </div>
