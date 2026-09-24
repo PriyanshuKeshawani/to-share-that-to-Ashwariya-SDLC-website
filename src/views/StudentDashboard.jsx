@@ -913,10 +913,18 @@ const StudentDashboard = ({ onSelectBook }) => {
         {activeTab === 'all' && (
           <div className="motion-ambient-banner animate-fade-in" style={{ marginBottom: '18px', padding: '16px 20px' }}>
             <div style={{ position: 'relative', zIndex: 1 }}>
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>
-                Welcome back, {user?.fullName || user?.username}!
+              <h2 style={{
+                fontSize: '1.42rem',
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                WebkitTextFillColor: 'initial',
+                marginBottom: '4px',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25
+              }}>
+                Welcome back, <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{user?.fullName || user?.username}</span>!
               </h2>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, fontWeight: 500 }}>
                 SISTec Digital Library • {user?.branchName || 'All Departments'}
               </p>
             </div>
@@ -1180,7 +1188,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                     onClick={() => setRequestFilter('all')}
                     style={{
                       padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                      background: requestFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                      background: requestFilter === 'all' ? 'var(--primary)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                       color: requestFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
                       border: requestFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
                       transition: 'all 0.2s'
@@ -1192,8 +1200,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                     onClick={() => setRequestFilter('pending')}
                     style={{
                       padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                      background: requestFilter === 'pending' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: requestFilter === 'pending' ? '#fbbf24' : 'var(--text-secondary)',
+                      background: requestFilter === 'pending' ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
+                      color: requestFilter === 'pending' ? (isDark ? '#fbbf24' : '#b45309') : 'var(--text-secondary)',
                       border: requestFilter === 'pending' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-glass)',
                       transition: 'all 0.2s'
                     }}
@@ -1204,8 +1212,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                     onClick={() => setRequestFilter('approved')}
                     style={{
                       padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                      background: requestFilter === 'approved' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: requestFilter === 'approved' ? '#34d399' : 'var(--text-secondary)',
+                      background: requestFilter === 'approved' ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
+                      color: requestFilter === 'approved' ? (isDark ? '#34d399' : '#059669') : 'var(--text-secondary)',
                       border: requestFilter === 'approved' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-glass)',
                       transition: 'all 0.2s'
                     }}
@@ -1216,8 +1224,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                     onClick={() => setRequestFilter('rejected')}
                     style={{
                       padding: '6px 14px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                      background: requestFilter === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: requestFilter === 'rejected' ? '#f87171' : 'var(--text-secondary)',
+                      background: requestFilter === 'rejected' ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
+                      color: requestFilter === 'rejected' ? (isDark ? '#f87171' : '#dc2626') : 'var(--text-secondary)',
                       border: requestFilter === 'rejected' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-glass)',
                       transition: 'all 0.2s'
                     }}
@@ -1496,7 +1504,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'all' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        background: activeTab === 'all' && !selectedBranch ? 'var(--primary-glow)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                         color: activeTab === 'all' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
                         border: activeTab === 'all' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
                       }}
@@ -1508,7 +1516,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'home' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        background: activeTab === 'home' && !selectedBranch ? 'var(--primary-glow)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                         color: activeTab === 'home' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
                         border: activeTab === 'home' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
                       }}
@@ -1520,7 +1528,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'other' && !selectedBranch ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        background: activeTab === 'other' && !selectedBranch ? 'var(--primary-glow)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                         color: activeTab === 'other' && !selectedBranch ? 'var(--primary)' : 'var(--text-secondary)',
                         border: activeTab === 'other' && !selectedBranch ? '1px solid var(--primary)' : '1px solid var(--border-glass)'
                       }}
@@ -1532,8 +1540,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'out_of_syllabus' && !selectedBranch ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.04)',
-                        color: activeTab === 'out_of_syllabus' && !selectedBranch ? '#f59e0b' : 'var(--text-secondary)',
+                        background: activeTab === 'out_of_syllabus' && !selectedBranch ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
+                        color: activeTab === 'out_of_syllabus' && !selectedBranch ? (isDark ? '#fbbf24' : '#b45309') : 'var(--text-secondary)',
                         border: activeTab === 'out_of_syllabus' && !selectedBranch ? '1px solid #f59e0b' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '5px'
                       }}
@@ -1546,7 +1554,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: activeTab === 'requests' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        background: activeTab === 'requests' ? 'var(--primary-glow)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                         color: activeTab === 'requests' ? 'var(--primary)' : 'var(--text-secondary)',
                         border: activeTab === 'requests' ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '5px'
@@ -1560,7 +1568,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                       style={{
                         padding: '5px 12px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        background: (activeTab === 'projects' || activeTab === 'majors-minors') ? 'var(--primary-glow)' : 'rgba(255,255,255,0.04)',
+                        background: (activeTab === 'projects' || activeTab === 'majors-minors') ? 'var(--primary-glow)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)'),
                         color: (activeTab === 'projects' || activeTab === 'majors-minors') ? 'var(--primary)' : 'var(--text-secondary)',
                         border: (activeTab === 'projects' || activeTab === 'majors-minors') ? '1px solid var(--primary)' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '5px'
@@ -1742,7 +1750,7 @@ const StudentDashboard = ({ onSelectBook }) => {
                             ) : (
                               <span className="badge badge-secondary">Reference</span>
                             )}
-                            <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                            <span className="badge" style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', color: 'var(--text-secondary)' }}>
                               {book.branch_name || 'All Branches'}
                             </span>
                             {hasDrive && (
@@ -1950,8 +1958,8 @@ const StudentDashboard = ({ onSelectBook }) => {
                       fontSize: '0.88rem',
                       fontWeight: 600,
                       borderRadius: '9999px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)',
+                      border: isDark ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(15, 23, 42, 0.12)',
                       backdropFilter: 'blur(10px)',
                       display: 'inline-flex',
                       alignItems: 'center',

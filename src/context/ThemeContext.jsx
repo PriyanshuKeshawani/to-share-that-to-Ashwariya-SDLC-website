@@ -45,6 +45,8 @@ const applyTheme = (mode, primary, secondary) => {
   root.style.setProperty('--shadow-cyan', `0 4px 20px rgba(${sRgb}, 0.2)`);
   root.style.setProperty('--shadow-glow-primary', `0 0 20px rgba(${pRgb}, 0.2), 0 0 60px rgba(${pRgb}, 0.08)`);
 
+  root.style.colorScheme = isDark ? 'dark' : 'light';
+
   if (isDark) {
     root.style.setProperty('--bg-main', '#070c18');
     root.style.setProperty('--bg-surface', '#0c1426');
@@ -54,8 +56,8 @@ const applyTheme = (mode, primary, secondary) => {
     root.style.setProperty('--border-glass', 'rgba(255, 255, 255, 0.10)');
     root.style.setProperty('--border-glass-hover', 'rgba(255, 255, 255, 0.18)');
     root.style.setProperty('--text-primary', '#f8fafc');
-    root.style.setProperty('--text-secondary', '#94a3b8');
-    root.style.setProperty('--text-muted', '#64748b');
+    root.style.setProperty('--text-secondary', '#cbd5e1');
+    root.style.setProperty('--text-muted', '#94a3b8');
     root.style.setProperty('--shadow-glass', '0 8px 32px -4px rgba(0, 0, 0, 0.6), 0 4px 8px -4px rgba(0, 0, 0, 0.4)');
     root.style.setProperty('--shadow-elevated', '0 24px 60px -12px rgba(0, 0, 0, 0.75)');
     root.style.setProperty('--sidebar-bg', 'rgba(9, 15, 30, 0.96)');
@@ -81,7 +83,7 @@ const applyTheme = (mode, primary, secondary) => {
     root.style.setProperty('--border-glass', 'rgba(15, 23, 42, 0.11)');
     root.style.setProperty('--border-glass-hover', 'rgba(15, 23, 42, 0.20)');
     root.style.setProperty('--text-primary', '#0f172a');
-    root.style.setProperty('--text-secondary', '#475569');
+    root.style.setProperty('--text-secondary', '#334155');
     root.style.setProperty('--text-muted', '#64748b');
     root.style.setProperty('--shadow-glass', '0 4px 24px -4px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.04)');
     root.style.setProperty('--shadow-elevated', '0 20px 50px -12px rgba(15, 23, 42, 0.12)');
