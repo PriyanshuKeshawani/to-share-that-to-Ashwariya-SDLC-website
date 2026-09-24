@@ -26,7 +26,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml" />
         <link rel="icon" href="/favicon.png?v=3" type="image/png" sizes="512x512" />

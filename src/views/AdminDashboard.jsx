@@ -33,14 +33,17 @@ const AdminDashboard = ({ onSelectBook }) => {
   const isDark = mode === 'dark';
 
   // Google AI Studio style Collapsible Sidebar State (PC / Desktop users)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
     try {
-      return localStorage.getItem('admin-sidebar-collapsed') === 'true';
+      if (typeof window !== 'undefined' && localStorage.getItem('admin-sidebar-collapsed') === 'true') {
+        setIsSidebarCollapsed(true);
+      }
     } catch {
-      return false;
+      // ignore
     }
-  });
+  }, []);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarCollapsed(prev => {

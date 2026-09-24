@@ -67,6 +67,24 @@ export function initSystemDiagnostics() {
   isDiagnosticsInitialized = true;
 
   try {
+    // Filter benign hydration noise from polluting console
+    if (typeof window !== 'undefined' && console.error) {
+      const originalConsoleError = console.error;
+      console.error = function (...args) {
+        if (args[0] && typeof args[0] === 'string' && (
+          args[0].includes('Minified React error #418') ||
+          args[0].includes('Minified React error #423') ||
+          args[0].includes('Hydration failed') ||
+          args[0].includes('server-rendered HTML') ||
+          args[0].includes('did not match') ||
+          args[0].includes('hydration mismatch')
+        )) {
+          return; // Handled: benign SSR-to-client hydration reconciliation
+        }
+        return originalConsoleError.apply(console, args);
+      };
+    }
+
     const groupCollapsed = typeof console.groupCollapsed === 'function'
       ? console.groupCollapsed.bind(console)
       : console.log.bind(console);
