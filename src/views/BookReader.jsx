@@ -83,6 +83,14 @@ const TAG_COLORS = {
  * - Gently enhances contrast for very dark colored elements so they remain legible
  * - Leaves layout, zoom, and canvas dimensions completely untouched
  */
+// Precomputed 256-entry gamma-boost LUT to preserve font stroke thickness and prevent anti-aliasing collapse without per-pixel Math.pow overhead
+const DARK_FACTOR_LUT = new Float32Array(256);
+for (let lumInt = 0; lumInt < 256; lumInt++) {
+  const norm = lumInt / 255;
+  // Non-linear gamma curve (gamma 2.2): stops thin font edges from fading into the dark background
+  DARK_FACTOR_LUT[lumInt] = norm > 0.92 ? 1.0 : Math.pow(norm, 2.2);
+}
+
 const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
   if (!ctx || width <= 0 || height <= 0) return;
   try {
@@ -106,13 +114,13 @@ const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
       }
     }
 
-    // Target dark charcoal background (#11141c) and soft off-white text (#e2e8f0)
+    // Target dark charcoal background (#11141c) and crisp high-contrast text (#f1f5f9)
     const BG_R = 17;
     const BG_G = 20;
     const BG_B = 28;
-    const TEXT_R = 226;
-    const TEXT_G = 232;
-    const TEXT_B = 240;
+    const TEXT_R = 241;
+    const TEXT_G = 245;
+    const TEXT_B = 249;
 
     for (let i = 0; i < len; i += 4) {
       // Skip transparent pixels
@@ -134,8 +142,8 @@ const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
       const sat = max - min;
 
       // Perceived luminance (standard Rec. 601 coefficients)
-      const lum = (r * 299 + g * 587 + b * 114) * 0.001;
-      const factor = lum * 0.00392157; // lum / 255
+      const lumInt = (r * 299 + g * 587 + b * 114 + 500) / 1000 | 0;
+      const factor = DARK_FACTOR_LUT[lumInt];
 
       // Smooth interpolation between dark background and comfortable light text
       const darkR = BG_R * factor + TEXT_R * (1 - factor);
@@ -1025,7 +1033,10 @@ const BookReader = ({ book, onClose }) => {
           applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height, imageRects);
         }
 
-        const dataUrl = offscreen.toDataURL('image/jpeg', isMobileViewport ? 0.80 : 0.88);
+        // In dark mode, WebP eliminates JPEG high-frequency DCT ringing artifacts around high-contrast inverted text
+        const exportFormat = mode === 'dark' ? 'image/webp' : 'image/jpeg';
+        const exportQuality = isMobileViewport ? 0.88 : 0.94;
+        const dataUrl = offscreen.toDataURL(exportFormat, exportQuality);
 
         if (pageImageCacheRef.current.size >= MAX_PAGE_IMAGE_CACHE) {
           const oldestKey = pageImageCacheRef.current.keys().next().value;
