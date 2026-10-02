@@ -7,7 +7,7 @@ import { supabase } from '../supabaseClient';
   import { 
     Users, BookOpen, Key, History, BarChart3, Plus, Edit, Trash2, Check, X, 
     Search, ShieldAlert, Award, FileText, Download, TrendingUp,
-    UserCheck, UserX, AlertTriangle, User,
+    UserCheck, UserX, AlertTriangle, User, Lock,
     Menu, Settings, UploadCloud, Activity, Image, FolderUp, CheckCircle2, Sparkles,
     ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
     Sun, Moon, PanelLeftClose, PanelLeftOpen,
@@ -2646,7 +2646,9 @@ const AdminDashboard = ({ onSelectBook }) => {
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             gap: '14px',
-                            borderLeft: isPending ? '4px solid #f59e0b' : isApproved ? '4px solid #10b981' : '4px solid #ef4444'
+                            borderLeft: isPending 
+                              ? (r.request_type === 'drive_make_public' ? '4px solid #f59e0b' : '4px solid #3b82f6')
+                              : isApproved ? '4px solid #10b981' : '4px solid #ef4444'
                           }}
                         >
                           <div style={{ flex: 1, minWidth: '260px' }}>
@@ -2669,10 +2671,48 @@ const AdminDashboard = ({ onSelectBook }) => {
                                   by {r.book_author}
                                 </span>
                               )}
-                              <span className="badge badge-secondary" style={{ fontSize: '0.72rem', textTransform: 'none' }}>
-                                Target: {r.requested_branch_name}
-                              </span>
+                              {r.request_type === 'drive_make_public' ? (
+                                <span className="badge" style={{
+                                  fontSize: '0.74rem',
+                                  background: 'rgba(245, 158, 11, 0.16)',
+                                  color: '#fbbf24',
+                                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px'
+                                }}>
+                                  <Lock size={12} /> Make Drive Public (Document Private)
+                                </span>
+                              ) : (
+                                <span className="badge badge-secondary" style={{ fontSize: '0.72rem', textTransform: 'none' }}>
+                                  Target: {r.requested_branch_name}
+                                </span>
+                              )}
                             </div>
+
+                            {r.request_type === 'drive_make_public' && (
+                              <div style={{
+                                marginTop: '6px',
+                                marginBottom: '8px',
+                                fontSize: '0.78rem',
+                                color: '#fbbf24',
+                                background: 'rgba(245, 158, 11, 0.08)',
+                                border: '1px dashed rgba(245, 158, 11, 0.35)',
+                                borderRadius: '6px',
+                                padding: '6px 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}>
+                                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                                <span>
+                                  <strong>Google Drive Private Document:</strong> Admin has restricted this PDF on Google Drive. Click <em>"Open in Google Drive"</em> and change sharing to <strong>"Anyone with the link can view"</strong> so students can read.
+                                </span>
+                              </div>
+                            )}
 
                             <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', gap: '14px', flexWrap: 'wrap', marginTop: 4 }}>
                               <span>Home Dept: <strong>{r.student_branch || 'Engineering'}</strong></span>
@@ -2684,6 +2724,30 @@ const AdminDashboard = ({ onSelectBook }) => {
                           </div>
 
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Google Drive Direct Button */}
+                            {(r.drive_view_url || r.drive_file_id) && (
+                              <a
+                                href={r.drive_view_url || `https://drive.google.com/file/d/${r.drive_file_id}/view?usp=sharing`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-secondary"
+                                style={{
+                                  padding: '7px 12px',
+                                  fontSize: '0.8rem',
+                                  gap: '5px',
+                                  borderColor: 'rgba(245, 158, 11, 0.4)',
+                                  color: '#fbbf24',
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  fontWeight: 600
+                                }}
+                                title="Open file in Google Drive to change permission to Public"
+                              >
+                                <ExternalLink size={13} /> Open in Google Drive
+                              </a>
+                            )}
+
                             {/* View Student Activity Dossier */}
                             <button
                               onClick={() => handleOpenStudentDossier(r)}

@@ -2463,20 +2463,32 @@ export const AuthProvider = ({ children }) => {
       const [
         { data: usersList },
         { data: allBranches },
-        { data: booksList }
+        { data: booksList },
+        { data: driveNotifs }
       ] = await Promise.all([
         userIds.length > 0
           ? supabase.from('users').select('id, full_name, roll_number, branch_name, username').in('id', userIds)
           : { data: [] },
         supabase.from('branches').select('id, name'),
         bookIds.length > 0
-          ? supabase.from('books').select('id, title, author, branch_id, cover_url').in('id', bookIds)
-          : { data: [] }
+          ? supabase.from('books').select('id, title, author, branch_id, cover_url, drive_link, drive_file_id, pdf_url').in('id', bookIds)
+          : { data: [] },
+        supabase.from('notifications').select('message, created_at').eq('type', 'drive_make_public').order('created_at', { ascending: false }).limit(200)
       ]);
 
       const userMap = new Map((usersList || []).map(u => [u.id, u]));
       const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
       const bookMap = new Map((booksList || []).map(b => [b.id, b]));
+
+      const driveReqBookIds = new Set();
+      const driveReqPermIds = new Set();
+      (driveNotifs || []).forEach(n => {
+        const m = n.message?.match(/\[DRIVE_PUBLIC_REQ:(\d+):(\d+)\]/);
+        if (m) {
+          driveReqPermIds.add(parseInt(m[1], 10));
+          driveReqBookIds.add(parseInt(m[2], 10));
+        }
+      });
 
       const isHq = !user || user.isHeadquarters || user.branchName === 'Central Library' || !user.branchName;
       const effectiveBranch = !isHq ? (user.adminBranch || user.branchName) : (paramBranch && paramBranch !== 'all' ? paramBranch : null);
@@ -2485,6 +2497,29 @@ export const AuthProvider = ({ children }) => {
         const u = userMap.get(p.user_id);
         const bk = bookMap.get(p.book_id);
         const bookBranchName = bk?.branch_id ? branchMap.get(bk.branch_id) : (p.branch_id ? branchMap.get(p.branch_id) : 'Central Library');
+
+        // Extract Google Drive ID and direct View URL
+        let driveFileId = null;
+        let driveViewUrl = null;
+        if (bk) {
+          const sources = [bk.drive_link, bk.drive_file_id, bk.pdf_url];
+          for (const s of sources) {
+            if (!s) continue;
+            const { id } = extractDriveFileId(s);
+            if (id) {
+              driveFileId = id;
+              driveViewUrl = `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+              break;
+            }
+          }
+          if (!driveViewUrl && bk.drive_link && bk.drive_link.startsWith('http')) {
+            driveViewUrl = bk.drive_link;
+          }
+        }
+
+        const isSameDept = isSameBranch(u?.branch_name, bookBranchName);
+        const isDrivePublicReq = driveReqPermIds.has(p.id) || driveReqBookIds.has(p.book_id) || (Boolean(driveFileId) && isSameDept);
+
         return {
           ...p,
           full_name: u ? u.full_name : 'Student',
@@ -2495,7 +2530,10 @@ export const AuthProvider = ({ children }) => {
           book_author: bk?.author || '',
           book_branch_id: bk?.branch_id,
           book_branch_name: bookBranchName,
-          requested_branch_name: p.branch_id ? (branchMap.get(p.branch_id) || bookBranchName || 'Branch') : bookBranchName
+          requested_branch_name: p.branch_id ? (branchMap.get(p.branch_id) || bookBranchName || 'Branch') : bookBranchName,
+          request_type: isDrivePublicReq ? 'drive_make_public' : 'branch_access',
+          drive_file_id: driveFileId,
+          drive_view_url: driveViewUrl
         };
       });
 
@@ -2666,6 +2704,7 @@ export const AuthProvider = ({ children }) => {
 
       // Realtime notification for department & central administrators
       try {
+        const isDriveRequest = body.request_type === 'drive_make_public' || (body.reason && body.reason.toLowerCase().includes('google drive'));
         const { data: adminUsers } = await supabase
           .from('users')
           .select('id, branch_name')
@@ -2674,9 +2713,11 @@ export const AuthProvider = ({ children }) => {
         if (adminUsers && adminUsers.length > 0) {
           const reqNotifs = adminUsers.map(adm => ({
             user_id: adm.id,
-            title: 'Book Access Request',
-            message: `${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested access to "${bookTitle || 'an eBook'}".`,
-            type: 'approval',
+            title: isDriveRequest ? '🔓 Make Google Drive Public Request' : 'Book Access Request',
+            message: isDriveRequest
+              ? `[DRIVE_PUBLIC_REQ:${data.id}:${bookId}] ${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested to make "${bookTitle || 'an eBook'}" public on Google Drive.`
+              : `${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested access to "${bookTitle || 'an eBook'}".`,
+            type: isDriveRequest ? 'drive_make_public' : 'approval',
             is_read: false
           }));
           await supabase.from('notifications').insert(reqNotifs);

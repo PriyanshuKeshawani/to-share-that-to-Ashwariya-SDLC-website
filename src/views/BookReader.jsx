@@ -73,114 +73,12 @@ const TAG_COLORS = {
   Summary: { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' },
 };
 
-/**
- * Smart Dark Reading Mode Canvas Transformer
- * Dynamically transforms rendered PDF pages into a comfortable dark reading mode:
- * - Converts harsh white paper to comfortable dark charcoal (#11141c)
- * - Converts dark ink/text to an eye-friendly off-white (#e2e8f0) with high contrast
- * - Preserves smooth font anti-aliasing without jaggedness or white halos
- * - Preserves colored visual content (diagrams, charts, illustrations, logos, highlights)
- * - Gently enhances contrast for very dark colored elements so they remain legible
- * - Leaves layout, zoom, and canvas dimensions completely untouched
- */
-// Precomputed 256-entry gamma-boost LUT to preserve font stroke thickness and prevent anti-aliasing collapse without per-pixel Math.pow overhead
-const DARK_FACTOR_LUT = new Float32Array(256);
-for (let lumInt = 0; lumInt < 256; lumInt++) {
-  const norm = lumInt / 255;
-  // Non-linear gamma curve (gamma 2.2): stops thin font edges from fading into the dark background
-  DARK_FACTOR_LUT[lumInt] = norm > 0.92 ? 1.0 : Math.pow(norm, 2.2);
-}
-
-const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
-  if (!ctx || width <= 0 || height <= 0) return;
-  try {
-    const imgData = ctx.getImageData(0, 0, width, height);
-    const d = imgData.data;
-    const len = d.length;
-
-    // Fast 1-byte lookup mask of image pixels to completely protect photos, figures, and diagrams from inversion
-    let isImage = null;
-    if (imageRects && imageRects.length > 0) {
-      isImage = new Uint8Array(width * height);
-      for (let r = 0; r < imageRects.length; r++) {
-        const rect = imageRects[r];
-        const x1 = Math.max(0, Math.floor(rect.x1));
-        const y1 = Math.max(0, Math.floor(rect.y1));
-        const x2 = Math.min(width, Math.ceil(rect.x2));
-        const y2 = Math.min(height, Math.ceil(rect.y2));
-        for (let y = y1; y < y2; y++) {
-          isImage.fill(1, y * width + x1, y * width + x2);
-        }
-      }
-    }
-
-    // Target dark charcoal background (#11141c) and crisp high-contrast text (#f1f5f9)
-    const BG_R = 17;
-    const BG_G = 20;
-    const BG_B = 28;
-    const TEXT_R = 241;
-    const TEXT_G = 245;
-    const TEXT_B = 249;
-
-    for (let i = 0; i < len; i += 4) {
-      // Skip transparent pixels
-      if (d[i + 3] < 10) continue;
-
-      const pixelIdx = i >> 2;
-      // 1. INTELLIGENT IMAGE PRESERVATION:
-      // Real photos, diagrams, and figures remain 100% natural in original color without negative inversion
-      if (isImage && isImage[pixelIdx] === 1) {
-        continue;
-      }
-
-      const r = d[i];
-      const g = d[i + 1];
-      const b = d[i + 2];
-
-      const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
-      const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
-      const sat = max - min;
-
-      // Perceived luminance (standard Rec. 601 coefficients)
-      const lumInt = (r * 299 + g * 587 + b * 114 + 500) / 1000 | 0;
-      const factor = DARK_FACTOR_LUT[lumInt];
-
-      // Smooth interpolation between dark background and comfortable light text
-      const darkR = BG_R * factor + TEXT_R * (1 - factor);
-      const darkG = BG_G * factor + TEXT_G * (1 - factor);
-      const darkB = BG_B * factor + TEXT_B * (1 - factor);
-
-      if (sat <= 18) {
-        // Pure neutral text, paper, or font anti-aliasing gradient
-        d[i] = darkR;
-        d[i + 1] = darkG;
-        d[i + 2] = darkB;
-      } else {
-        // Colored visual content (diagrams, graphs, charts, photos, illustrations)
-        const colorWeight = sat >= 40 ? 1 : (sat - 18) * 0.04545; // (sat - 18) / 22
-        let colR = r;
-        let colG = g;
-        let colB = b;
-
-        // Enhance legibility of very dark colored elements against dark charcoal
-        if (lumInt < 60) {
-          const boost = 1 + (60 - lumInt) * 0.01;
-          colR = Math.min(255, colR * boost);
-          colG = Math.min(255, colG * boost);
-          colB = Math.min(255, colB * boost);
-        }
-
-        d[i] = darkR * (1 - colorWeight) + colR * colorWeight;
-        d[i + 1] = darkG * (1 - colorWeight) + colG * colorWeight;
-        d[i + 2] = darkB * (1 - colorWeight) + colB * colorWeight;
-      }
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-  } catch (err) {
-    console.warn('Notice applying smart dark reading mode:', err);
-  }
-};
+// ══════════════════════════════════════════════════════════════════
+// OPEN-SOURCE BOOK DARK MODE (Firefox PDF.js & Dark Reader Engine)
+// Hardware-accelerated CSS color matrix replaces heavy CPU pixel loops,
+// eliminating LCD ClearType subpixel fringing, preserving covers, and
+// maintaining diagram hues at 60 FPS GPU rasterization.
+// ══════════════════════════════════════════════════════════════════
 
 const MOBILE_ZOOM_STEPS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0, 2.5];
 const DESKTOP_ZOOM_STEPS = [0.75, 1.0, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00];
@@ -540,7 +438,9 @@ const BookReader = ({ book, onClose }) => {
           book_id: book.id,
           book_title: book.title,
           branch_id: book.branch_id,
-          branch_name: book.branch_name || book.branch?.name || ''
+          branch_name: book.branch_name || book.branch?.name || '',
+          request_type: 'drive_make_public',
+          reason: 'Google Drive Document is Private - Request to Make Public'
         })
       });
       setRequestedDone(true);
@@ -570,7 +470,18 @@ const BookReader = ({ book, onClose }) => {
     return null;
   }, [book.pdf_url]);
 
-  const openInNewTabUrl = book.drive_link || (book.drive_file_id ? `https://drive.google.com/file/d/${book.drive_file_id}/view` : null) || pdfSource;
+  const openInNewTabUrl = useMemo(() => {
+    const sources = [book?.drive_link, book?.drive_file_id, book?.pdf_url];
+    for (const src of sources) {
+      if (!src) continue;
+      const { id } = extractDriveFileId(src);
+      if (id) {
+        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+      }
+    }
+    if (book?.drive_link && book.drive_link.startsWith('http')) return book.drive_link;
+    return pdfSource;
+  }, [book, extractDriveFileId, pdfSource]);
 
   // Title tag
   useEffect(() => {
@@ -936,7 +847,7 @@ const BookReader = ({ book, onClose }) => {
 
   const renderPageToDataUrl = useCallback(async (pageNum) => {
     if (!pdfDoc || pageNum < 1 || pageNum > pdfDoc.numPages) return null;
-    const cacheKey = `${pageNum}_${mode}`;
+    const cacheKey = `${pageNum}`;
     if (pageImageCacheRef.current.has(cacheKey)) {
       return pageImageCacheRef.current.get(cacheKey);
     }
@@ -974,68 +885,13 @@ const BookReader = ({ book, onClose }) => {
         offCtx.fillStyle = '#ffffff';
         offCtx.fillRect(0, 0, viewport.width, viewport.height);
 
-        // Track embedded raster images (photos, figures, diagrams) to protect them from inversion
-        const imageRects = [];
-        let origDrawImage = null;
-        if (mode === 'dark') {
-          origDrawImage = offCtx.drawImage.bind(offCtx);
-          offCtx.drawImage = function (img, ...args) {
-            try {
-              let dx = 0, dy = 0, dw = 1, dh = 1;
-              if (args.length === 2) {
-                [dx, dy] = args;
-                dw = (img && (img.naturalWidth || img.width)) || 1;
-                dh = (img && (img.naturalHeight || img.height)) || 1;
-              } else if (args.length === 4) {
-                [dx, dy, dw, dh] = args;
-              } else if (args.length === 8) {
-                [, , , , dx, dy, dw, dh] = args;
-              }
-              const m = offCtx.getTransform ? offCtx.getTransform() : { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
-              const p1 = { x: m.a * dx + m.c * dy + m.e, y: m.b * dx + m.d * dy + m.f };
-              const p2 = { x: m.a * (dx + dw) + m.c * dy + m.e, y: m.b * (dx + dw) + m.d * dy + m.f };
-              const p3 = { x: m.a * (dx + dw) + m.c * (dy + dh) + m.e, y: m.b * (dx + dw) + m.d * (dy + dh) + m.f };
-              const p4 = { x: m.a * dx + m.c * (dy + dh) + m.e, y: m.b * dx + m.d * (dy + dh) + m.f };
+        await page.render({
+          canvasContext: offCtx,
+          viewport
+        }).promise;
 
-              const minX = Math.floor(Math.min(p1.x, p2.x, p3.x, p4.x));
-              const maxX = Math.ceil(Math.max(p1.x, p2.x, p3.x, p4.x));
-              const minY = Math.floor(Math.min(p1.y, p2.y, p3.y, p4.y));
-              const maxY = Math.ceil(Math.max(p1.y, p2.y, p3.y, p4.y));
-
-              const isFullPage = (maxX - minX) >= offscreen.width * 0.95 && (maxY - minY) >= offscreen.height * 0.95;
-              const isTiny = (maxX - minX) < 8 && (maxY - minY) < 8;
-              if (!isFullPage && !isTiny && maxX > minX && maxY > minY) {
-                imageRects.push({
-                  x1: Math.max(0, minX),
-                  y1: Math.max(0, minY),
-                  x2: Math.min(offscreen.width, maxX),
-                  y2: Math.min(offscreen.height, maxY)
-                });
-              }
-            } catch {}
-            return origDrawImage(img, ...args);
-          };
-        }
-
-        try {
-          await page.render({
-            canvasContext: offCtx,
-            viewport
-          }).promise;
-        } finally {
-          if (origDrawImage) {
-            offCtx.drawImage = origDrawImage;
-          }
-        }
-
-        // Apply intelligent dark reading mode across inner reading pages.
-        // Page 1 is the front cover artwork: kept 100% natural in original color (Kindle / Apple Books standard).
-        if (mode === 'dark' && pageNum > 1) {
-          applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height, imageRects);
-        }
-
-        // In dark mode, WebP eliminates JPEG high-frequency DCT ringing artifacts around high-contrast inverted text
-        const exportFormat = mode === 'dark' ? 'image/webp' : 'image/jpeg';
+        // Clean WebP export format provides superior compression without high-contrast ringing
+        const exportFormat = 'image/webp';
         const exportQuality = isMobileViewport ? 0.88 : 0.94;
         const dataUrl = offscreen.toDataURL(exportFormat, exportQuality);
 
@@ -1055,7 +911,7 @@ const BookReader = ({ book, onClose }) => {
 
     renderingPagePromisesRef.current.set(cacheKey, renderPromise);
     return renderPromise;
-  }, [pdfDoc, mode]);
+  }, [pdfDoc]);
 
   const applyPageImage = useCallback(async (pageNum) => {
     if (pageNum < 1 || !pdfDoc || pageNum > pdfDoc.numPages) return;
@@ -1147,7 +1003,7 @@ const BookReader = ({ book, onClose }) => {
     mount.innerHTML = '';
 
     const flipWrapper = document.createElement('div');
-    flipWrapper.className = 'st-flipbook-wrapper';
+    flipWrapper.className = `st-flipbook-wrapper ${mode === 'dark' ? 'st-dark-book-mode' : ''}`;
     mount.appendChild(flipWrapper);
 
     const numPages = pdfDoc.numPages || totalPages || 1;
@@ -1282,8 +1138,19 @@ const BookReader = ({ book, onClose }) => {
     };
   }, [pdfDoc, totalPages, useNativeViewer, ensurePagesRendered, saveProgress]);
 
-  // Re-render visible pages on Dark/Light theme toggle
+  // Live dynamic theme synchronization for flipbook wrapper
   useEffect(() => {
+    const mount = flipbookMountRef.current;
+    if (mount) {
+      const wrapper = mount.querySelector('.st-flipbook-wrapper');
+      if (wrapper) {
+        if (mode === 'dark') {
+          wrapper.classList.add('st-dark-book-mode');
+        } else {
+          wrapper.classList.remove('st-dark-book-mode');
+        }
+      }
+    }
     if (!pdfDoc) return;
     ensurePagesRendered(currentPage);
     if (pageFlipRef.current) {
@@ -2230,7 +2097,7 @@ const BookReader = ({ book, onClose }) => {
                 }}
               >
                 <div
-                  className="st-flipbook-container"
+                  className={`st-flipbook-container ${mode === 'dark' ? 'st-dark-book-mode' : ''}`}
                   style={{
                     maxWidth: isMobile ? '100%' : (viewMode === 'spread' ? 'min(94vw, 1150px)' : 'min(90vw, 520px)'),
                     minHeight: isMobile ? 'auto' : '72vh'

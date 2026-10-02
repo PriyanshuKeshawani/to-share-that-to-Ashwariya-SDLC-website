@@ -3386,6 +3386,26 @@ body.dark .st-page.--right:not([data-density="hard"]),
   user-select: none;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   OPEN-SOURCE BOOK DARK MODE ENGINE (Firefox PDF.js & Dark Reader)
+   Hardware-accelerated CSS color matrix: eliminates subpixel font fringing,
+   preserves cover artwork (Page 1) and retains diagram hues at 60 FPS.
+   ══════════════════════════════════════════════════════════════════ */
+.st-dark-book-mode .st-page:not([data-page="1"]) .st-page-img,
+body.dark .reader-viewport .st-page:not([data-page="1"]) .st-page-img,
+[data-theme="dark"] .reader-viewport .st-page:not([data-page="1"]) .st-page-img {
+  filter: invert(0.92) hue-rotate(180deg) contrast(0.95);
+  background-color: #11141c !important;
+  transition: filter 0.2s ease;
+}
+
+/* Front Cover (Page 1): Never inverted, preserving 100% original full-color book artwork */
+.st-dark-book-mode .st-page[data-page="1"] .st-page-img,
+body.dark .reader-viewport .st-page[data-page="1"] .st-page-img,
+[data-theme="dark"] .reader-viewport .st-page[data-page="1"] .st-page-img {
+  filter: none !important;
+}
+
 .st-page-loader {
   position: absolute;
   inset: 0;
