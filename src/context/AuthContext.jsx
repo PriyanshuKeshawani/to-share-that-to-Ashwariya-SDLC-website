@@ -314,6 +314,31 @@ export const AuthProvider = ({ children }) => {
     saveLocalIdSet(`lib_del_notes_${userId}_${bookId}`, set);
   };
 
+  // Local overrides for student edited notes so RLS does not revert them
+  const getEditedNotesMap = (userId, bookId) => {
+    try {
+      if (typeof window === 'undefined') return {};
+      const raw = localStorage.getItem(`lib_edited_notes_${userId}_${bookId}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+  const saveEditedNoteLocally = (userId, bookId, noteId, data) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const map = getEditedNotesMap(userId, bookId);
+      map[String(noteId)] = { ...(map[String(noteId)] || {}), ...data, updatedAt: new Date().toISOString() };
+      localStorage.setItem(`lib_edited_notes_${userId}_${bookId}`, JSON.stringify(map));
+    } catch {}
+  };
+  const deleteEditedNoteLocally = (userId, bookId, noteId) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const map = getEditedNotesMap(userId, bookId);
+      delete map[String(noteId)];
+      localStorage.setItem(`lib_edited_notes_${userId}_${bookId}`, JSON.stringify(map));
+    } catch {}
+  };
+
   const getDeletedBookmarkPages = (userId, bookId) => getLocalIdSet(`lib_del_bm_pages_${userId}_${bookId}`);
   const addDeletedBookmarkPage = (userId, bookId, page) => {
     const set = getDeletedBookmarkPages(userId, bookId);
@@ -326,7 +351,7 @@ export const AuthProvider = ({ children }) => {
     saveLocalIdSet(`lib_del_bm_pages_${userId}_${bookId}`, set);
   };
 
-  // Local read set for notifications marked as read
+  // Local read & delete set for notifications
   const getLocallyReadNotifs = (userId) => getLocalIdSet(`lib_read_notifs_${userId}`);
   const markLocallyReadNotif = (userId, notifId) => {
     const set = getLocallyReadNotifs(userId);
@@ -337,6 +362,48 @@ export const AuthProvider = ({ children }) => {
     const set = getLocallyReadNotifs(userId);
     (ids || []).forEach(id => set.add(String(id)));
     saveLocalIdSet(`lib_read_notifs_${userId}`, set);
+  };
+  const getLocallyDeletedNotifs = (userId) => getLocalIdSet(`lib_del_notifs_${userId}`);
+  const markLocallyDeletedNotif = (userId, notifId) => {
+    const set = getLocallyDeletedNotifs(userId);
+    set.add(String(notifId));
+    saveLocalIdSet(`lib_del_notifs_${userId}`, set);
+  };
+
+  // Local like / unlike state for projects so RLS does not lock likes
+  const getLocallyLikedProjects = (userId) => getLocalIdSet(`lib_liked_projs_${userId}`);
+  const getLocallyUnlikedProjects = (userId) => getLocalIdSet(`lib_unliked_projs_${userId}`);
+  const recordProjectLikeToggle = (userId, projectId, isLiked) => {
+    const pId = String(projectId);
+    const liked = getLocallyLikedProjects(userId);
+    const unliked = getLocallyUnlikedProjects(userId);
+    if (isLiked) {
+      liked.add(pId);
+      unliked.delete(pId);
+    } else {
+      unliked.add(pId);
+      liked.delete(pId);
+    }
+    saveLocalIdSet(`lib_liked_projs_${userId}`, liked);
+    saveLocalIdSet(`lib_unliked_projs_${userId}`, unliked);
+  };
+
+  // Local history tombstones
+  const getDeletedHistoryIds = (userId) => getLocalIdSet(`lib_del_history_${userId}`);
+  const addDeletedHistoryId = (userId, idOrBookId) => {
+    const set = getDeletedHistoryIds(userId);
+    set.add(String(idOrBookId));
+    saveLocalIdSet(`lib_del_history_${userId}`, set);
+  };
+  const clearDeletedHistoryId = (userId, idOrBookId) => {
+    const set = getDeletedHistoryIds(userId);
+    set.delete(String(idOrBookId));
+    saveLocalIdSet(`lib_del_history_${userId}`, set);
+  };
+  const clearAllHistoryLocally = (userId, currentIds = []) => {
+    const set = getDeletedHistoryIds(userId);
+    (currentIds || []).forEach(id => set.add(String(id)));
+    saveLocalIdSet(`lib_del_history_${userId}`, set);
   };
 
   const apiCall = useCallback(async (endpoint, options = {}) => {
@@ -723,11 +790,27 @@ export const AuthProvider = ({ children }) => {
           console.warn('Could not aggregate project likes from Supabase:', likeErr.message);
         }
 
+        const unlikedSet = currentUserId ? getLocallyUnlikedProjects(currentUserId) : new Set();
+        const likedSet = currentUserId ? getLocallyLikedProjects(currentUserId) : new Set();
+
         const enriched = (data || []).map(p => {
-          const isLiked = likedProjectIds.has(p.id);
-          const exactLikes = countsMap[p.id] !== undefined
+          let isLiked = likedProjectIds.has(p.id);
+          const wasLikedInDb = isLiked;
+          if (currentUserId) {
+            if (unlikedSet.has(String(p.id))) isLiked = false;
+            else if (likedSet.has(String(p.id))) isLiked = true;
+          }
+          let exactLikes = countsMap[p.id] !== undefined
             ? countsMap[p.id]
             : (typeof p.likes_count === 'number' ? p.likes_count : 0);
+
+          if (currentUserId) {
+            if (unlikedSet.has(String(p.id)) && wasLikedInDb) {
+              exactLikes = Math.max(0, exactLikes - 1);
+            } else if (likedSet.has(String(p.id)) && !wasLikedInDb) {
+              exactLikes = exactLikes + 1;
+            }
+          }
 
           return {
             ...p,
@@ -799,6 +882,19 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (fetchLikeErr) {
           console.warn('Project like fetch error:', fetchLikeErr.message);
+        }
+
+        const unlikedSet = currentUserId ? getLocallyUnlikedProjects(currentUserId) : new Set();
+        const likedSet = currentUserId ? getLocallyLikedProjects(currentUserId) : new Set();
+        const wasLikedInDb = isLiked;
+        if (currentUserId) {
+          if (unlikedSet.has(String(secondPart))) {
+            isLiked = false;
+            if (wasLikedInDb) exactLikes = Math.max(0, exactLikes - 1);
+          } else if (likedSet.has(String(secondPart))) {
+            isLiked = true;
+            if (!wasLikedInDb) exactLikes = exactLikes + 1;
+          }
         }
 
         return {
@@ -916,6 +1012,9 @@ export const AuthProvider = ({ children }) => {
             console.warn('Fallback reaction toggle error:', rxErr.message);
           }
         }
+
+        // Record local like toggle immediately so RLS cannot revert state
+        recordProjectLikeToggle(currentUserId, secondPart, isLikedNow);
 
         // Always update projects.likes_count in Supabase so directory & admin table stay 100% in sync
         try {
@@ -1911,12 +2010,24 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // 3b. Student Study Notes (Cloud DB Persisted with RLS-Resilient Tombstones)
+    // 3b. Student Study Notes (Cloud DB Persisted with RLS-Resilient Tombstones & Edit Overrides)
     if (endpoint.startsWith('/books/') && endpoint.includes('/notes')) {
       if (!user) return [];
       const parts = endpoint.split('/');
       const bookId = Number(parts[2]) || parts[2];
       const delNotesSet = getDeletedNoteIds(user.id, bookId);
+      const editedMap = getEditedNotesMap(user.id, bookId);
+
+      const mapNote = (n) => {
+        const edit = editedMap[String(n.id)] || {};
+        return {
+          id: n.id,
+          page: Number(n.page),
+          text: edit.text !== undefined ? edit.text : n.text,
+          tag: edit.tag !== undefined ? edit.tag : (n.tag || 'Concept'),
+          createdAt: n.created_at
+        };
+      };
 
       if (method === 'GET') {
         const { data: dbNotes, error: nErr } = await supabase
@@ -1929,13 +2040,7 @@ export const AuthProvider = ({ children }) => {
         if (!nErr && Array.isArray(dbNotes)) {
           return dbNotes
             .filter(n => !delNotesSet.has(String(n.id)))
-            .map(n => ({
-              id: n.id,
-              page: Number(n.page),
-              text: n.text,
-              tag: n.tag || 'Concept',
-              createdAt: n.created_at
-            }));
+            .map(mapNote);
         }
         return [];
       }
@@ -1980,18 +2085,15 @@ export const AuthProvider = ({ children }) => {
 
         return (updatedNotes || [])
           .filter(n => !delNotesSet.has(String(n.id)))
-          .map(n => ({
-            id: n.id,
-            page: Number(n.page),
-            text: n.text,
-            tag: n.tag || 'Concept',
-            createdAt: n.created_at
-          }));
+          .map(mapNote);
       }
 
       if (method === 'PUT') {
         const noteId = parts[4];
         const { text = '', tag = 'Concept' } = body || {};
+        if (noteId) {
+          saveEditedNoteLocally(user.id, bookId, noteId, { text, tag });
+        }
         try {
           await supabase.from('notes').update({ text, tag }).eq('user_id', user.id).eq('id', noteId);
         } catch {}
@@ -2005,19 +2107,14 @@ export const AuthProvider = ({ children }) => {
 
         return (updatedNotes || [])
           .filter(n => !delNotesSet.has(String(n.id)))
-          .map(n => ({
-            id: n.id,
-            page: Number(n.page),
-            text: n.text,
-            tag: n.tag || 'Concept',
-            createdAt: n.created_at
-          }));
+          .map(mapNote);
       }
 
       if (method === 'DELETE') {
         const noteId = parts[4];
         if (noteId) {
           addDeletedNoteId(user.id, bookId, noteId);
+          deleteEditedNoteLocally(user.id, bookId, noteId);
           try {
             await supabase.from('notes').delete().eq('user_id', user.id).eq('id', noteId);
           } catch {}
@@ -2031,13 +2128,7 @@ export const AuthProvider = ({ children }) => {
 
         return (updatedNotes || [])
           .filter(n => String(n.id) !== String(noteId) && !delNotesSet.has(String(n.id)))
-          .map(n => ({
-            id: n.id,
-            page: Number(n.page),
-            text: n.text,
-            tag: n.tag || 'Concept',
-            createdAt: n.created_at
-          }));
+          .map(mapNote);
       }
     }
 
@@ -2087,7 +2178,8 @@ export const AuthProvider = ({ children }) => {
       if (method === 'POST') {
         const { page = 1, title = '', book_title = '' } = body || {};
         const pageNum = Number(page) || 1;
-        clearDeletedBookmarkPage(user.id, bookId, pageNum);
+        const currentDelPages = getDeletedBookmarkPages(user.id, bookId);
+        const wasDeleted = currentDelPages.has(String(pageNum));
 
         // Check if bookmark already exists
         const { data: existingBm } = await supabase
@@ -2098,7 +2190,7 @@ export const AuthProvider = ({ children }) => {
           .eq('page', pageNum)
           .maybeSingle();
 
-        if (existingBm) {
+        if (existingBm && !wasDeleted) {
           // Toggle off
           addDeletedBookmarkPage(user.id, bookId, pageNum);
           addDeletedBookmarkPage(user.id, bookId, existingBm.id);
@@ -2107,17 +2199,22 @@ export const AuthProvider = ({ children }) => {
           } catch {}
         } else {
           // Toggle on
-          const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-            ? crypto.randomUUID()
-            : ('00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0'));
+          clearDeletedBookmarkPage(user.id, bookId, pageNum);
+          if (existingBm) {
+            clearDeletedBookmarkPage(user.id, bookId, existingBm.id);
+          } else {
+            const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+              ? crypto.randomUUID()
+              : ('00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0'));
 
-          await supabase.from('bookmarks').insert([{
-            id: newId,
-            user_id: user.id,
-            book_id: bookId,
-            page: pageNum,
-            title: title || `Page ${pageNum}`
-          }]);
+            await supabase.from('bookmarks').insert([{
+              id: newId,
+              user_id: user.id,
+              book_id: bookId,
+              page: pageNum,
+              title: title || `Page ${pageNum}`
+            }]);
+          }
 
           try {
             await supabase.from('activity_logs').insert([{
@@ -3044,7 +3141,7 @@ export const AuthProvider = ({ children }) => {
       return createdData;
     }
 
-    // 7. Notifications
+    // 7. Notifications (Cloud DB Persisted with RLS-Resilient Read & Delete Overlays)
     if (endpoint === '/notifications' && method === 'GET') {
       if (!user) return [];
       const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
@@ -3056,32 +3153,53 @@ export const AuthProvider = ({ children }) => {
         .order('created_at', { ascending: false })
         .limit(40);
       if (error) throw error;
-      return data || [];
+      const readSet = getLocallyReadNotifs(effectiveUserId);
+      const delSet = getLocallyDeletedNotifs(effectiveUserId);
+      return (data || [])
+        .filter(n => !delSet.has(String(n.id)))
+        .map(n => ({
+          ...n,
+          is_read: n.is_read || readSet.has(String(n.id))
+        }));
     }
 
     if (endpoint === '/notifications/unread-count' && method === 'GET') {
       if (!user) return { count: 0 };
       const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveUserId) return { count: 0 };
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('user_id', effectiveUserId)
         .eq('is_read', false);
       if (error) throw error;
-      return { count: count || 0 };
+      const readSet = getLocallyReadNotifs(effectiveUserId);
+      const delSet = getLocallyDeletedNotifs(effectiveUserId);
+      const unread = (data || []).filter(n => !readSet.has(String(n.id)) && !delSet.has(String(n.id)));
+      return { count: unread.length };
     }
 
     if (endpoint === '/notifications/mark-read' && method === 'POST') {
       if (!user) return null;
       const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveUserId) return null;
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', effectiveUserId)
-        .eq('is_read', false);
-      if (error) throw error;
+      try {
+        const { data: unreadNotifs } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', effectiveUserId)
+          .eq('is_read', false);
+        if (unreadNotifs && unreadNotifs.length > 0) {
+          markAllLocallyReadNotifs(effectiveUserId, unreadNotifs.map(n => n.id));
+        }
+      } catch {}
+      try {
+        await supabase
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('user_id', effectiveUserId)
+          .eq('is_read', false);
+      } catch {}
       return { message: 'All notifications marked as read' };
     }
 
@@ -3090,13 +3208,28 @@ export const AuthProvider = ({ children }) => {
       const notifId = endpoint.split('/')[2];
       const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (notifId && effectiveUserId) {
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', notifId)
-          .eq('user_id', effectiveUserId);
-        if (error) throw error;
+        markLocallyReadNotif(effectiveUserId, notifId);
+        try {
+          await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', notifId)
+            .eq('user_id', effectiveUserId);
+        } catch {}
         return { message: 'Notification marked as read' };
+      }
+    }
+
+    if (endpoint.startsWith('/notifications/') && method === 'DELETE') {
+      if (!user) return null;
+      const notifId = endpoint.split('/')[2];
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (notifId && effectiveUserId) {
+        markLocallyDeletedNotif(effectiveUserId, notifId);
+        try {
+          await supabase.from('notifications').delete().eq('id', notifId).eq('user_id', effectiveUserId);
+        } catch {}
+        return { message: 'Notification deleted successfully' };
       }
     }
 
@@ -3164,6 +3297,7 @@ export const AuthProvider = ({ children }) => {
       // Upsert user_book_progress with accurate real-time page count and progress
       if (targetBookId) {
         if (effectiveId) {
+          clearDeletedHistoryId(effectiveId, targetBookId);
           saveLocalReadingProgress(effectiveId, targetBookId, pageRead, body.total_pages);
         }
         const nowIso = new Date().toISOString();
@@ -3590,6 +3724,17 @@ export const AuthProvider = ({ children }) => {
     if (endpoint === '/analytics/my-history') {
       const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (!effectiveId) return [];
+
+      if (method === 'DELETE' || options.method === 'DELETE') {
+        const bookId = body.book_id || body.bookId;
+        if (bookId) addDeletedHistoryId(effectiveId, bookId);
+        try {
+          if (bookId) {
+            await supabase.from('user_book_progress').delete().eq('user_id', effectiveId).eq('book_id', bookId);
+          }
+        } catch {}
+        return { message: 'History item removed' };
+      }
       try {
         const [progRes, logsRes] = await Promise.all([
           (async () => {
@@ -3729,10 +3874,39 @@ export const AuthProvider = ({ children }) => {
           }
         });
 
-        return Array.from(bookMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        const delHistorySet = getDeletedHistoryIds(effectiveId);
+        return Array.from(bookMap.values())
+          .filter(item => !delHistorySet.has(String(item.book_id)) && !delHistorySet.has(String(item.id)))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       } catch (err) {
         console.warn('Error loading my-history:', err.message);
         return [];
+      }
+    }
+
+    if ((endpoint === '/analytics/clear-history' || endpoint === '/analytics/history/clear') && method === 'POST') {
+      const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (effectiveId) {
+        try {
+          const { data: progs } = await supabase.from('user_book_progress').select('book_id, id').eq('user_id', effectiveId);
+          if (progs) {
+            clearAllHistoryLocally(effectiveId, progs.map(p => p.book_id || p.id));
+          }
+          await supabase.from('user_book_progress').delete().eq('user_id', effectiveId);
+        } catch {}
+      }
+      return { message: 'Reading history cleared successfully' };
+    }
+
+    if (endpoint.startsWith('/analytics/history/') && method === 'DELETE') {
+      const targetId = endpoint.split('/').pop();
+      const effectiveId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (targetId && effectiveId) {
+        addDeletedHistoryId(effectiveId, targetId);
+        try {
+          await supabase.from('user_book_progress').delete().eq('user_id', effectiveId).eq('book_id', targetId);
+        } catch {}
+        return { message: 'History item removed successfully' };
       }
     }
 

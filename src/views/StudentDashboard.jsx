@@ -10,7 +10,7 @@ import {
   Clock, BookMarked, Home, Library, Compass,
   Activity, X, Settings, RefreshCw, Printer, FileText,
   Share2, Info, Sun, Moon, PanelLeftClose, PanelLeftOpen, Sparkles,
-  GraduationCap, Rocket
+  GraduationCap, Rocket, Trash2
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -514,6 +514,29 @@ const StudentDashboard = ({ onSelectBook }) => {
       setBooks(booksData || []);
     } catch (err) {
       showFeedback(err.message || 'Download failed', 'error');
+    }
+  };
+
+  const handleRemoveHistoryItem = async (e, item) => {
+    e.stopPropagation();
+    const targetKey = item.book_id || item.id;
+    setHistory(prev => prev.filter(h => (h.book_id || h.id) !== targetKey && h.id !== item.id));
+    try {
+      await apiCall(`/analytics/history/${targetKey}`, { method: 'DELETE' });
+      showFeedback('Removed from reading history', 'success');
+    } catch (err) {
+      console.warn('Could not remove history item:', err);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Are you sure you want to clear your reading history?')) return;
+    setHistory([]);
+    try {
+      await apiCall('/analytics/clear-history', { method: 'POST' });
+      showFeedback('Reading history cleared', 'success');
+    } catch (err) {
+      console.warn('Could not clear history:', err);
     }
   };
 
@@ -1037,16 +1060,28 @@ const StudentDashboard = ({ onSelectBook }) => {
                   Complete audit log of all online reading sessions and reference downloads.
                 </p>
               </div>
-              <button
-                onClick={handlePrintTranscript}
-                disabled={printingTranscript}
-                className="btn btn-primary btn-shine"
-                style={{ fontSize: '0.82rem', padding: '8px 16px', gap: '8px' }}
-                title="Print or export certified student library transcript with reading history and clearances"
-              >
-                <Printer size={15} />
-                {printingTranscript ? 'Preparing Transcript...' : 'Print Official Transcript'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {history.length > 0 && (
+                  <button
+                    onClick={handleClearHistory}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.82rem', padding: '8px 12px', gap: '6px', color: '#ef4444' }}
+                    title="Clear your reading history"
+                  >
+                    <Trash2 size={14} /> Clear History
+                  </button>
+                )}
+                <button
+                  onClick={handlePrintTranscript}
+                  disabled={printingTranscript}
+                  className="btn btn-primary btn-shine"
+                  style={{ fontSize: '0.82rem', padding: '8px 16px', gap: '8px' }}
+                  title="Print or export certified student library transcript with reading history and clearances"
+                >
+                  <Printer size={15} />
+                  {printingTranscript ? 'Preparing Transcript...' : 'Print Official Transcript'}
+                </button>
+              </div>
             </div>
             {history.length === 0 ? (
               <EmptyState
@@ -1090,15 +1125,25 @@ const StudentDashboard = ({ onSelectBook }) => {
                                 {h.details || `Page ${h.last_page_read || 1} of ${h.total_pages || 100} • ${h.progress_percentage || 1}% completed`}
                               </td>
                               <td style={{ textAlign: 'right' }}>
-                                {matchingBook && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  {matchingBook && (
+                                    <button
+                                      onClick={() => onSelectBook(matchingBook)}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                                    >
+                                      <BookOpen size={13} /> Open
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => onSelectBook(matchingBook)}
+                                    onClick={(e) => handleRemoveHistoryItem(e, h)}
                                     className="btn btn-secondary"
-                                    style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                                    style={{ padding: '5px 8px', fontSize: '0.78rem', color: '#ef4444' }}
+                                    title="Remove from history"
                                   >
-                                    <BookOpen size={13} /> Open
+                                    <Trash2 size={13} />
                                   </button>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1155,17 +1200,25 @@ const StudentDashboard = ({ onSelectBook }) => {
                           </div>
                         )}
 
-                        {matchingBook && (
-                          <div className="mobile-card-actions" style={{ marginTop: '8px' }}>
+                        <div className="mobile-card-actions" style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                          {matchingBook && (
                             <button
                               onClick={() => onSelectBook(matchingBook)}
                               className="btn btn-primary"
-                              style={{ flex: 1, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600 }}
+                              style={{ flex: 1, height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600 }}
                             >
                               <BookOpen size={16} /> Open Book
                             </button>
-                          </div>
-                        )}
+                          )}
+                          <button
+                            onClick={(e) => handleRemoveHistoryItem(e, h)}
+                            className="btn btn-secondary"
+                            style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}
+                            title="Remove from history"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

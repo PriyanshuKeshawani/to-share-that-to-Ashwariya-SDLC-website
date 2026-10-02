@@ -17,6 +17,7 @@ import {
   Copy,
   Check,
   Search,
+  Pencil,
   ExternalLink,
   X,
   FileDown,
@@ -411,6 +412,9 @@ const BookReader = ({ book, onClose }) => {
   const [noteSearch, setNoteSearch] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState('All');
   const [copiedNoteId, setCopiedNoteId] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editNoteText, setEditNoteText] = useState('');
+  const [editNoteTag, setEditNoteTag] = useState('Concept');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Permission access enforcement
@@ -1384,11 +1388,41 @@ const BookReader = ({ book, onClose }) => {
 
   // Delete study note from Supabase Database
   const handleDeleteNote = async (noteId) => {
+    if (editingNoteId === noteId) setEditingNoteId(null);
     setNotes(prev => prev.filter(n => n.id !== noteId));
     try {
       await apiCall(`/books/${book.id}/notes/${noteId}`, { method: 'DELETE' });
     } catch (err) {
       console.error('Error deleting note from DB:', err);
+    }
+  };
+
+  // Edit study note in Supabase Database
+  const handleStartEditNote = (note) => {
+    setEditingNoteId(note.id);
+    setEditNoteText(note.text || '');
+    setEditNoteTag(note.tag || 'Concept');
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditNoteText('');
+  };
+
+  const handleSaveEditNote = async (noteId) => {
+    if (!editNoteText.trim()) return;
+    const updatedText = editNoteText.trim();
+    const updatedTag = editNoteTag;
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, text: updatedText, tag: updatedTag } : n));
+    setEditingNoteId(null);
+    try {
+      const res = await apiCall(`/books/${book.id}/notes/${noteId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ text: updatedText, tag: updatedTag })
+      });
+      if (Array.isArray(res)) setNotes(res);
+    } catch (err) {
+      console.error('Error updating note in DB:', err);
     }
   };
 
@@ -2725,6 +2759,20 @@ const BookReader = ({ book, onClose }) => {
                                   </button>
                                   <button
                                     type="button"
+                                    onClick={() => handleStartEditNote(note)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      padding: '3px'
+                                    }}
+                                    title="Edit note"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => handleDeleteNote(note.id)}
                                     style={{
                                       background: 'transparent',
@@ -2740,24 +2788,83 @@ const BookReader = ({ book, onClose }) => {
                                 </div>
                               </div>
 
-                              <p style={{
-                                margin: 0,
-                                fontSize: '0.82rem',
-                                color: 'var(--text-primary)',
-                                lineHeight: '1.45',
-                                wordBreak: 'break-word',
-                                whiteSpace: 'pre-wrap'
-                              }}>
-                                {note.text}
-                              </p>
+                              {editingNoteId === note.id ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                    {Object.keys(TAG_COLORS).map(tag => (
+                                      <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => setEditNoteTag(tag)}
+                                        style={{
+                                          padding: '2px 6px',
+                                          fontSize: '0.65rem',
+                                          borderRadius: '4px',
+                                          border: `1px solid ${TAG_COLORS[tag].border}`,
+                                          background: editNoteTag === tag ? TAG_COLORS[tag].bg : 'transparent',
+                                          color: editNoteTag === tag ? TAG_COLORS[tag].text : 'var(--text-muted)',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        {tag}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <textarea
+                                    value={editNoteText}
+                                    onChange={(e) => setEditNoteText(e.target.value)}
+                                    rows={2}
+                                    className="glass-input"
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 8px',
+                                      fontSize: '0.8rem',
+                                      resize: 'none',
+                                      lineHeight: '1.4'
+                                    }}
+                                  />
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditNote}
+                                      className="btn btn-secondary"
+                                      style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={!editNoteText.trim()}
+                                      onClick={() => handleSaveEditNote(note.id)}
+                                      className="btn btn-primary"
+                                      style={{ padding: '3px 10px', fontSize: '0.72rem', opacity: editNoteText.trim() ? 1 : 0.5 }}
+                                    >
+                                      Save
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <p style={{
+                                    margin: 0,
+                                    fontSize: '0.82rem',
+                                    color: 'var(--text-primary)',
+                                    lineHeight: '1.45',
+                                    wordBreak: 'break-word',
+                                    whiteSpace: 'pre-wrap'
+                                  }}>
+                                    {note.text}
+                                  </p>
 
-                              <span style={{
-                                fontSize: '0.66rem',
-                                color: 'var(--text-muted)',
-                                alignSelf: 'flex-end'
-                              }}>
-                                {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    color: 'var(--text-muted)',
+                                    alignSelf: 'flex-end'
+                                  }}>
+                                    {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           );
                         })
