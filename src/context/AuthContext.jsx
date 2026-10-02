@@ -4072,7 +4072,7 @@ export const AuthProvider = ({ children }) => {
           avatar_url: resolvedAvatar
         };
         setUser(formatted);
-        localStorage.setItem('lib_custom_user', JSON.stringify(formatted));
+        try { localStorage.setItem('lib_custom_user', JSON.stringify(formatted)); } catch {}
         setNeedsProfile(false);
 
         if (typeof window !== 'undefined' && window.__SISTEC_NATIVE_FCM_TOKEN__) {
@@ -4423,7 +4423,7 @@ export const AuthProvider = ({ children }) => {
       // ignore activity log error
     }
 
-    localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+    try { localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser)); } catch {}
     setUser(formattedUser);
     setSession(authData.session);
 
@@ -4511,7 +4511,7 @@ export const AuthProvider = ({ children }) => {
       avatarUrl: data.avatar_url
     };
 
-    localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser));
+    try { localStorage.setItem('lib_custom_user', JSON.stringify(formattedUser)); } catch {}
     setUser(formattedUser);
     setNeedsProfile(false);
     setPendingGoogleUser(null);

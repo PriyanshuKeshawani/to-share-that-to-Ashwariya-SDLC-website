@@ -86,12 +86,15 @@ export async function fetchCoverFromGoogleBooks({ isbn, title, author } = {}) {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
-
-    const resp = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=3&printType=books`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timer);
+    let resp;
+    try {
+      resp = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=3&printType=books`,
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!resp.ok) return null;
     const data = await resp.json();

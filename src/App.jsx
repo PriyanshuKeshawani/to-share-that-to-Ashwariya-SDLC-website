@@ -192,6 +192,9 @@ const AppContent = () => {
           if (data && !error) {
             setSelectedBook(data);
           }
+        })
+        .catch(err => {
+          console.warn('[App] Direct book load failed:', err?.message || err);
         });
     }
   }, [user, getBookIdFromUrl]);
@@ -313,6 +316,9 @@ const AppContent = () => {
           .maybeSingle()
           .then(({ data }) => {
             if (data) setSelectedBook(data);
+          })
+          .catch(err => {
+            console.warn('[App] Popstate book load failed:', err?.message || err);
           });
       }
     };

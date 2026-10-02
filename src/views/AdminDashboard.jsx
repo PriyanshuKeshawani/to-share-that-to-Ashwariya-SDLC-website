@@ -516,14 +516,16 @@ const AdminDashboard = ({ onSelectBook }) => {
 
       // Refresh data
       const branchQueryParam = selectedAdminBranch && selectedAdminBranch !== 'all' ? `?branch=${encodeURIComponent(selectedAdminBranch)}` : '';
-      const [pUsers, dash, allStudents] = await Promise.all([
+      const [pUsersRes, dashRes, allStudentsRes] = await Promise.allSettled([
         apiCall(`/auth/pending-users${branchQueryParam}`),
         apiCall('/analytics/dashboard'),
         apiCall('/auth/users')
       ]);
-      setPendingUsers(pUsers);
-      setDashboardData(dash);
-      setStudents(allStudents.filter(u => u.role === 'student'));
+      if (pUsersRes.status === 'fulfilled' && pUsersRes.value) setPendingUsers(pUsersRes.value);
+      if (dashRes.status === 'fulfilled' && dashRes.value) setDashboardData(dashRes.value);
+      if (allStudentsRes.status === 'fulfilled' && Array.isArray(allStudentsRes.value)) {
+        setStudents(allStudentsRes.value.filter(u => u.role === 'student'));
+      }
     } catch (err) {
       showFeedback(err.message || 'Bulk approval action failed', 'error');
     } finally {
