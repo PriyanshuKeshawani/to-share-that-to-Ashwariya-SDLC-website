@@ -1,4 +1,4 @@
-import { extractFirstPageAsCover, generateFallbackCover } from './pdfCoverExtractor';
+import { extractFirstPageAsCover, generateFallbackCover } from './pdfCoverExtractor.js';
 
 /**
  * Validates if an image URL points to a legitimate, loadable image.
