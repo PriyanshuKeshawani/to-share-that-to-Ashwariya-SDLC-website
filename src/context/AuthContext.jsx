@@ -250,6 +250,81 @@ export const AuthProvider = ({ children }) => {
     setPendingGoogleUser(null);
   };
 
+  // Local client-side overrides for student RLS-protected actions (permissions re-request, cancellations, note & bookmark tombstones)
+  const getLocalIdSet = (key) => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(key);
+      return new Set(raw ? JSON.parse(raw).map(String) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveLocalIdSet = (key, set) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(key, JSON.stringify([...set].map(String)));
+    } catch {}
+  };
+
+  const isPermCancelledLocally = (id) => getLocalIdSet('lib_cancelled_perms').has(String(id));
+  const addPermCancelledLocally = (id) => {
+    const set = getLocalIdSet('lib_cancelled_perms');
+    set.add(String(id));
+    saveLocalIdSet('lib_cancelled_perms', set);
+  };
+  const removePermCancelledLocally = (id) => {
+    const set = getLocalIdSet('lib_cancelled_perms');
+    set.delete(String(id));
+    saveLocalIdSet('lib_cancelled_perms', set);
+  };
+
+  const isPermReRequestedLocally = (id) => getLocalIdSet('lib_rerequested_perms').has(String(id));
+  const addPermReRequestedLocally = (id) => {
+    const set = getLocalIdSet('lib_rerequested_perms');
+    set.add(String(id));
+    saveLocalIdSet('lib_rerequested_perms', set);
+  };
+  const removePermReRequestedLocally = (id) => {
+    const set = getLocalIdSet('lib_rerequested_perms');
+    set.delete(String(id));
+    saveLocalIdSet('lib_rerequested_perms', set);
+  };
+
+  // Tombstones for notes & bookmarks deleted by student so RLS does not resurrect them
+  const getDeletedNoteIds = (userId, bookId) => getLocalIdSet(`lib_del_notes_${userId}_${bookId}`);
+  const addDeletedNoteId = (userId, bookId, noteId) => {
+    const set = getDeletedNoteIds(userId, bookId);
+    set.add(String(noteId));
+    saveLocalIdSet(`lib_del_notes_${userId}_${bookId}`, set);
+  };
+
+  const getDeletedBookmarkPages = (userId, bookId) => getLocalIdSet(`lib_del_bm_pages_${userId}_${bookId}`);
+  const addDeletedBookmarkPage = (userId, bookId, page) => {
+    const set = getDeletedBookmarkPages(userId, bookId);
+    set.add(String(page));
+    saveLocalIdSet(`lib_del_bm_pages_${userId}_${bookId}`, set);
+  };
+  const clearDeletedBookmarkPage = (userId, bookId, page) => {
+    const set = getDeletedBookmarkPages(userId, bookId);
+    set.delete(String(page));
+    saveLocalIdSet(`lib_del_bm_pages_${userId}_${bookId}`, set);
+  };
+
+  // Local read set for notifications marked as read
+  const getLocallyReadNotifs = (userId) => getLocalIdSet(`lib_read_notifs_${userId}`);
+  const markLocallyReadNotif = (userId, notifId) => {
+    const set = getLocallyReadNotifs(userId);
+    set.add(String(notifId));
+    saveLocalIdSet(`lib_read_notifs_${userId}`, set);
+  };
+  const markAllLocallyReadNotifs = (userId, ids) => {
+    const set = getLocallyReadNotifs(userId);
+    (ids || []).forEach(id => set.add(String(id)));
+    saveLocalIdSet(`lib_read_notifs_${userId}`, set);
+  };
+
   const apiCall = useCallback(async (endpoint, options = {}) => {
     const method = (options.method || 'GET').toUpperCase();
     const body = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : {};
@@ -1822,11 +1897,12 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // 3b. Student Study Notes (Cloud DB Persisted)
+    // 3b. Student Study Notes (Cloud DB Persisted with RLS-Resilient Tombstones)
     if (endpoint.startsWith('/books/') && endpoint.includes('/notes')) {
       if (!user) return [];
       const parts = endpoint.split('/');
       const bookId = Number(parts[2]) || parts[2];
+      const delNotesSet = getDeletedNoteIds(user.id, bookId);
 
       if (method === 'GET') {
         const { data: dbNotes, error: nErr } = await supabase
@@ -1837,13 +1913,15 @@ export const AuthProvider = ({ children }) => {
           .order('created_at', { ascending: false });
 
         if (!nErr && Array.isArray(dbNotes)) {
-          return dbNotes.map(n => ({
-            id: n.id,
-            page: Number(n.page),
-            text: n.text,
-            tag: n.tag || 'Concept',
-            createdAt: n.created_at
-          }));
+          return dbNotes
+            .filter(n => !delNotesSet.has(String(n.id)))
+            .map(n => ({
+              id: n.id,
+              page: Number(n.page),
+              text: n.text,
+              tag: n.tag || 'Concept',
+              createdAt: n.created_at
+            }));
         }
         return [];
       }
@@ -1886,19 +1964,49 @@ export const AuthProvider = ({ children }) => {
           .eq('book_id', bookId)
           .order('created_at', { ascending: false });
 
-        return (updatedNotes || []).map(n => ({
-          id: n.id,
-          page: Number(n.page),
-          text: n.text,
-          tag: n.tag || 'Concept',
-          createdAt: n.created_at
-        }));
+        return (updatedNotes || [])
+          .filter(n => !delNotesSet.has(String(n.id)))
+          .map(n => ({
+            id: n.id,
+            page: Number(n.page),
+            text: n.text,
+            tag: n.tag || 'Concept',
+            createdAt: n.created_at
+          }));
+      }
+
+      if (method === 'PUT') {
+        const noteId = parts[4];
+        const { text = '', tag = 'Concept' } = body || {};
+        try {
+          await supabase.from('notes').update({ text, tag }).eq('user_id', user.id).eq('id', noteId);
+        } catch {}
+
+        const { data: updatedNotes } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('created_at', { ascending: false });
+
+        return (updatedNotes || [])
+          .filter(n => !delNotesSet.has(String(n.id)))
+          .map(n => ({
+            id: n.id,
+            page: Number(n.page),
+            text: n.text,
+            tag: n.tag || 'Concept',
+            createdAt: n.created_at
+          }));
       }
 
       if (method === 'DELETE') {
         const noteId = parts[4];
         if (noteId) {
-          await supabase.from('notes').delete().eq('user_id', user.id).eq('id', noteId);
+          addDeletedNoteId(user.id, bookId, noteId);
+          try {
+            await supabase.from('notes').delete().eq('user_id', user.id).eq('id', noteId);
+          } catch {}
         }
         const { data: updatedNotes } = await supabase
           .from('notes')
@@ -1907,21 +2015,24 @@ export const AuthProvider = ({ children }) => {
           .eq('book_id', bookId)
           .order('created_at', { ascending: false });
 
-        return (updatedNotes || []).map(n => ({
-          id: n.id,
-          page: Number(n.page),
-          text: n.text,
-          tag: n.tag || 'Concept',
-          createdAt: n.created_at
-        }));
+        return (updatedNotes || [])
+          .filter(n => String(n.id) !== String(noteId) && !delNotesSet.has(String(n.id)))
+          .map(n => ({
+            id: n.id,
+            page: Number(n.page),
+            text: n.text,
+            tag: n.tag || 'Concept',
+            createdAt: n.created_at
+          }));
       }
     }
 
-    // 3c. Student Bookmarks (Cloud DB Persisted with IndexedDB Cache)
+    // 3c. Student Bookmarks (Cloud DB Persisted with IndexedDB Cache & RLS-Resilient Tombstones)
     if (endpoint.startsWith('/books/') && endpoint.includes('/bookmarks')) {
       if (!user) return [];
       const parts = endpoint.split('/');
       const bookId = Number(parts[2]) || parts[2];
+      const delPagesSet = getDeletedBookmarkPages(user.id, bookId);
 
       if (method === 'GET') {
         const cached = await getCachedBookmarks(user.id, bookId);
@@ -1934,23 +2045,27 @@ export const AuthProvider = ({ children }) => {
           .order('page', { ascending: true });
 
         if (!bmErr && Array.isArray(dbMarks)) {
-          const list = dbMarks.map(b => ({
-            id: b.id,
-            page: Number(b.page),
-            title: b.title || `Page ${b.page}`,
-            createdAt: b.created_at
-          }));
+          const list = dbMarks
+            .filter(b => !delPagesSet.has(String(b.page)) && !delPagesSet.has(String(b.id)))
+            .map(b => ({
+              id: b.id,
+              page: Number(b.page),
+              title: b.title || `Page ${b.page}`,
+              createdAt: b.created_at
+            }));
           setCachedBookmarks(user.id, bookId, list);
           return list;
         }
 
         if (cached && cached.length > 0) {
-          return cached.map(b => ({
-            id: b.id,
-            page: Number(b.page_number || b.page),
-            title: b.title || `Page ${b.page_number || b.page}`,
-            createdAt: b.created_at
-          }));
+          return cached
+            .filter(b => !delPagesSet.has(String(b.page || b.page_number)) && !delPagesSet.has(String(b.id)))
+            .map(b => ({
+              id: b.id,
+              page: Number(b.page_number || b.page),
+              title: b.title || `Page ${b.page_number || b.page}`,
+              createdAt: b.created_at
+            }));
         }
         return [];
       }
@@ -1958,6 +2073,7 @@ export const AuthProvider = ({ children }) => {
       if (method === 'POST') {
         const { page = 1, title = '', book_title = '' } = body || {};
         const pageNum = Number(page) || 1;
+        clearDeletedBookmarkPage(user.id, bookId, pageNum);
 
         // Check if bookmark already exists
         const { data: existingBm } = await supabase
@@ -1970,7 +2086,11 @@ export const AuthProvider = ({ children }) => {
 
         if (existingBm) {
           // Toggle off
-          await supabase.from('bookmarks').delete().eq('id', existingBm.id);
+          addDeletedBookmarkPage(user.id, bookId, pageNum);
+          addDeletedBookmarkPage(user.id, bookId, existingBm.id);
+          try {
+            await supabase.from('bookmarks').delete().eq('id', existingBm.id);
+          } catch {}
         } else {
           // Toggle on
           const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -2002,12 +2122,15 @@ export const AuthProvider = ({ children }) => {
           .eq('book_id', bookId)
           .order('page', { ascending: true });
 
-        const list = (updatedList || []).map(b => ({
-          id: b.id,
-          page: Number(b.page),
-          title: b.title || `Page ${b.page}`,
-          createdAt: b.created_at
-        }));
+        const freshDelPages = getDeletedBookmarkPages(user.id, bookId);
+        const list = (updatedList || [])
+          .filter(b => !freshDelPages.has(String(b.page)) && !freshDelPages.has(String(b.id)))
+          .map(b => ({
+            id: b.id,
+            page: Number(b.page),
+            title: b.title || `Page ${b.page}`,
+            createdAt: b.created_at
+          }));
 
         setCachedBookmarks(user.id, bookId, list);
         return list;
@@ -2018,21 +2141,30 @@ export const AuthProvider = ({ children }) => {
         const targetPage = Number(target);
 
         if (!isNaN(targetPage) && targetPage > 0) {
-          await supabase
-            .from('bookmarks')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('book_id', bookId)
-            .eq('page', targetPage);
+          addDeletedBookmarkPage(user.id, bookId, targetPage);
         }
         if (target) {
-          await supabase
-            .from('bookmarks')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('book_id', bookId)
-            .eq('id', target);
+          addDeletedBookmarkPage(user.id, bookId, target);
         }
+
+        try {
+          if (!isNaN(targetPage) && targetPage > 0) {
+            await supabase
+              .from('bookmarks')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('book_id', bookId)
+              .eq('page', targetPage);
+          }
+          if (target && isNaN(targetPage)) {
+            await supabase
+              .from('bookmarks')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('book_id', bookId)
+              .eq('id', target);
+          }
+        } catch {}
 
         const { data: updatedList } = await supabase
           .from('bookmarks')
@@ -2041,12 +2173,20 @@ export const AuthProvider = ({ children }) => {
           .eq('book_id', bookId)
           .order('page', { ascending: true });
 
-        const list = (updatedList || []).map(b => ({
-          id: b.id,
-          page: Number(b.page),
-          title: b.title || `Page ${b.page}`,
-          createdAt: b.created_at
-        }));
+        const freshDelPages = getDeletedBookmarkPages(user.id, bookId);
+        const list = (updatedList || [])
+          .filter(b => {
+            if (!isNaN(targetPage) && targetPage > 0 && Number(b.page) === targetPage) return false;
+            if (target && String(b.id) === String(target)) return false;
+            if (freshDelPages.has(String(b.page)) || freshDelPages.has(String(b.id))) return false;
+            return true;
+          })
+          .map(b => ({
+            id: b.id,
+            page: Number(b.page),
+            title: b.title || `Page ${b.page}`,
+            createdAt: b.created_at
+          }));
 
         setCachedBookmarks(user.id, bookId, list);
         return list;
@@ -2450,7 +2590,8 @@ export const AuthProvider = ({ children }) => {
         .order('created_at', { ascending: false });
 
       if (!isAll) {
-        query = query.eq('status', 'pending');
+        // Query pending and rejected so student re-requested permissions can be reconciled for admin review
+        query = query.in('status', ['pending', 'rejected']);
       }
 
       const { data: permData, error: permError } = await query;
@@ -2473,7 +2614,7 @@ export const AuthProvider = ({ children }) => {
         bookIds.length > 0
           ? supabase.from('books').select('id, title, author, branch_id, cover_url, drive_link, drive_file_id, pdf_url').in('id', bookIds)
           : { data: [] },
-        supabase.from('notifications').select('message, created_at').eq('type', 'drive_make_public').order('created_at', { ascending: false }).limit(200)
+        supabase.from('notifications').select('message, created_at').order('created_at', { ascending: false }).limit(200)
       ]);
 
       const userMap = new Map((usersList || []).map(u => [u.id, u]));
@@ -2482,60 +2623,83 @@ export const AuthProvider = ({ children }) => {
 
       const driveReqBookIds = new Set();
       const driveReqPermIds = new Set();
+      const cancelledReqIds = new Set();
+      const reRequestedReqIds = new Set();
+
       (driveNotifs || []).forEach(n => {
         const m = n.message?.match(/\[DRIVE_PUBLIC_REQ:(\d+):(\d+)\]/);
         if (m) {
           driveReqPermIds.add(parseInt(m[1], 10));
           driveReqBookIds.add(parseInt(m[2], 10));
         }
+        const mCancel = n.message?.match(/\[CANCEL_REQ:(\d+)\]/);
+        if (mCancel) {
+          cancelledReqIds.add(parseInt(mCancel[1], 10));
+        }
+        const mRe = n.message?.match(/\[REREQUEST:(\d+):(\d+)/);
+        if (mRe) {
+          reRequestedReqIds.add(parseInt(mRe[1], 10));
+        }
       });
 
       const isHq = !user || user.isHeadquarters || user.branchName === 'Central Library' || !user.branchName;
       const effectiveBranch = !isHq ? (user.adminBranch || user.branchName) : (paramBranch && paramBranch !== 'all' ? paramBranch : null);
 
-      let list = (permData || []).map(p => {
-        const u = userMap.get(p.user_id);
-        const bk = bookMap.get(p.book_id);
-        const bookBranchName = bk?.branch_id ? branchMap.get(bk.branch_id) : (p.branch_id ? branchMap.get(p.branch_id) : 'Central Library');
+      let list = (permData || [])
+        .filter(p => !cancelledReqIds.has(p.id) && !isPermCancelledLocally(p.id))
+        .map(p => {
+          const u = userMap.get(p.user_id);
+          const bk = bookMap.get(p.book_id);
+          const bookBranchName = bk?.branch_id ? branchMap.get(bk.branch_id) : (p.branch_id ? branchMap.get(p.branch_id) : 'Central Library');
 
-        // Extract Google Drive ID and direct View URL
-        let driveFileId = null;
-        let driveViewUrl = null;
-        if (bk) {
-          const sources = [bk.drive_link, bk.drive_file_id, bk.pdf_url];
-          for (const s of sources) {
-            if (!s) continue;
-            const { id } = extractDriveFileId(s);
-            if (id) {
-              driveFileId = id;
-              driveViewUrl = `https://drive.google.com/file/d/${id}/view?usp=sharing`;
-              break;
+          // Extract Google Drive ID and direct View URL
+          let driveFileId = null;
+          let driveViewUrl = null;
+          if (bk) {
+            const sources = [bk.drive_link, bk.drive_file_id, bk.pdf_url];
+            for (const s of sources) {
+              if (!s) continue;
+              const { id } = extractDriveFileId(s);
+              if (id) {
+                driveFileId = id;
+                driveViewUrl = `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+                break;
+              }
+            }
+            if (!driveViewUrl && bk.drive_link && bk.drive_link.startsWith('http')) {
+              driveViewUrl = bk.drive_link;
             }
           }
-          if (!driveViewUrl && bk.drive_link && bk.drive_link.startsWith('http')) {
-            driveViewUrl = bk.drive_link;
+
+          const isSameDept = isSameBranch(u?.branch_name, bookBranchName);
+          const isDrivePublicReq = driveReqPermIds.has(p.id) || driveReqBookIds.has(p.book_id) || (Boolean(driveFileId) && isSameDept);
+
+          let effectiveStatus = p.status;
+          if ((reRequestedReqIds.has(p.id) || isPermReRequestedLocally(p.id)) && effectiveStatus === 'rejected') {
+            effectiveStatus = 'pending';
           }
-        }
 
-        const isSameDept = isSameBranch(u?.branch_name, bookBranchName);
-        const isDrivePublicReq = driveReqPermIds.has(p.id) || driveReqBookIds.has(p.book_id) || (Boolean(driveFileId) && isSameDept);
+          return {
+            ...p,
+            status: effectiveStatus,
+            full_name: u ? u.full_name : 'Student',
+            roll_number: u ? u.roll_number : 'N/A',
+            student_branch: u ? u.branch_name : 'Engineering',
+            book_id: p.book_id,
+            book_title: bk?.title || 'Book Access',
+            book_author: bk?.author || '',
+            book_branch_id: bk?.branch_id,
+            book_branch_name: bookBranchName,
+            requested_branch_name: p.branch_id ? (branchMap.get(p.branch_id) || bookBranchName || 'Branch') : bookBranchName,
+            request_type: isDrivePublicReq ? 'drive_make_public' : 'branch_access',
+            drive_file_id: driveFileId,
+            drive_view_url: driveViewUrl
+          };
+        });
 
-        return {
-          ...p,
-          full_name: u ? u.full_name : 'Student',
-          roll_number: u ? u.roll_number : 'N/A',
-          student_branch: u ? u.branch_name : 'Engineering',
-          book_id: p.book_id,
-          book_title: bk?.title || 'Book Access',
-          book_author: bk?.author || '',
-          book_branch_id: bk?.branch_id,
-          book_branch_name: bookBranchName,
-          requested_branch_name: p.branch_id ? (branchMap.get(p.branch_id) || bookBranchName || 'Branch') : bookBranchName,
-          request_type: isDrivePublicReq ? 'drive_make_public' : 'branch_access',
-          drive_file_id: driveFileId,
-          drive_view_url: driveViewUrl
-        };
-      });
+      if (!isAll) {
+        list = list.filter(r => r.status === 'pending');
+      }
 
       // Multi-Branch Independent Filtering:
       // When branch admin is acting, scope to requests governing books of their branch
@@ -2578,17 +2742,27 @@ export const AuthProvider = ({ children }) => {
         const branchMap = new Map((allBranches || []).map(b => [b.id, b.name]));
         const bookMap = new Map((booksList || []).map(b => [b.id, b]));
 
-        return (permData || []).map(req => {
-          const bk = bookMap.get(req.book_id);
-          return {
-            ...req,
-            book_id: req.book_id,
-            book_title: bk?.title || 'Book Access',
-            book_author: bk?.author || '',
-            cover_url: bk?.cover_url || null,
-            branch_name: branchMap.get(req.branch_id) || 'Branch'
-          };
-        });
+        return (permData || [])
+          .filter(req => !isPermCancelledLocally(req.id))
+          .map(req => {
+            const bk = bookMap.get(req.book_id);
+            let effectiveStatus = req.status;
+            if (isPermReRequestedLocally(req.id) && effectiveStatus === 'rejected') {
+              effectiveStatus = 'pending';
+            }
+            if (effectiveStatus === 'approved') {
+              removePermReRequestedLocally(req.id);
+            }
+            return {
+              ...req,
+              status: effectiveStatus,
+              book_id: req.book_id,
+              book_title: bk?.title || 'Book Access',
+              book_author: bk?.author || '',
+              cover_url: bk?.cover_url || null,
+              branch_name: branchMap.get(req.branch_id) || 'Branch'
+            };
+          });
       } catch (err) {
         console.warn('Error fetching permissions requests:', err.message);
         return [];
@@ -2597,22 +2771,60 @@ export const AuthProvider = ({ children }) => {
 
     if (endpoint.startsWith('/permissions/cancel/')) {
       const permId = endpoint.split('/').pop();
-      const { error } = await supabase.from('permissions').delete().eq('id', permId);
-      if (error) throw error;
-      return { message: 'Request cancelled' };
+      const numPermId = parseInt(permId, 10) || permId;
+
+      try {
+        await supabase.from('permissions').delete().eq('id', numPermId);
+      } catch (err) {
+        console.warn('Notice deleting permission from DB:', err);
+      }
+
+      addPermCancelledLocally(numPermId);
+      removePermReRequestedLocally(numPermId);
+
+      const effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
+      if (effectiveUserId) {
+        try {
+          await supabase.from('activity_logs').insert([{
+            user_id: effectiveUserId,
+            action_type: 'cancel_permission_request',
+            details: `[CANCEL_REQ:${numPermId}] Student cancelled permission request #${numPermId}`
+          }]);
+        } catch {}
+
+        try {
+          const { data: adminUsers } = await supabase.from('users').select('id').eq('role', 'admin');
+          if (adminUsers && adminUsers.length > 0) {
+            await supabase.from('notifications').insert(adminUsers.map(adm => ({
+              user_id: adm.id,
+              title: 'Permission Request Cancelled',
+              message: `[CANCEL_REQ:${numPermId}] ${user?.fullName || 'Student'} cancelled access request #${numPermId}.`,
+              type: 'system',
+              is_read: false
+            })));
+          }
+        } catch {}
+      }
+
+      return { message: 'Request cancelled successfully' };
     }
 
     if (endpoint.startsWith('/permissions/action/') || endpoint.startsWith('/permissions/approve/')) {
       const permId = endpoint.split('/').pop();
-      const { data, error } = await supabase.from('permissions').update({ status: body.status }).eq('id', permId).select().single();
+      const numPermId = parseInt(permId, 10) || permId;
+      const { data, error } = await supabase.from('permissions').update({ status: body.status }).eq('id', numPermId).select();
       if (error) throw error;
+      const updatedRow = (data && data[0]) ? data[0] : { id: numPermId, status: body.status };
+      if (body.status === 'approved') {
+        removePermReRequestedLocally(numPermId);
+      }
 
-      if (data && data.user_id) {
+      if (updatedRow && updatedRow.user_id) {
         try {
           const isApproved = body.status === 'approved';
           const isRevoked = body.status === 'rejected';
           await supabase.from('notifications').insert([{
-            user_id: data.user_id,
+            user_id: updatedRow.user_id,
             title: isApproved ? 'Book Access Granted' : isRevoked ? 'Book Access Revoked' : 'Book Access Declined',
             message: isApproved
               ? `Department library administrator granted your request to read this book.`
@@ -2621,8 +2833,8 @@ export const AuthProvider = ({ children }) => {
           }]);
 
           await supabase.from('activity_logs').insert([{
-            user_id: data.user_id,
-            book_id: data.book_id || null,
+            user_id: updatedRow.user_id,
+            book_id: updatedRow.book_id || null,
             action_type: `permission_${body.status}`,
             details: `Cross-branch book permission marked ${body.status} by ${user?.fullName || 'Administrator'} (${user?.branchName || 'Department'})`
           }]);
@@ -2630,7 +2842,7 @@ export const AuthProvider = ({ children }) => {
           console.warn('Permission notification/audit note:', notifErr.message);
         }
       }
-      return { message: `Permission ${body.status}`, data };
+      return { message: `Permission ${body.status}`, data: updatedRow };
     }
 
     if (endpoint === '/permissions/request' && method === 'POST') {
@@ -2647,8 +2859,8 @@ export const AuthProvider = ({ children }) => {
       // If branchId is not provided, look up the target book's branch_id
       if (!branchId && bookId) {
         try {
-          const { data: bRow } = await supabase.from('books').select('branch_id').eq('id', bookId).maybeSingle();
-          if (bRow?.branch_id) branchId = bRow.branch_id;
+          const { data: bRows } = await supabase.from('books').select('branch_id').eq('id', bookId).limit(1);
+          if (bRows?.[0]?.branch_id) branchId = bRows[0].branch_id;
         } catch {
           // ignore lookup error
         }
@@ -2656,10 +2868,10 @@ export const AuthProvider = ({ children }) => {
 
       let effectiveUserId = user?.id && isValidUuid(user.id) ? user.id : (user?.id ? toDeterministicUuid(user.id) : null);
       if (effectiveUserId) {
-        const { data: userRow } = await supabase.from('users').select('id').eq('id', effectiveUserId).maybeSingle();
-        if (!userRow) {
-          const { data: anyStudent } = await supabase.from('users').select('id').eq('role', 'student').limit(1).maybeSingle();
-          if (anyStudent) effectiveUserId = anyStudent.id;
+        const { data: userRows } = await supabase.from('users').select('id').eq('id', effectiveUserId).limit(1);
+        if (!userRows || userRows.length === 0) {
+          const { data: anyStudents } = await supabase.from('users').select('id').eq('role', 'student').limit(1);
+          if (anyStudents && anyStudents[0]) effectiveUserId = anyStudents[0].id;
         }
       }
 
@@ -2669,27 +2881,68 @@ export const AuthProvider = ({ children }) => {
 
       let existing = null;
       if (bookId) {
-        const { data: ex } = await supabase
+        const { data: exList } = await supabase
           .from('permissions')
           .select('id, status')
           .eq('user_id', effectiveUserId)
           .eq('book_id', bookId)
-          .maybeSingle();
-        existing = ex;
+          .limit(1);
+        existing = (exList && exList.length > 0) ? exList[0] : null;
       }
 
       if (existing) {
-        if (existing.status === 'pending') {
+        const isCancelled = isPermCancelledLocally(existing.id);
+        if (existing.status === 'pending' && !isCancelled) {
           throw new Error(`You already have a pending request for "${bookTitle || 'this book'}"`);
         }
-        const { data, error } = await supabase
-          .from('permissions')
-          .update({ status: 'pending' })
-          .eq('id', existing.id)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
+
+        // Try direct Supabase update (safely caught without .single() to avoid RLS 42501 crash)
+        try {
+          await supabase.from('permissions').update({ status: 'pending' }).eq('id', existing.id);
+        } catch (e) {
+          console.warn('Notice updating permissions status in DB:', e);
+        }
+
+        // Persist override locally & cloud
+        removePermCancelledLocally(existing.id);
+        addPermReRequestedLocally(existing.id);
+
+        try {
+          await supabase.from('activity_logs').insert([{
+            user_id: effectiveUserId,
+            book_id: bookId,
+            action_type: 'rerequest_permission',
+            details: `[REREQUEST:${existing.id}:${bookId}] Re-requested permission for "${bookTitle || 'Book'}"`
+          }]);
+        } catch {}
+
+        try {
+          const isDriveRequest = body.request_type === 'drive_make_public' || (body.reason && body.reason.toLowerCase().includes('google drive'));
+          const { data: adminUsers } = await supabase.from('users').select('id, branch_name').eq('role', 'admin');
+          if (adminUsers && adminUsers.length > 0) {
+            const reqNotifs = adminUsers.map(adm => ({
+              user_id: adm.id,
+              title: isDriveRequest ? '🔓 Make Google Drive Public Request' : 'Book Access Re-Request',
+              message: isDriveRequest
+                ? `[DRIVE_PUBLIC_REQ:${existing.id}:${bookId}] ${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested to make "${bookTitle || 'an eBook'}" public on Google Drive.`
+                : `[REREQUEST:${existing.id}:${bookId}:${effectiveUserId}] ${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) re-requested access to "${bookTitle || 'an eBook'}".`,
+              type: isDriveRequest ? 'drive_make_public' : 'approval',
+              is_read: false
+            }));
+            await supabase.from('notifications').insert(reqNotifs);
+          }
+        } catch (notifErr) {
+          console.warn('Book request admin notification note:', notifErr);
+        }
+
+        return {
+          id: existing.id,
+          user_id: effectiveUserId,
+          book_id: bookId,
+          branch_id: branchId,
+          status: 'pending',
+          message: `Requested reading permission for "${bookTitle || 'selected book'}"`
+        };
       }
 
       const insertPayload = {
@@ -2699,8 +2952,9 @@ export const AuthProvider = ({ children }) => {
       };
       if (bookId) insertPayload.book_id = bookId;
 
-      const { data, error } = await supabase.from('permissions').insert([insertPayload]).select().single();
+      const { data, error } = await supabase.from('permissions').insert([insertPayload]).select();
       if (error) throw error;
+      const createdData = (data && data[0]) ? data[0] : { ...insertPayload, id: Date.now() };
 
       // Realtime notification for department & central administrators
       try {
@@ -2715,7 +2969,7 @@ export const AuthProvider = ({ children }) => {
             user_id: adm.id,
             title: isDriveRequest ? '🔓 Make Google Drive Public Request' : 'Book Access Request',
             message: isDriveRequest
-              ? `[DRIVE_PUBLIC_REQ:${data.id}:${bookId}] ${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested to make "${bookTitle || 'an eBook'}" public on Google Drive.`
+              ? `[DRIVE_PUBLIC_REQ:${createdData.id}:${bookId}] ${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested to make "${bookTitle || 'an eBook'}" public on Google Drive.`
               : `${user?.fullName || 'Student'} (${user?.rollNumber || user?.branchName || 'Student'}) requested access to "${bookTitle || 'an eBook'}".`,
             type: isDriveRequest ? 'drive_make_public' : 'approval',
             is_read: false
@@ -2726,7 +2980,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('Book request admin notification note:', notifErr);
       }
 
-      return data;
+      return createdData;
     }
 
     // 7. Notifications

@@ -409,19 +409,21 @@ const StudentDashboard = ({ onSelectBook }) => {
 
   const handleRequestAccess = async (book) => {
     if (!book) return;
-    const actionKey = `book-${book.id}`;
+    const targetBookId = book.id || book.book_id;
+    if (!targetBookId) return;
+    const actionKey = `book-${targetBookId}`;
     try {
       setActionLoading(prev => ({ ...prev, [actionKey]: true }));
       const data = await apiCall('/permissions/request', {
         method: 'POST',
         body: JSON.stringify({
-          book_id: book.id,
-          book_title: book.title,
-          branch_id: book.branch_id,
+          book_id: targetBookId,
+          book_title: book.title || book.book_title || 'Book',
+          branch_id: book.branch_id || null,
           branch_name: book.branch_name || book.branch?.name || ''
         })
       });
-      showFeedback(data.message || `Requested reading permission for "${book.title}"`);
+      showFeedback(data.message || `Requested reading permission for "${book.title || 'selected book'}"`);
       const reqsData = await apiCall('/permissions/my-requests');
       setRequests(reqsData || []);
     } catch (err) {
@@ -1414,12 +1416,12 @@ const StudentDashboard = ({ onSelectBook }) => {
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleRequestAccess(b)}
+                            onClick={() => handleRequestAccess((b && b.id) ? b : { id: req.book_id, title: bookTitle, branch_id: req.branch_id, branch_name: branchName })}
                             className="btn btn-primary btn-shine"
                             style={{ width: '100%', fontSize: '0.82rem', gap: '6px' }}
-                            disabled={actionLoading[`book-${b.id}`]}
+                            disabled={actionLoading[`book-${b?.id || req.book_id}`]}
                           >
-                            <RefreshCw size={13} /> {actionLoading[`book-${b.id}`] ? 'Submitting...' : 'Request Again'}
+                            <RefreshCw size={13} /> {actionLoading[`book-${b?.id || req.book_id}`] ? 'Submitting...' : 'Request Again'}
                           </button>
                         )}
                       </div>
