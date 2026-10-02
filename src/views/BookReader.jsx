@@ -847,7 +847,7 @@ const BookReader = ({ book, onClose }) => {
 
   const renderPageToDataUrl = useCallback(async (pageNum) => {
     if (!pdfDoc || pageNum < 1 || pageNum > pdfDoc.numPages) return null;
-    const cacheKey = `${pageNum}`;
+    const cacheKey = `${pageNum}_${mode}`;
     if (pageImageCacheRef.current.has(cacheKey)) {
       return pageImageCacheRef.current.get(cacheKey);
     }
@@ -885,10 +885,95 @@ const BookReader = ({ book, onClose }) => {
         offCtx.fillStyle = '#ffffff';
         offCtx.fillRect(0, 0, viewport.width, viewport.height);
 
-        await page.render({
-          canvasContext: offCtx,
-          viewport
-        }).promise;
+        // Track embedded raster images (photos, figures, terminal screenshots) so they NEVER invert
+        const imageRects = [];
+        let origDrawImage = null;
+        if (mode === 'dark' && pageNum > 1) {
+          origDrawImage = offCtx.drawImage.bind(offCtx);
+          offCtx.drawImage = function (img, ...args) {
+            try {
+              let dx = 0, dy = 0, dw = 1, dh = 1;
+              if (args.length === 2) {
+                [dx, dy] = args;
+                dw = (img && (img.naturalWidth || img.width)) || 1;
+                dh = (img && (img.naturalHeight || img.height)) || 1;
+              } else if (args.length === 4) {
+                [dx, dy, dw, dh] = args;
+              } else if (args.length === 8) {
+                [, , , , dx, dy, dw, dh] = args;
+              }
+              const m = offCtx.getTransform ? offCtx.getTransform() : { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+              const p1 = { x: m.a * dx + m.c * dy + m.e, y: m.b * dx + m.d * dy + m.f };
+              const p2 = { x: m.a * (dx + dw) + m.c * dy + m.e, y: m.b * (dx + dw) + m.d * dy + m.f };
+              const p3 = { x: m.a * (dx + dw) + m.c * (dy + dh) + m.e, y: m.b * (dx + dw) + m.d * (dy + dh) + m.f };
+              const p4 = { x: m.a * dx + m.c * (dy + dh) + m.e, y: m.b * dx + m.d * (dy + dh) + m.f };
+
+              const minX = Math.floor(Math.min(p1.x, p2.x, p3.x, p4.x));
+              const maxX = Math.ceil(Math.max(p1.x, p2.x, p3.x, p4.x));
+              const minY = Math.floor(Math.min(p1.y, p2.y, p3.y, p4.y));
+              const maxY = Math.ceil(Math.max(p1.y, p2.y, p3.y, p4.y));
+
+              const isFullPage = (maxX - minX) >= offscreen.width * 0.92 && (maxY - minY) >= offscreen.height * 0.92;
+              const isTiny = (maxX - minX) < 12 && (maxY - minY) < 12;
+              if (!isFullPage && !isTiny && maxX > minX && maxY > minY) {
+                imageRects.push({
+                  x: Math.max(0, minX),
+                  y: Math.max(0, minY),
+                  w: Math.min(offscreen.width - Math.max(0, minX), maxX - minX),
+                  h: Math.min(offscreen.height - Math.max(0, minY), maxY - minY)
+                });
+              }
+            } catch {}
+            return origDrawImage(img, ...args);
+          };
+        }
+
+        try {
+          await page.render({
+            canvasContext: offCtx,
+            viewport
+          }).promise;
+        } finally {
+          if (origDrawImage) {
+            offCtx.drawImage = origDrawImage;
+          }
+        }
+
+        // Apply dark mode: Invert paper & text with 0 subpixel fringing, while keeping internal photos 100% natural
+        if (mode === 'dark' && pageNum > 1) {
+          // 1. Snapshot embedded photos in their original un-inverted state
+          const savedImages = [];
+          for (const r of imageRects) {
+            if (r.w > 0 && r.h > 0) {
+              try {
+                savedImages.push({
+                  x: r.x,
+                  y: r.y,
+                  data: offCtx.getImageData(r.x, r.y, r.w, r.h)
+                });
+              } catch {}
+            }
+          }
+
+          // 2. Invert entire page background and text cleanly via native browser filter
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = offscreen.width;
+          tempCanvas.height = offscreen.height;
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCtx.drawImage(offscreen, 0, 0);
+
+          offCtx.save();
+          offCtx.filter = 'invert(0.92) hue-rotate(180deg) contrast(0.95)';
+          offCtx.drawImage(tempCanvas, 0, 0);
+          offCtx.restore();
+
+          // 3. Paste original un-inverted photos/figures right back in place!
+          for (const item of savedImages) {
+            try {
+              offCtx.putImageData(item.data, item.x, item.y);
+            } catch {}
+          }
+        }
 
         // Clean WebP export format provides superior compression without high-contrast ringing
         const exportFormat = 'image/webp';
@@ -911,7 +996,7 @@ const BookReader = ({ book, onClose }) => {
 
     renderingPagePromisesRef.current.set(cacheKey, renderPromise);
     return renderPromise;
-  }, [pdfDoc]);
+  }, [pdfDoc, mode]);
 
   const applyPageImage = useCallback(async (pageNum) => {
     if (pageNum < 1 || !pdfDoc || pageNum > pdfDoc.numPages) return;
