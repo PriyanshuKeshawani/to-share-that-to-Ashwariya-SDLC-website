@@ -3298,16 +3298,54 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (endpoint.startsWith('/analytics/logs')) {
-      const { data, error, count } = await supabase.from('activity_logs').select('*, user:user_id(full_name, role), book:book_id(title)', { count: 'exact' }).order('created_at', { ascending: false }).limit(50);
-      if (error) throw error;
+      let logsData = [];
+      let totalCount = 0;
+
+      try {
+        const res = await supabase
+          .from('activity_logs')
+          .select('*, user:user_id(full_name, role), book:book_id(title)', { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (!res.error && res.data) {
+          logsData = res.data;
+          totalCount = res.count || logsData.length;
+        } else {
+          throw res.error || new Error('Join failed');
+        }
+      } catch {
+        // Fallback: flat select without PostgREST foreign key relationship
+        const flatRes = await supabase
+          .from('activity_logs')
+          .select('*', { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (flatRes.error) throw flatRes.error;
+        logsData = flatRes.data || [];
+        totalCount = flatRes.count || logsData.length;
+
+        // Populate user details manually if present
+        const userIds = [...new Set(logsData.map(l => l.user_id).filter(Boolean))];
+        if (userIds.length > 0) {
+          const { data: usersList } = await supabase.from('users').select('id, full_name, role').in('id', userIds);
+          const userMap = new Map((usersList || []).map(u => [u.id, u]));
+          logsData = logsData.map(l => ({
+            ...l,
+            user: userMap.get(l.user_id) || null
+          }));
+        }
+      }
+
       return {
-        logs: (data || []).map(l => ({
+        logs: (logsData || []).map(l => ({
           ...l,
           user_name: l.user ? l.user.full_name : null,
           user_role: l.user ? l.user.role : null,
           book_title: l.book ? l.book.title : (l.details?.match(/(?:Reading|Opened|Downloaded)\s+"([^"]+)"/i)?.[1] || null)
         })),
-        pagination: { page: 1, limit: 50, total: count || 0, totalPages: 1 }
+        pagination: { page: 1, limit: 50, total: totalCount, totalPages: Math.ceil(totalCount / 50) || 1 }
       };
     }
 
