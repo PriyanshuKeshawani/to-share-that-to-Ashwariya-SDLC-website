@@ -286,11 +286,25 @@ export const AuthProvider = ({ children }) => {
     set.add(String(id));
     saveLocalIdSet('lib_rerequested_perms', set);
   };
+
   const removePermReRequestedLocally = (id) => {
     const set = getLocalIdSet('lib_rerequested_perms');
     set.delete(String(id));
     saveLocalIdSet('lib_rerequested_perms', set);
   };
+
+  const isDriveReqResolvedLocally = (id) => getLocalIdSet('lib_resolved_drive_reqs').has(String(id));
+  const addDriveReqResolvedLocally = (id) => {
+    const set = getLocalIdSet('lib_resolved_drive_reqs');
+    set.add(String(id));
+    saveLocalIdSet('lib_resolved_drive_reqs', set);
+  };
+  const removeDriveReqResolvedLocally = (id) => {
+    const set = getLocalIdSet('lib_resolved_drive_reqs');
+    set.delete(String(id));
+    saveLocalIdSet('lib_resolved_drive_reqs', set);
+  };
+
 
   // Tombstones for notes & bookmarks deleted by student so RLS does not resurrect them
   const getDeletedNoteIds = (userId, bookId) => getLocalIdSet(`lib_del_notes_${userId}_${bookId}`);
@@ -2589,11 +2603,6 @@ export const AuthProvider = ({ children }) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!isAll) {
-        // Query pending and rejected so student re-requested permissions can be reconciled for admin review
-        query = query.in('status', ['pending', 'rejected']);
-      }
-
       const { data: permData, error: permError } = await query;
       if (permError) throw permError;
 
@@ -2614,7 +2623,7 @@ export const AuthProvider = ({ children }) => {
         bookIds.length > 0
           ? supabase.from('books').select('id, title, author, branch_id, cover_url, drive_link, drive_file_id, pdf_url').in('id', bookIds)
           : { data: [] },
-        supabase.from('notifications').select('message, created_at').order('created_at', { ascending: false }).limit(200)
+        supabase.from('notifications').select('message, created_at, user_id').order('created_at', { ascending: false }).limit(200)
       ]);
 
       const userMap = new Map((usersList || []).map(u => [u.id, u]));
@@ -2625,6 +2634,7 @@ export const AuthProvider = ({ children }) => {
       const driveReqPermIds = new Set();
       const cancelledReqIds = new Set();
       const reRequestedReqIds = new Set();
+      const resolvedDriveReqIds = new Set();
 
       (driveNotifs || []).forEach(n => {
         const m = n.message?.match(/\[DRIVE_PUBLIC_REQ:(\d+):(\d+)\]/);
@@ -2639,6 +2649,10 @@ export const AuthProvider = ({ children }) => {
         const mRe = n.message?.match(/\[REREQUEST:(\d+):(\d+)/);
         if (mRe) {
           reRequestedReqIds.add(parseInt(mRe[1], 10));
+        }
+        const mResolved = n.message?.match(/\[DRIVE_PUBLIC_RESOLVED:(\d+)\]/);
+        if (mResolved) {
+          resolvedDriveReqIds.add(parseInt(mResolved[1], 10));
         }
       });
 
@@ -2671,11 +2685,14 @@ export const AuthProvider = ({ children }) => {
             }
           }
 
-          const isSameDept = isSameBranch(u?.branch_name, bookBranchName);
-          const isDrivePublicReq = driveReqPermIds.has(p.id) || driveReqBookIds.has(p.book_id) || (Boolean(driveFileId) && isSameDept);
+          const hasDriveAlert = driveReqPermIds.has(p.id) || driveReqBookIds.has(p.book_id);
+          const isDriveResolved = resolvedDriveReqIds.has(p.id) || isDriveReqResolvedLocally(p.id);
+          const isDrivePublicReq = hasDriveAlert && !isDriveResolved;
 
           let effectiveStatus = p.status;
-          if ((reRequestedReqIds.has(p.id) || isPermReRequestedLocally(p.id)) && effectiveStatus === 'rejected') {
+          if (isDrivePublicReq) {
+            effectiveStatus = 'pending';
+          } else if (reRequestedReqIds.has(p.id) || isPermReRequestedLocally(p.id)) {
             effectiveStatus = 'pending';
           }
 
@@ -2696,6 +2713,40 @@ export const AuthProvider = ({ children }) => {
             drive_view_url: driveViewUrl
           };
         });
+
+      // Ensure any drive public requests from notifications without a DB permission row are included
+      (driveNotifs || []).forEach(n => {
+        const m = n.message?.match(/\[DRIVE_PUBLIC_REQ:(\d+):(\d+)\]/);
+        if (m) {
+          const pId = parseInt(m[1], 10);
+          const bId = parseInt(m[2], 10);
+          const alreadyInList = list.some(item => item.id === pId || item.book_id === bId);
+          const isResolved = resolvedDriveReqIds.has(pId) || isDriveReqResolvedLocally(pId);
+          if (!alreadyInList && !isResolved) {
+            const bk = bookMap.get(bId);
+            const u = n.user_id ? userMap.get(n.user_id) : null;
+            const bookBranchName = bk?.branch_id ? branchMap.get(bk.branch_id) : 'Central Library';
+            list.unshift({
+              id: pId || (Date.now()),
+              user_id: n.user_id,
+              full_name: u ? u.full_name : 'Student',
+              roll_number: u ? u.roll_number : 'N/A',
+              student_branch: u ? u.branch_name : 'Engineering',
+              book_id: bId,
+              book_title: bk?.title || 'eBook',
+              book_author: bk?.author || '',
+              book_branch_id: bk?.branch_id,
+              book_branch_name: bookBranchName,
+              requested_branch_name: bookBranchName,
+              status: 'pending',
+              request_type: 'drive_make_public',
+              drive_file_id: bk?.drive_file_id || null,
+              drive_view_url: bk?.drive_link || (bk?.drive_file_id ? `https://drive.google.com/file/d/${bk.drive_file_id}/view?usp=sharing` : null),
+              created_at: n.created_at
+            });
+          }
+        }
+      });
 
       if (!isAll) {
         list = list.filter(r => r.status === 'pending');
@@ -2817,6 +2868,16 @@ export const AuthProvider = ({ children }) => {
       const updatedRow = (data && data[0]) ? data[0] : { id: numPermId, status: body.status };
       if (body.status === 'approved') {
         removePermReRequestedLocally(numPermId);
+        addDriveReqResolvedLocally(numPermId);
+        try {
+          await supabase.from('notifications').insert([{
+            user_id: user?.id || updatedRow.user_id,
+            title: 'Drive Request Resolved',
+            message: `[DRIVE_PUBLIC_RESOLVED:${numPermId}] Drive public request marked resolved by admin.`,
+            type: 'system',
+            is_read: true
+          }]);
+        } catch {}
       }
 
       if (updatedRow && updatedRow.user_id) {
