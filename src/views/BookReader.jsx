@@ -1919,7 +1919,217 @@ const BookReader = ({ book, onClose }) => {
             onMouseLeave={handleMouseUp}
             onWheel={handleWheel}
           >
-            {useNativeViewer || (!pdfSource && driveEmbed) ? (
+            {pdfLoadError || (!pdfSource && !driveEmbed) ? (
+              /* Document Restricted by Admin Notice */
+              <div className="glass-panel" style={{
+                padding: isMobile ? '28px 18px' : '38px 32px',
+                borderRadius: isMobile ? '14px' : '20px',
+                textAlign: 'center',
+                maxWidth: '520px',
+                margin: '20px auto',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35)'
+              }}>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '18px',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: '#f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  boxShadow: '0 0 20px rgba(245, 158, 11, 0.15)'
+                }}>
+                  <Lock size={30} />
+                </div>
+
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 12px',
+                  borderRadius: '999px',
+                  background: 'rgba(245, 158, 11, 0.14)',
+                  color: '#fbbf24',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: '12px'
+                }}>
+                  Access Restricted by Administrator
+                </div>
+
+                <h3 style={{
+                  fontSize: '1.2rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  marginBottom: '10px',
+                  lineHeight: 1.3
+                }}>
+                  "{book.title}"
+                </h3>
+
+                <p style={{
+                  fontSize: '0.88rem',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '10px',
+                  lineHeight: 1.6
+                }}>
+                  This book has been set to <strong>Private</strong> by the administrator. Please connect with the administrator or faculty in-charge to make this book public so that everyone can read it.
+                </p>
+
+                <p style={{
+                  fontSize: '0.78rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '22px',
+                  lineHeight: 1.5,
+                  padding: '8px 12px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: '8px'
+                }}>
+                  Yeh book administrator dwara Google Drive par private ki gayi hai. Sabhi ke padhne ke liye admin se is book ko public karne ka anurodh karein.
+                </p>
+
+                {/* Request Admin Notification Button / Status */}
+                {requestedDone ? (
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    color: '#10b981',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    marginBottom: '14px'
+                  }}>
+                    <Check size={18} /> Request Submitted! Admin notified to make this book public.
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleDirectRequest}
+                    disabled={requestingAccess}
+                    className="btn btn-primary btn-shine"
+                    style={{
+                      width: '100%',
+                      padding: '11px 18px',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      justifyContent: 'center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    <Lock size={15} />
+                    {requestingAccess ? 'Submitting Request to Admin...' : 'Request Admin to Make Public'}
+                  </button>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  {openInNewTabUrl && (
+                    <a
+                      href={openInNewTabUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary"
+                      style={{
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        textDecoration: 'none'
+                      }}
+                      title="Open Google Drive directly to request access from Google account"
+                    >
+                      <ExternalLink size={13} /> Open in Google Drive
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setPdfLoadError(null);
+                      setUseNativeViewer(false);
+                      setReloadTrigger(prev => prev + 1);
+                    }}
+                    className="btn btn-ghost"
+                    style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    title="Retry loading document"
+                  >
+                    <RefreshCw size={13} /> Retry
+                  </button>
+
+                  <button
+                    onClick={onClose}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    title="Back to Catalog"
+                  >
+                    <ArrowLeft size={13} /> Return to Catalog
+                  </button>
+                </div>
+              </div>
+            ) : pdfLoading ? (
+              /* Smooth Book Loading State with Real-Time Progressive Streaming Indicator */
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '65vh',
+                gap: '16px',
+                padding: '20px'
+              }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  border: '3px solid rgba(59, 130, 246, 0.2)',
+                  borderTopColor: 'var(--primary, #3b82f6)',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                <div style={{ textAlign: 'center', maxWidth: '380px' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Preparing 3D Book Experience...
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                    Streaming pages for "{book.title}"
+                  </p>
+                  {downloadProgress > 0 && (
+                    <div style={{ width: '100%', maxWidth: '240px', margin: '0 auto' }}>
+                      <div style={{
+                        width: '100%',
+                        height: '6px',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '999px',
+                        overflow: 'hidden',
+                        marginBottom: '6px'
+                      }}>
+                        <div style={{
+                          width: `${downloadProgress}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                          borderRadius: '999px',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {downloadProgress}% streamed
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : useNativeViewer || (!pdfSource && driveEmbed) ? (
               /* Native / External Drive Embed View */
               <div className="glass-panel" style={{
                 width: '100%',
@@ -1973,101 +2183,6 @@ const BookReader = ({ book, onClose }) => {
                   style={{ border: 'none', flex: 1, background: '#ffffff' }}
                   title={book.title}
                 />
-              </div>
-            ) : pdfLoading ? (
-              /* Smooth Book Loading State with Real-Time Progressive Streaming Indicator */
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '65vh',
-                gap: '16px',
-                padding: '20px'
-              }}>
-                <div style={{
-                  width: '56px',
-                  height: '56px',
-                  border: '3px solid rgba(59, 130, 246, 0.2)',
-                  borderTopColor: 'var(--primary, #3b82f6)',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite'
-                }} />
-                <div style={{ textAlign: 'center', maxWidth: '380px' }}>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                    Preparing 3D Book Experience...
-                  </h4>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                    Streaming pages for "{book.title}"
-                  </p>
-                  {downloadProgress > 0 && (
-                    <div style={{ width: '100%', maxWidth: '240px', margin: '0 auto' }}>
-                      <div style={{
-                        width: '100%',
-                        height: '6px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '999px',
-                        overflow: 'hidden',
-                        marginBottom: '6px'
-                      }}>
-                        <div style={{
-                          width: `${downloadProgress}%`,
-                          height: '100%',
-                          background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
-                          borderRadius: '999px',
-                          transition: 'width 0.3s ease'
-                        }} />
-                      </div>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        {downloadProgress}% streamed
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : pdfLoadError ? (
-              /* Resilient Fallback with 3D Book Retry */
-              <div className="glass-panel" style={{
-                padding: '36px',
-                borderRadius: '16px',
-                textAlign: 'center',
-                maxWidth: '500px'
-              }}>
-                <BookOpen size={40} color="#f59e0b" style={{ margin: '0 auto 12px' }} />
-                <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px' }}>
-                  3D Book Engine Paused
-                </h4>
-                <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
-                  {pdfLoadError && (pdfLoadError.includes('Network') || pdfLoadError.includes('stalled'))
-                    ? 'Connection was too slow or interrupted while streaming high-resolution pages.'
-                    : 'The book engine encountered a loading pause. You can retry the 3D book or switch to the digital viewer.'}
-                </p>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => {
-                      setPdfLoadError(null);
-                      setReloadTrigger(prev => prev + 1);
-                    }}
-                    className="btn btn-primary"
-                    style={{ fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <RefreshCw size={14} /> Retry 3D Book
-                  </button>
-                  <button
-                    onClick={() => setUseNativeViewer(true)}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.84rem' }}
-                  >
-                    Digital Viewer
-                  </button>
-                  <button
-                    onClick={handleDownloadPdf}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.84rem' }}
-                  >
-                    <Download size={14} /> Download PDF
-                  </button>
-                </div>
               </div>
             ) : (
               /* ══════════════════════════════════════════════════════════
