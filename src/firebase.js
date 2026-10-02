@@ -27,7 +27,7 @@ const firebaseConfig = {
   storageBucket: (getEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET') || getEnv('VITE_FIREBASE_STORAGE_BUCKET') || 'sistec-library-portal.firebasestorage.app').trim(),
   messagingSenderId: (getEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID') || getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || '1076845729176').trim(),
   appId: (getEnv('NEXT_PUBLIC_FIREBASE_APP_ID') || getEnv('VITE_FIREBASE_APP_ID') || '1:1076845729176:web:8b35bc3b968dbd16cb07ed').trim()
-};
+}; 
 
 export const VAPID_KEY = String(rawVapid).trim().split(/[\r\n]/)[0].trim();
 
