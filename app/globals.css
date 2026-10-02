@@ -3386,7 +3386,16 @@ body.dark .st-page.--right:not([data-density="hard"]),
   user-select: none;
 }
 
-/* Book page rendering styles (Dark mode canvas handles smart image preservation at render time) */
+/* ══════════════════════════════════════════════════════════════════
+   INTELLIGENT BOOK DARK MODE (Canvas-Level Rasterization Engine)
+   Selective inversion: inverts text & page background to soft charcoal (#11141c)
+   while preserving 100% natural color for internal photos, figures & diagrams.
+   ══════════════════════════════════════════════════════════════════ */
+.st-dark-book-mode .st-page-img,
+body.dark .reader-viewport .st-page-img,
+[data-theme="dark"] .reader-viewport .st-page-img {
+  background-color: transparent !important;
+}
 
 .st-page-loader {
   position: absolute;
