@@ -104,6 +104,9 @@ const applyTheme = (mode, primary, secondary) => {
   }
 
   root.setAttribute('data-theme', mode);
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.classList.toggle('dark', isDark);
+  }
 };
 
 const ThemeContext = createContext(null);

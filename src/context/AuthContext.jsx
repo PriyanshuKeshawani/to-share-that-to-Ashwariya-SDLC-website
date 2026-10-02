@@ -1826,35 +1826,48 @@ export const AuthProvider = ({ children }) => {
     if (endpoint.startsWith('/books/') && endpoint.includes('/notes')) {
       if (!user) return [];
       const parts = endpoint.split('/');
-      const bookId = parts[2];
-      const key = `notes_${user.id}_${bookId}`;
+      const bookId = Number(parts[2]) || parts[2];
 
       if (method === 'GET') {
-        const { data } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        return Array.isArray(data?.value?.list) ? data.value.list : [];
+        const { data: dbNotes, error: nErr } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('created_at', { ascending: false });
+
+        if (!nErr && Array.isArray(dbNotes)) {
+          return dbNotes.map(n => ({
+            id: n.id,
+            page: Number(n.page),
+            text: n.text,
+            tag: n.tag || 'Concept',
+            createdAt: n.created_at
+          }));
+        }
+        return [];
       }
 
       if (method === 'POST') {
         const { page = 1, text = '', tag = 'Concept', book_title = '' } = body || {};
         if (!text.trim()) return [];
 
-        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+        const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : ('00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0'));
 
-        const newNote = {
-          id: Date.now().toString(),
+        const { error: insErr } = await supabase.from('notes').insert([{
+          id: newId,
+          user_id: user.id,
+          book_id: bookId,
           page: Number(page) || 1,
           text: text.trim(),
-          tag: tag || 'Concept',
-          createdAt: new Date().toISOString()
-        };
+          tag: tag || 'Concept'
+        }]);
 
-        const updatedList = [newNote, ...currentList];
-        await supabase.from('system_settings').upsert({
-          key,
-          value: { list: updatedList },
-          updated_at: new Date().toISOString()
-        });
+        if (insErr) {
+          console.warn('Notice saving note to database:', insErr.message);
+        }
 
         // Audit log in Supabase
         try {
@@ -1862,28 +1875,45 @@ export const AuthProvider = ({ children }) => {
             user_id: user.id,
             book_id: Number(bookId) || null,
             action_type: 'add_note',
-            details: `Saved ${tag} note for page ${newNote.page} of "${book_title || 'Book'}"`
+            details: `Saved ${tag} note for page ${page} of "${book_title || 'Book'}"`
           }]);
         } catch {}
 
-        return updatedList;
+        const { data: updatedNotes } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('created_at', { ascending: false });
+
+        return (updatedNotes || []).map(n => ({
+          id: n.id,
+          page: Number(n.page),
+          text: n.text,
+          tag: n.tag || 'Concept',
+          createdAt: n.created_at
+        }));
       }
 
       if (method === 'DELETE') {
         const noteId = parts[4];
-        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
-        const updatedList = currentList.filter(n => String(n.id) !== String(noteId));
+        if (noteId) {
+          await supabase.from('notes').delete().eq('user_id', user.id).eq('id', noteId);
+        }
+        const { data: updatedNotes } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('created_at', { ascending: false });
 
-        await supabase.from('system_settings').upsert({
-          key,
-          value: { list: updatedList },
-          updated_at: new Date().toISOString()
-        });
-
-        setCachedBookmarks(user.id, bookId, updatedList);
-
-        return updatedList;
+        return (updatedNotes || []).map(n => ({
+          id: n.id,
+          page: Number(n.page),
+          text: n.text,
+          tag: n.tag || 'Concept',
+          createdAt: n.created_at
+        }));
       }
     }
 
@@ -1891,49 +1921,69 @@ export const AuthProvider = ({ children }) => {
     if (endpoint.startsWith('/books/') && endpoint.includes('/bookmarks')) {
       if (!user) return [];
       const parts = endpoint.split('/');
-      const bookId = parts[2];
-      const key = `bookmarks_${user.id}_${bookId}`;
+      const bookId = Number(parts[2]) || parts[2];
 
       if (method === 'GET') {
         const cached = await getCachedBookmarks(user.id, bookId);
-        if (cached && cached.length > 0 && !options.skipCache) {
-          // Revalidate in background
-          supabase.from('system_settings').select('value').eq('key', key).maybeSingle()
-            .then(({ data }) => {
-              if (Array.isArray(data?.value?.list)) {
-                setCachedBookmarks(user.id, bookId, data.value.list);
-              }
-            }).catch(() => {});
-          return cached.map(b => ({ id: b.id, page: b.page_number, title: b.title, createdAt: b.created_at }));
+        // Live cloud query from bookmarks table
+        const { data: dbMarks, error: bmErr } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('page', { ascending: true });
+
+        if (!bmErr && Array.isArray(dbMarks)) {
+          const list = dbMarks.map(b => ({
+            id: b.id,
+            page: Number(b.page),
+            title: b.title || `Page ${b.page}`,
+            createdAt: b.created_at
+          }));
+          setCachedBookmarks(user.id, bookId, list);
+          return list;
         }
 
-        const { data } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        const list = Array.isArray(data?.value?.list) ? data.value.list : [];
-        if (list.length > 0) {
-          setCachedBookmarks(user.id, bookId, list);
+        if (cached && cached.length > 0) {
+          return cached.map(b => ({
+            id: b.id,
+            page: Number(b.page_number || b.page),
+            title: b.title || `Page ${b.page_number || b.page}`,
+            createdAt: b.created_at
+          }));
         }
-        return list;
+        return [];
       }
 
       if (method === 'POST') {
         const { page = 1, title = '', book_title = '' } = body || {};
         const pageNum = Number(page) || 1;
 
-        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
+        // Check if bookmark already exists
+        const { data: existingBm } = await supabase
+          .from('bookmarks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .eq('page', pageNum)
+          .maybeSingle();
 
-        const exists = currentList.some(b => Number(b.page) === pageNum);
-        let updatedList;
-        if (exists) {
-          updatedList = currentList.filter(b => Number(b.page) !== pageNum);
+        if (existingBm) {
+          // Toggle off
+          await supabase.from('bookmarks').delete().eq('id', existingBm.id);
         } else {
-          const newBm = {
-            id: Date.now().toString(),
+          // Toggle on
+          const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : ('00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0'));
+
+          await supabase.from('bookmarks').insert([{
+            id: newId,
+            user_id: user.id,
+            book_id: bookId,
             page: pageNum,
-            title: title || `Page ${pageNum}`,
-            createdAt: new Date().toISOString()
-          };
-          updatedList = [...currentList, newBm].sort((a, b) => a.page - b.page);
+            title: title || `Page ${pageNum}`
+          }]);
 
           try {
             await supabase.from('activity_logs').insert([{
@@ -1945,28 +1995,61 @@ export const AuthProvider = ({ children }) => {
           } catch {}
         }
 
-        await supabase.from('system_settings').upsert({
-          key,
-          value: { list: updatedList },
-          updated_at: new Date().toISOString()
-        });
+        const { data: updatedList } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('page', { ascending: true });
 
-        return updatedList;
+        const list = (updatedList || []).map(b => ({
+          id: b.id,
+          page: Number(b.page),
+          title: b.title || `Page ${b.page}`,
+          createdAt: b.created_at
+        }));
+
+        setCachedBookmarks(user.id, bookId, list);
+        return list;
       }
 
       if (method === 'DELETE') {
-        const targetPage = Number(parts[4]);
-        const { data: existing } = await supabase.from('system_settings').select('value').eq('key', key).maybeSingle();
-        const currentList = Array.isArray(existing?.value?.list) ? existing.value.list : [];
-        const updatedList = currentList.filter(b => Number(b.page) !== targetPage && String(b.id) !== String(parts[4]));
+        const target = parts[4];
+        const targetPage = Number(target);
 
-        await supabase.from('system_settings').upsert({
-          key,
-          value: { list: updatedList },
-          updated_at: new Date().toISOString()
-        });
+        if (!isNaN(targetPage) && targetPage > 0) {
+          await supabase
+            .from('bookmarks')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('book_id', bookId)
+            .eq('page', targetPage);
+        }
+        if (target) {
+          await supabase
+            .from('bookmarks')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('book_id', bookId)
+            .eq('id', target);
+        }
 
-        return updatedList;
+        const { data: updatedList } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .order('page', { ascending: true });
+
+        const list = (updatedList || []).map(b => ({
+          id: b.id,
+          page: Number(b.page),
+          title: b.title || `Page ${b.page}`,
+          createdAt: b.created_at
+        }));
+
+        setCachedBookmarks(user.id, bookId, list);
+        return list;
       }
     }
 

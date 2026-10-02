@@ -163,8 +163,8 @@ const applySmartDarkModeToCanvas = (ctx, width, height, imageRects = []) => {
         let colB = b;
 
         // Enhance legibility of very dark colored elements against dark charcoal
-        if (lum < 60) {
-          const boost = 1 + (60 - lum) * 0.01;
+        if (lumInt < 60) {
+          const boost = 1 + (60 - lumInt) * 0.01;
           colR = Math.min(255, colR * boost);
           colG = Math.min(255, colG * boost);
           colB = Math.min(255, colB * boost);
@@ -1286,6 +1286,13 @@ const BookReader = ({ book, onClose }) => {
   useEffect(() => {
     if (!pdfDoc) return;
     ensurePagesRendered(currentPage);
+    if (pageFlipRef.current) {
+      setTimeout(() => {
+        try {
+          pageFlipRef.current.update();
+        } catch {}
+      }, 60);
+    }
   }, [mode, pdfDoc, ensurePagesRendered, currentPage]);
 
   // Update layout when viewMode changes
@@ -1341,10 +1348,13 @@ const BookReader = ({ book, onClose }) => {
     return bookmarks.some(b => Number(b.page) === currentPage);
   }, [bookmarks, currentPage]);
 
-  // Toggle bookmark in Supabase Database
+  // Toggle bookmark in Supabase Database (Add / Remove)
   const handleToggleBookmark = async (targetPage = currentPage) => {
     const pageNum = Number(targetPage);
-    const exists = bookmarks.some(b => Number(b.page) === pageNum);
+    const targetBm = bookmarks.find(b => Number(b.page) === pageNum);
+    const exists = Boolean(targetBm);
+
+    // Instant optimistic state update (<1ms)
     let updated;
     if (exists) {
       updated = bookmarks.filter(b => Number(b.page) !== pageNum);
@@ -1360,13 +1370,35 @@ const BookReader = ({ book, onClose }) => {
     setBookmarks(updated);
 
     try {
-      const res = await apiCall(`/books/${book.id}/bookmarks`, {
-        method: 'POST',
-        body: JSON.stringify({ page: pageNum, title: `Page ${pageNum}`, book_title: book.title })
+      if (exists) {
+        const res = await apiCall(`/books/${book.id}/bookmarks/${targetBm?.id || pageNum}`, {
+          method: 'DELETE'
+        });
+        if (Array.isArray(res)) setBookmarks(res);
+      } else {
+        const res = await apiCall(`/books/${book.id}/bookmarks`, {
+          method: 'POST',
+          body: JSON.stringify({ page: pageNum, title: `Page ${pageNum}`, book_title: book.title })
+        });
+        if (Array.isArray(res)) setBookmarks(res);
+      }
+    } catch (err) {
+      console.error('Error syncing bookmark to cloud DB:', err);
+    }
+  };
+
+  // Explicit Delete Bookmark (from Drawer list)
+  const handleDeleteBookmark = async (bm) => {
+    if (!bm) return;
+    const pageNum = Number(bm.page);
+    setBookmarks(prev => prev.filter(b => Number(b.page) !== pageNum && String(b.id) !== String(bm.id)));
+    try {
+      const res = await apiCall(`/books/${book.id}/bookmarks/${bm.id || pageNum}`, {
+        method: 'DELETE'
       });
       if (Array.isArray(res)) setBookmarks(res);
     } catch (err) {
-      console.error('Error syncing bookmark to cloud DB:', err);
+      console.error('Error deleting bookmark from DB:', err);
     }
   };
 
@@ -2873,7 +2905,10 @@ const BookReader = ({ book, onClose }) => {
 
                             <button
                               type="button"
-                              onClick={() => handleToggleBookmark(bm.page)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteBookmark(bm);
+                              }}
                               style={{
                                 background: 'transparent',
                                 border: 'none',
