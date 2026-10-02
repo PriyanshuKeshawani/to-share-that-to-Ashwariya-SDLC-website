@@ -1028,8 +1028,9 @@ const BookReader = ({ book, onClose }) => {
           }
         }
 
-        // Apply intelligent dark reading mode across both mobile and desktop with zero photographic negative inversion
-        if (mode === 'dark') {
+        // Apply intelligent dark reading mode across inner reading pages.
+        // Page 1 is the front cover artwork: kept 100% natural in original color (Kindle / Apple Books standard).
+        if (mode === 'dark' && pageNum > 1) {
           applySmartDarkModeToCanvas(offCtx, offscreen.width, offscreen.height, imageRects);
         }
 
