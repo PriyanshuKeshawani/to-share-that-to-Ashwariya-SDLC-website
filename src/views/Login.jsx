@@ -44,7 +44,7 @@ const Login = ({ onToggleView }) => {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
 
   useEffect(() => {
-    document.title = 'Login - SISTec Library Portal';
+    document.title = 'Login - SISTec Digital Library Club';
 
     LIBRARY_WALLPAPERS.forEach((item) => {
       const img = new Image();
@@ -234,7 +234,7 @@ const Login = ({ onToggleView }) => {
                   SISTec
                 </h3>
                 <span style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                  Central Library Portal
+                  Digital Library Club
                 </span>
               </div>
             </div>

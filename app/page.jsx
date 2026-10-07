@@ -23,7 +23,7 @@ const App = dynamic(() => import('../src/App'), {
         animation: 'spin 1s linear infinite',
         marginBottom: '16px'
       }} />
-      <p style={{ fontFamily: 'var(--font-sans, sans-serif)', fontSize: '0.95rem' }}>Loading SISTEC Library Portal...</p>
+      <p style={{ fontFamily: 'var(--font-sans, sans-serif)', fontSize: '0.95rem' }}>Loading SISTec Digital Library Club...</p>
     </div>
   )
 });

@@ -57,7 +57,7 @@ export default function PrivacyPolicy() {
               Privacy Policy
             </h1>
             <p style={{ color: '#94a3b8', fontSize: '14px', margin: '4px 0 0 0' }}>
-              SISTec Digital Library Portal • Last updated: October 2026
+              SISTec Digital Library Club • Last updated: October 2026
             </p>
           </div>
         </div>
@@ -68,7 +68,7 @@ export default function PrivacyPolicy() {
               1. Overview
             </h2>
             <p>
-              SISTec Digital Library Portal (&quot;we&quot;, &quot;our&quot;, or &quot;the Portal&quot;) is an institutional digital library platform designed exclusively for students, faculty, and academic staff of Sagar Institute of Science and Technology (SISTec). We are committed to protecting your personal information and your right to privacy.
+              SISTec Digital Library Club (&quot;we&quot;, &quot;our&quot;, or &quot;the Portal&quot;) is an institutional digital library platform designed exclusively for students, faculty, and academic staff of Sagar Institute of Science and Technology (SISTec). We are committed to protecting your personal information and your right to privacy.
             </p>
           </section>
 

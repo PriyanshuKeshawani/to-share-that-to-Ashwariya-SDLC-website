@@ -2,7 +2,7 @@ import './globals.css';
 import Providers from './providers';
 
 export const metadata = {
-  title: 'SISTEC Central Digital Library Portal',
+  title: 'SISTec Digital Library Club',
   description: 'Digital Library Management System for Sagar Institute of Science & Technology',
   verification: {
     google: 'qEWmgeCbepIExb-_VQMdjXHIQlMst_jbk0YnM370b94',
