@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AlertCircle, CheckCircle2, Sun, Moon, Mail, RefreshCw } from 'lucide-react';
+import PasswordInput from '../components/PasswordInput';
+import StudentPasswordResetModal from '../components/StudentPasswordResetModal';
 
 const LIBRARY_WALLPAPERS = [
   {
@@ -42,6 +44,7 @@ const Login = ({ onToggleView }) => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   useEffect(() => {
     document.title = 'Login - SISTec Digital Library Club';
@@ -512,17 +515,41 @@ const Login = ({ onToggleView }) => {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Password
-              </label>
-              <input
-                type="password"
-                className="glass-input"
-                placeholder="••••••••"
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label
+                  htmlFor="login-password"
+                  style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}
+                >
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary, #3b82f6)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'color 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => e.target.style.color = 'var(--secondary, #06b6d4)'}
+                  onMouseLeave={(e) => e.target.style.color = 'var(--primary, #3b82f6)'}
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <PasswordInput
+                id="login-password"
+                name="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading || googleLoading}
                 autoComplete="current-password"
+                placeholder="••••••••••••"
+                required
               />
             </div>
 
@@ -580,6 +607,12 @@ const Login = ({ onToggleView }) => {
           </div>
         </div>
       </div>
+
+      <StudentPasswordResetModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        initialRollNumber={identifier}
+      />
     </div>
   );
 };

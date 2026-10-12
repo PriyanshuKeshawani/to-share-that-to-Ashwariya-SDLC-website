@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Sun, Moon, Palette, Check, User, Shield, Laptop,
   Bell, Send, Radio, Sparkles, AlertCircle, Info, CheckCircle2, 
   AlertTriangle, Users, BookOpen, Clock, Loader2, RefreshCw, Megaphone,
-  LogOut
+  LogOut, KeyRound, Lock
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import PasswordInput from './PasswordInput';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
+import { evaluatePasswordStrength } from '../utils/passwordPolicy';
 
 const OFFICIAL_BRANCHES = [
   'CSE (Computer Science & Engineering)',
@@ -76,8 +79,72 @@ const SettingsView = ({ isAdmin = false }) => {
     palettes
   } = useTheme();
 
-  const { user, logout, apiCall } = useAuth();
+  const { user, logout, apiCall, changePassword } = useAuth();
   const isDark = mode === 'dark';
+
+  // ── Account Password Security States ──
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
+  const [passwordChangeStatus, setPasswordChangeStatus] = useState(null);
+
+  const newPasswordStrength = useMemo(() => {
+    return evaluatePasswordStrength(newPassword, {
+      username: user?.username,
+      rollNumber: user?.rollNumber,
+      email: user?.email
+    });
+  }, [newPassword, user]);
+
+  const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword;
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordChangeStatus(null);
+    if (!newPasswordStrength.isValid) {
+      setPasswordChangeStatus({
+        type: 'error',
+        message: 'Password does not meet institutional security requirements.'
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeStatus({
+        type: 'error',
+        message: 'Password confirmation does not match.'
+      });
+      return;
+    }
+
+    setPasswordChangeLoading(true);
+    try {
+      if (typeof changePassword === 'function') {
+        const res = await changePassword(newPassword, confirmPassword);
+        if (res.success) {
+          setPasswordChangeStatus({
+            type: 'success',
+            message: 'Your password has been securely updated across all active sessions.'
+          });
+          setNewPassword('');
+          setConfirmPassword('');
+        } else {
+          setPasswordChangeStatus({
+            type: 'error',
+            message: res.error || 'Failed to update password.'
+          });
+        }
+      } else {
+        throw new Error('Password update service is currently unavailable.');
+      }
+    } catch (err) {
+      setPasswordChangeStatus({
+        type: 'error',
+        message: err.message || 'An error occurred while updating your password.'
+      });
+    } finally {
+      setPasswordChangeLoading(false);
+    }
+  };
 
   // Account Session & Logout States
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
@@ -985,6 +1052,168 @@ const SettingsView = ({ isAdmin = false }) => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Section 3.5: Institutional Password Security ── */}
+      {user && (
+        <div className="glass-panel settings-section-card" style={{ 
+          padding: '28px', 
+          marginBottom: '24px', 
+          border: '1.5px solid var(--border-glass)',
+          background: 'linear-gradient(180deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.03) 100%)',
+          borderRadius: '16px'
+        }}>
+          <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                padding: '10px', borderRadius: '12px', 
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(168, 85, 247, 0.1))', 
+                color: 'var(--primary)' 
+              }}>
+                <KeyRound size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  Institutional Password Security
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Set a modern enterprise-grade password protecting your portal access and academic records
+                </span>
+              </div>
+            </div>
+
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              background: 'rgba(99, 102, 241, 0.1)',
+              color: 'var(--primary)',
+              border: '1px solid rgba(99, 102, 241, 0.2)'
+            }}>
+              <Shield size={14} /> Min 12 Chars Required
+            </span>
+          </div>
+
+          <form onSubmit={handleChangePassword} style={{ maxWidth: '640px' }}>
+            {passwordChangeStatus && (
+              <div 
+                role="alert"
+                aria-live="polite"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  marginBottom: '16px',
+                  fontSize: '0.85rem',
+                  background: passwordChangeStatus.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                  border: `1px solid ${passwordChangeStatus.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  color: passwordChangeStatus.type === 'success' ? '#10b981' : '#ef4444'
+                }}
+              >
+                {passwordChangeStatus.type === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: '2px' }} /> : <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />}
+                <span>{passwordChangeStatus.message}</span>
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label 
+                htmlFor="settings-new-password"
+                style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}
+              >
+                New Password
+              </label>
+              <PasswordInput
+                id="settings-new-password"
+                name="newPassword"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new strong password (min 12 characters)"
+                autoComplete="new-password"
+                disabled={passwordChangeLoading}
+                ariaDescribedBy="settings-new-password-strength"
+              />
+              <div id="settings-new-password-strength">
+                <PasswordStrengthIndicator strength={newPasswordStrength} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label 
+                htmlFor="settings-confirm-password"
+                style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}
+              >
+                Confirm New Password
+              </label>
+              <PasswordInput
+                id="settings-confirm-password"
+                name="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your new password"
+                autoComplete="new-password"
+                disabled={passwordChangeLoading}
+              />
+              {confirmPassword.length > 0 && (
+                <div style={{ 
+                  marginTop: '6px', 
+                  fontSize: '0.75rem', 
+                  fontWeight: 600,
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  color: passwordsMatch ? '#10b981' : '#ef4444'
+                }}>
+                  {passwordsMatch ? (
+                    <>
+                      <CheckCircle2 size={13} />
+                      <span>Passwords match</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={13} />
+                      <span>Passwords do not match yet</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!newPasswordStrength.isValid || !passwordsMatch || passwordChangeLoading}
+              className="btn btn-primary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 22px',
+                borderRadius: '10px',
+                fontWeight: 600,
+                fontSize: '0.88rem',
+                opacity: (!newPasswordStrength.isValid || !passwordsMatch || passwordChangeLoading) ? 0.6 : 1,
+                cursor: (!newPasswordStrength.isValid || !passwordsMatch || passwordChangeLoading) ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {passwordChangeLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Updating Password...
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  Update Password
+                </>
+              )}
+            </button>
+          </form>
         </div>
       )}
 

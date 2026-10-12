@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserPlus, ArrowLeft, Sun, Moon, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
+import PasswordInput from '../components/PasswordInput';
+import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator';
+import { evaluatePasswordStrength, validateNewPassword } from '../utils/passwordPolicy';
 
 const FALLBACK_BRANCHES = [
   { id: 1, name: 'CSE (Computer Science & Engineering)' },
@@ -36,6 +39,7 @@ const Register = ({ onToggleView }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
+    confirmPassword: '',
     fullName: '',
     rollNumber: '',
     btNumber: '',
@@ -88,16 +92,27 @@ const Register = ({ onToggleView }) => {
     });
   };
 
+  const passwordStrength = useMemo(() => {
+    return evaluatePasswordStrength(formData.password, {
+      username: formData.username,
+      rollNumber: formData.rollNumber,
+      btNumber: formData.btNumber
+    });
+  }, [formData.password, formData.username, formData.rollNumber, formData.btNumber]);
+
+  const passwordsMatch = formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword;
+  const passwordMismatch = formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { username, password, fullName, rollNumber, btNumber, branchName, year, semester } = formData;
+    const { username, password, confirmPassword, fullName, rollNumber, btNumber, branchName, year, semester } = formData;
 
     const trimmedUsername = (username || '').trim();
     const trimmedFullName = (fullName || '').trim();
     const trimmedRoll = (rollNumber || '').trim();
     const trimmedBt = (btNumber || '').trim();
 
-    if (!trimmedUsername || !password || !trimmedFullName || !trimmedRoll || !trimmedBt || !branchName || !year || !semester) {
+    if (!trimmedUsername || !password || !confirmPassword || !trimmedFullName || !trimmedRoll || !trimmedBt || !branchName || !year || !semester) {
       setError('Please fill in all registration fields with valid institutional information.');
       return;
     }
@@ -107,8 +122,19 @@ const Register = ({ onToggleView }) => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long for account security.');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please re-enter your password.');
+      return;
+    }
+
+    const pwdCheck = validateNewPassword(password, {
+      username: trimmedUsername,
+      rollNumber: trimmedRoll,
+      btNumber: trimmedBt
+    });
+
+    if (!pwdCheck.isValid) {
+      setError(pwdCheck.error || 'Password does not meet the institutional security policy.');
       return;
     }
 
@@ -119,6 +145,7 @@ const Register = ({ onToggleView }) => {
       const cleanPayload = {
         username: trimmedUsername,
         password,
+        confirmPassword,
         fullName: trimmedFullName,
         rollNumber: trimmedRoll,
         btNumber: trimmedBt,
@@ -372,50 +399,91 @@ const Register = ({ onToggleView }) => {
               
               <div className="grid-responsive-2col">
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  <label htmlFor="reg-username" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                     Username
                   </label>
                   <input
+                    id="reg-username"
                     type="text"
                     name="username"
                     className="glass-input"
                     placeholder="e.g. rohan_sharma"
                     value={formData.username}
                     onChange={handleChange}
+                    autoComplete="username"
                     required
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Password
+                  <label htmlFor="reg-fullname" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Full Name
                   </label>
                   <input
-                    type="password"
-                    name="password"
+                    id="reg-fullname"
+                    type="text"
+                    name="fullName"
                     className="glass-input"
-                    placeholder="Min. 6 characters"
-                    value={formData.password}
+                    placeholder="e.g. Rohan Sharma"
+                    value={formData.fullName}
                     onChange={handleChange}
+                    autoComplete="name"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  name="fullName"
-                  className="glass-input"
-                  placeholder="e.g. Rohan Sharma"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  required
-                />
+              {/* ── Enterprise Password & Confirmation ── */}
+              <div className="grid-responsive-2col">
+                <div>
+                  <label htmlFor="reg-password" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Password <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>(Min. 12 chars)</span>
+                  </label>
+                  <PasswordInput
+                    id="reg-password"
+                    name="password"
+                    placeholder="Create strong password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="reg-confirm-password" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Confirm Password
+                  </label>
+                  <PasswordInput
+                    id="reg-confirm-password"
+                    name="confirmPassword"
+                    placeholder="Re-enter password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                    error={passwordMismatch}
+                    required
+                  />
+                </div>
               </div>
+
+              {/* Real-time Match Feedback */}
+              {passwordMismatch && (
+                <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '-8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Passwords do not match yet.</span>
+                </div>
+              )}
+              {passwordsMatch && (
+                <div style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '-8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle2 size={13} />
+                  <span>Passwords match successfully.</span>
+                </div>
+              )}
+
+              {/* Real-time Password Strength Meter */}
+              {formData.password.length > 0 && (
+                <PasswordStrengthIndicator evaluation={passwordStrength} />
+              )}
 
               <div className="grid-responsive-2col">
                 <div>
@@ -504,7 +572,7 @@ const Register = ({ onToggleView }) => {
                 type="submit"
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '13px', marginTop: '10px', fontSize: '0.92rem', fontWeight: 700, borderRadius: '10px' }}
-                disabled={loading}
+                disabled={loading || (formData.password.length > 0 && !passwordStrength.isValid) || passwordMismatch}
               >
                 {loading ? (
                   <div style={{

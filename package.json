@@ -9,6 +9,7 @@
     "start": "next start",
     "start:cluster": "pm2 start npm --name sistec-library -i max -- start",
     "lint": "eslint .",
+    "test": "node --test tests/*.test.js",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android"
   },

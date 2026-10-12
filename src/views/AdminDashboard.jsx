@@ -12,7 +12,8 @@ import { supabase } from '../supabaseClient';
     ArrowLeft, Calendar, Filter, ExternalLink, ChevronRight, Info, Clock, RefreshCw, GitBranch,
     Sun, Moon, PanelLeftClose, PanelLeftOpen,
     GraduationCap,
-    Rocket
+    Rocket,
+    KeyRound
   } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -25,6 +26,7 @@ import { resolveBookCover } from '../utils/bookCoverResolver';
 import NotificationBell from '../components/NotificationBell';
 import SeniorMajorsMinorsAdminView from '../components/SeniorMajorsMinorsAdminView';
 import ProjectManagement from '../components/ProjectManagement';
+import AdminPasswordResetManagement from '../components/AdminPasswordResetManagement';
 import useNativeBack from '../hooks/useNativeBack';
 
 const AdminDashboard = ({ onSelectBook }) => {
@@ -76,7 +78,7 @@ const AdminDashboard = ({ onSelectBook }) => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     if (tabParam === 'majors-minors') return 'projects';
-    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs'];
+    const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs', 'resets'];
     return validTabs.includes(tabParam) ? tabParam : 'overview';
   });
 
@@ -97,7 +99,7 @@ const AdminDashboard = ({ onSelectBook }) => {
         setActiveTabState('projects');
         return;
       }
-      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs'];
+      const validTabs = ['overview', 'analytics', 'books', 'students', 'approvals', 'requests', 'users', 'permissions', 'branches', 'projects', 'settings', 'logs', 'resets'];
       if (validTabs.includes(tabParam)) {
         setActiveTabState(tabParam);
       }
@@ -111,6 +113,7 @@ const AdminDashboard = ({ onSelectBook }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [pendingResetsCount, setPendingResetsCount] = useState(0);
   const [allRequests, setAllRequests] = useState([]);
   const [permissionTab, setPermissionTab] = useState('pending'); // 'pending', 'approved', 'rejected', 'all'
   const [permissionSearch, setPermissionSearch] = useState('');
@@ -380,6 +383,19 @@ const AdminDashboard = ({ onSelectBook }) => {
       if (brList) setBranches(brList);
       if (catList) setCategories(catList);
       if (allStudents) setStudents(allStudents.filter(u => u.role === 'student'));
+
+      // Fetch pending password reset requests count for admin badge
+      try {
+        const { count: resetsCount } = await supabase
+          .from('password_reset_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        if (typeof resetsCount === 'number') {
+          setPendingResetsCount(resetsCount);
+        }
+      } catch (cntErr) {
+        // Table might not exist yet if migration pending
+      }
     } catch (err) {
       console.warn('Silent admin realtime refresh note:', err);
     }
@@ -418,6 +434,12 @@ const AdminDashboard = ({ onSelectBook }) => {
           triggerDebouncedRefresh();
           if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
             showFeedbackRef.current?.('New cross-department book access request received.', 'info');
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'password_reset_requests' }, (payload) => {
+          triggerDebouncedRefresh();
+          if (payload.eventType === 'INSERT' && payload.new?.status === 'pending') {
+            showFeedbackRef.current?.(`New password reset requested: ${payload.new.full_name || payload.new.roll_number}`, 'warning');
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, triggerDebouncedRefresh)
@@ -1256,6 +1278,21 @@ const AdminDashboard = ({ onSelectBook }) => {
             >
               <History size={16} /> System Audit Logs
             </button>
+            <button 
+              onClick={() => switchTab('resets')}
+              className={`btn ${activeTab === 'resets' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'space-between', width: '100%', padding: '10px 16px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <KeyRound size={16} color={activeTab === 'resets' ? '#ffffff' : '#6366f1'} /> 
+                <span>Password Resets</span>
+              </div>
+              {pendingResetsCount > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px' }}>
+                  {pendingResetsCount}
+                </span>
+              )}
+            </button>
           </nav>
         </div>
 
@@ -1304,7 +1341,8 @@ const AdminDashboard = ({ onSelectBook }) => {
                   activeTab === 'students' ? 'All Students' :
                   activeTab === 'branches' ? 'Branches' :
                   (activeTab === 'projects' || activeTab === 'majors-minors') ? 'Projects & Innovations' :
-                  activeTab === 'settings' ? 'Settings' : 'System Logs'
+                  activeTab === 'settings' ? 'Settings' :
+                  activeTab === 'resets' ? 'Password Resets' : 'System Logs'
                 }</span>
               </div>
             </div>
@@ -3777,6 +3815,13 @@ const AdminDashboard = ({ onSelectBook }) => {
               </div>
             )}
 
+            {/* Password Reset Requests Tab */}
+            {activeTab === 'resets' && (
+              <div className="animate-section-enter">
+                <AdminPasswordResetManagement currentUser={user} />
+              </div>
+            )}
+
             {/* Branches Management Tab */}
             {activeTab === 'branches' && (
               <div className="animate-section-enter">
@@ -5023,6 +5068,21 @@ const AdminDashboard = ({ onSelectBook }) => {
                 style={{ justifyContent: 'flex-start', width: '100%', padding: '10px 16px' }}
               >
                 <History size={16} /> System Audit Logs
+              </button>
+              <button 
+                onClick={() => { switchTab('resets'); setShowMenuDrawer(false); }}
+                className={`btn ${activeTab === 'resets' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'space-between', width: '100%', padding: '10px 16px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <KeyRound size={16} color={activeTab === 'resets' ? '#ffffff' : '#6366f1'} /> 
+                  <span>Password Resets</span>
+                </div>
+                {pendingResetsCount > 0 && (
+                  <span className="badge badge-warning" style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px' }}>
+                    {pendingResetsCount}
+                  </span>
+                )}
               </button>
 
               <div style={{ margin: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }} />

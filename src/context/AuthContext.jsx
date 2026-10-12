@@ -19,6 +19,7 @@ import {
   setCachedBookmarks,
   hasCatalogChanged
 } from '../db/cacheService';
+import { validateNewPassword, validateLoginPassword } from '../utils/passwordPolicy';
 
 export const BASE_URL =
   (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL)) ||
@@ -4314,6 +4315,11 @@ export const AuthProvider = ({ children }) => {
   }, [user?.id, user?.status, loadUser]);
 
   const login = async (identifier, password) => {
+    const loginValidation = validateLoginPassword(password);
+    if (!loginValidation.isValid) {
+      throw new Error(loginValidation.error);
+    }
+
     const trimmedId = (identifier || '').trim();
     const trimmedPass = (password || '').trim();
     const idLower = trimmedId.toLowerCase();
@@ -4771,8 +4777,14 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Please fill in all student registration fields.');
     }
 
-    if (!password || password.length < 6) {
-      throw new Error('Password must be at least 6 characters long.');
+    const pwdValidation = validateNewPassword(password, {
+      username: trimmedUsername,
+      rollNumber: trimmedRoll,
+      btNumber: trimmedBt,
+      email: trimmedUsername.includes('@') ? trimmedUsername : null
+    });
+    if (!pwdValidation.isValid) {
+      throw new Error(pwdValidation.error || 'Password does not satisfy the institutional security policy.');
     }
 
     if (confirmPassword !== undefined && password !== confirmPassword) {
@@ -4909,9 +4921,62 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
+  const changePassword = async (newPassword, confirmPassword) => {
+    if (!user?.id) {
+      throw new Error('You must be signed in to update your password.');
+    }
+
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      throw new Error('Passwords do not match. Please re-enter your new password.');
+    }
+
+    const validation = validateNewPassword(newPassword, {
+      username: user.username,
+      rollNumber: user.rollNumber,
+      btNumber: user.btNumber,
+      email: user.email
+    });
+
+    if (!validation.isValid) {
+      throw new Error(validation.error || 'Password does not satisfy the institutional security policy.');
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to update password. Please re-authenticate and try again.');
+    }
+
+    try {
+      await supabase.from('activity_logs').insert([{
+        user_id: user.id,
+        action_type: 'password_change',
+        details: `Password securely updated per enterprise security policy for user ${user.username || user.id}`
+      }]);
+    } catch (logErr) {
+      console.warn('Notice logging password change:', logErr);
+    }
+
+    return { success: true, message: 'Password updated successfully!' };
+  };
+
+  const resetPasswordForEmail = async (email) => {
+    const cleanEmail = (email || '').trim();
+    if (!cleanEmail) {
+      throw new Error('Institutional email is required.');
+    }
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+    if (error) throw error;
+    return { success: true };
+  };
+
   return (
     <AuthContext.Provider value={{
       user, session, loading, login, logout, register,
+      changePassword, resetPasswordForEmail,
       resendVerificationEmail,
       loginWithGoogle, completeGoogleProfile, needsProfile,
       pendingGoogleUser, apiCall, refreshUser: loadUser,
