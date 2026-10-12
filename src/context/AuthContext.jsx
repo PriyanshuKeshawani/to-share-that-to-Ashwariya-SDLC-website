@@ -62,7 +62,41 @@ export const canonicalBranch = (name) => {
 
 export const normalizeBranch = (name) => canonicalBranch(name);
 
-export const isSameBranch = (branchA, branchB) => {
+// Academic Discipline Clusters for Cross-Department & Allied Specializations
+export const BRANCH_CLUSTERS = {
+  // Computing & Allied Disciplines (CSE, IT, AI&DS, Cyber Security, M.Tech CSE)
+  'cse': ['cse', 'it', 'aids', 'cyber', 'mtech_cse'],
+  'it': ['it', 'cse', 'aids', 'cyber', 'mtech_cse'],
+  'aids': ['aids', 'cse', 'it', 'cyber', 'mtech_cse'],
+  'cyber': ['cyber', 'cse', 'it', 'aids', 'mtech_cse'],
+  'mtech_cse': ['mtech_cse', 'cse', 'it', 'aids', 'cyber'],
+
+  // Management & Commerce Disciplines (MBA, BBA)
+  'mba': ['mba', 'bba'],
+  'bba': ['bba', 'mba'],
+
+  // Civil & Built Environment (Civil, CTM, SE)
+  'civil': ['civil', 'ctm', 'se'],
+  'ctm': ['ctm', 'civil', 'se'],
+  'se': ['se', 'civil', 'ctm'],
+
+  // Mechanical & Thermal Disciplines (ME, Machine Design, Thermal)
+  'me': ['me', 'machine_design', 'thermal'],
+  'machine_design': ['machine_design', 'me', 'thermal'],
+  'thermal': ['thermal', 'me', 'machine_design'],
+
+  // Electronics & Communications (ECE, Digital Comm, VLSI)
+  'ece': ['ece', 'digital_comm', 'vlsi'],
+  'digital_comm': ['digital_comm', 'ece', 'vlsi'],
+  'vlsi': ['vlsi', 'ece', 'digital_comm'],
+
+  // Pharmacy Disciplines (B.Pharm, M.Pharm Chem, M.Pharm Ceutics)
+  'bpharm': ['bpharm', 'mpharm_chem', 'mpharm_ceutics'],
+  'mpharm_chem': ['mpharm_chem', 'bpharm'],
+  'mpharm_ceutics': ['mpharm_ceutics', 'bpharm'],
+};
+
+export const isSameBranch = (branchA, branchB, allowCluster = true) => {
   if (!branchA || !branchB) return false;
   const a = String(branchA).trim();
   const b = String(branchB).trim();
@@ -70,7 +104,13 @@ export const isSameBranch = (branchA, branchB) => {
   if (a.toLowerCase() === b.toLowerCase()) return true;
   const canA = canonicalBranch(a);
   const canB = canonicalBranch(b);
-  return Boolean(canA && canB && canA === canB);
+  if (!canA || !canB) return false;
+  if (canA === canB) return true;
+  if (allowCluster) {
+    const cluster = BRANCH_CLUSTERS[canA];
+    if (cluster && cluster.includes(canB)) return true;
+  }
+  return false;
 };
 
 export const KNOWN_DEPARTMENT_ADMINS = {
@@ -448,9 +488,35 @@ export const AuthProvider = ({ children }) => {
       const branchId = endpoint.split('/').pop();
 
       if (method === 'DELETE') {
-        const { error } = await supabase.from('branches').delete().eq('id', branchId);
-        if (error) throw error;
-        return { message: 'Branch deleted successfully' };
+        const numBranchId = parseInt(branchId, 10);
+        const targetBranchId = body?.targetBranchId ? parseInt(body.targetBranchId, 10) : null;
+
+        // 1. Try safe atomic RPC delete_branch_safely
+        const { data: rpcData, error: rpcError } = await supabase.rpc('delete_branch_safely', {
+          branch_id_to_delete: numBranchId,
+          fallback_branch_id: targetBranchId
+        });
+
+        if (!rpcError) {
+          return { message: rpcData?.message || 'Branch deleted successfully', data: rpcData };
+        }
+
+        // Fallback if RPC is not yet created in Supabase (42883: function does not exist)
+        if (rpcError.code === '42883' || rpcError.message?.includes('does not exist')) {
+          if (!targetBranchId) {
+            const { count: bookCount } = await supabase.from('books').select('id', { count: 'exact', head: true }).eq('branch_id', numBranchId);
+            if (bookCount && bookCount > 0) {
+              throw new Error(`Cannot delete branch: ${bookCount} books are still assigned. Please select a replacement branch to reassign them to first.`);
+            }
+          } else {
+            await supabase.from('books').update({ branch_id: targetBranchId }).eq('branch_id', numBranchId);
+          }
+          const { error: rawErr } = await supabase.from('branches').delete().eq('id', numBranchId);
+          if (rawErr) throw rawErr;
+          return { message: 'Branch deleted successfully' };
+        }
+
+        throw rpcError;
       }
 
       if (method === 'PUT') {
@@ -1525,8 +1591,28 @@ export const AuthProvider = ({ children }) => {
     // 1. Bulk delete books (must be checked before generic /books endpoints)
     if (endpoint === '/books/bulk-delete' && method === 'POST') {
       const { bookIds } = body;
-      const { error } = await supabase.from('books').delete().in('id', bookIds);
-      if (error) throw error;
+      const numBookIds = (bookIds || []).map(id => parseInt(id, 10));
+
+      // Try safe RPC on each book
+      for (const bId of numBookIds) {
+        const { error: rpcErr } = await supabase.rpc('delete_book_safely', { book_id_to_delete: bId });
+        if (rpcErr && rpcErr.code !== '42883' && !rpcErr.message?.includes('does not exist')) {
+          // If RPC fails due to real error, log it
+          console.warn('RPC delete_book_safely notice for book', bId, rpcErr.message);
+        }
+      }
+
+      // Cleanup fallback
+      await Promise.allSettled([
+        supabase.from('user_book_progress').delete().in('book_id', numBookIds),
+        supabase.from('bookmarks').delete().in('book_id', numBookIds),
+        supabase.from('notes').delete().in('book_id', numBookIds),
+        supabase.from('permissions').delete().in('book_id', numBookIds),
+        supabase.from('activity_logs').update({ book_id: null }).in('book_id', numBookIds)
+      ]);
+
+      const { error } = await supabase.from('books').delete().in('id', numBookIds);
+      if (error && error.code !== 'PGRST116') throw error;
       return { message: 'Selected books deleted successfully' };
     }
 
@@ -1630,10 +1716,34 @@ export const AuthProvider = ({ children }) => {
     // 4. Delete single book
     if (endpoint.startsWith('/books/') && method === 'DELETE') {
       const bookId = endpoint.split('/').pop();
-      const { error } = await supabase.from('books').delete().eq('id', bookId);
-      if (error) throw error;
-      deleteSingleCachedBook(bookId);
-      return { message: 'Book deleted successfully' };
+      const numBookId = parseInt(bookId, 10);
+
+      // Try safe RPC delete_book_safely
+      const { data: rpcData, error: rpcError } = await supabase.rpc('delete_book_safely', {
+        book_id_to_delete: numBookId
+      });
+
+      if (!rpcError) {
+        deleteSingleCachedBook(numBookId);
+        return { message: rpcData?.message || 'Book deleted successfully', data: rpcData };
+      }
+
+      // Fallback if RPC not yet created in Supabase
+      if (rpcError.code === '42883' || rpcError.message?.includes('does not exist')) {
+        await Promise.allSettled([
+          supabase.from('user_book_progress').delete().eq('book_id', numBookId),
+          supabase.from('bookmarks').delete().eq('book_id', numBookId),
+          supabase.from('notes').delete().eq('book_id', numBookId),
+          supabase.from('permissions').delete().eq('book_id', numBookId),
+          supabase.from('activity_logs').update({ book_id: null }).eq('book_id', numBookId)
+        ]);
+        const { error } = await supabase.from('books').delete().eq('id', numBookId);
+        if (error) throw error;
+        deleteSingleCachedBook(numBookId);
+        return { message: 'Book deleted successfully' };
+      }
+
+      throw rpcError;
     }
 
     // 5. Create or update single book (POST /books OR PUT /books/:id)
@@ -2492,16 +2602,64 @@ export const AuthProvider = ({ children }) => {
 
     if (endpoint.startsWith('/auth/users/') && method === 'DELETE') {
       const userId = endpoint.split('/').pop();
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-      if (error) throw error;
-      return { message: 'User deleted' };
+
+      // Try safe atomic RPC purge_user_completely (cleans up auth.users + public.users + dependent records)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('purge_user_completely', {
+        target_user_id: userId
+      });
+
+      if (!rpcError) {
+        return { message: rpcData?.message || 'User permanently purged', data: rpcData };
+      }
+
+      // Fallback if RPC is not yet created in Supabase
+      if (rpcError.code === '42883' || rpcError.message?.includes('does not exist')) {
+        await Promise.allSettled([
+          supabase.from('user_book_progress').delete().eq('user_id', userId),
+          supabase.from('bookmarks').delete().eq('user_id', userId),
+          supabase.from('notes').delete().eq('user_id', userId),
+          supabase.from('permissions').delete().eq('user_id', userId),
+          supabase.from('notifications').delete().eq('user_id', userId),
+          supabase.from('project_likes').delete().eq('user_id', userId),
+          supabase.from('project_reactions').delete().eq('user_id', userId),
+          supabase.from('activity_logs').update({ user_id: null }).eq('user_id', userId)
+        ]);
+        const { error } = await supabase.from('users').delete().eq('id', userId);
+        if (error) throw error;
+        return { message: 'User deleted' };
+      }
+
+      throw rpcError;
     }
 
     if (endpoint === '/auth/users/bulk-delete') {
       const { userIds } = body;
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return { message: 'No users selected' };
+      }
+
+      for (const uId of userIds) {
+        const { error: rpcErr } = await supabase.rpc('purge_user_completely', { target_user_id: uId });
+        if (rpcErr && rpcErr.code !== '42883' && !rpcErr.message?.includes('does not exist')) {
+          console.warn('RPC purge_user_completely notice for user', uId, rpcErr.message);
+        }
+      }
+
+      // Fallback cleanup if RPC not installed
+      await Promise.allSettled([
+        supabase.from('user_book_progress').delete().in('user_id', userIds),
+        supabase.from('bookmarks').delete().in('user_id', userIds),
+        supabase.from('notes').delete().in('user_id', userIds),
+        supabase.from('permissions').delete().in('user_id', userIds),
+        supabase.from('notifications').delete().in('user_id', userIds),
+        supabase.from('project_likes').delete().in('user_id', userIds),
+        supabase.from('project_reactions').delete().in('user_id', userIds),
+        supabase.from('activity_logs').update({ user_id: null }).in('user_id', userIds)
+      ]);
+
       const { error } = await supabase.from('users').delete().in('id', userIds);
-      if (error) throw error;
-      return { message: 'Users deleted successfully' };
+      if (error && error.code !== 'PGRST116') throw error;
+      return { message: 'Users permanently deleted successfully' };
     }
 
     // 5. Student activity (comprehensive ebook monitoring)

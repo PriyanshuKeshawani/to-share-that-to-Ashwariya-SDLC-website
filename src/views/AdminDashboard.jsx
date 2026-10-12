@@ -164,6 +164,7 @@ const AdminDashboard = ({ onSelectBook }) => {
   const [newBranchName, setNewBranchName] = useState('');
   const [branchActionLoading, setBranchActionLoading] = useState(false);
   const [branchDeleteConfirm, setBranchDeleteConfirm] = useState(null); // { id, name }
+  const [targetMergeBranchId, setTargetMergeBranchId] = useState('');
   const [editingBranch, setEditingBranch] = useState(null); // { id, name }
 
   // Real-time Analytics & Drilldown State
@@ -259,7 +260,14 @@ const AdminDashboard = ({ onSelectBook }) => {
       b.title.toLowerCase().includes(q) ||
       b.author.toLowerCase().includes(q) ||
       b.branch_name?.toLowerCase().includes(q) ||
-      b.category_name?.toLowerCase().includes(q)
+      b.category_name?.toLowerCase().includes(q) ||
+      b.description?.toLowerCase().includes(q) ||
+      b.main_subject?.toLowerCase().includes(q) ||
+      b.sub_subject?.toLowerCase().includes(q) ||
+      b.publisher_name?.toLowerCase().includes(q) ||
+      b.keywords?.toLowerCase().includes(q) ||
+      b.accession_no?.toLowerCase().includes(q) ||
+      b.isbn?.toLowerCase().includes(q)
     );
   }, [books, searchQuery]);
 
@@ -852,16 +860,24 @@ const AdminDashboard = ({ onSelectBook }) => {
     }
   };
 
-  const handleDeleteBranch = async (id) => {
+  const handleDeleteBranch = async (id, targetBranchId = null) => {
     try {
       setBranchActionLoading(true);
-      await apiCall(`/books/branches/${id}`, {
-        method: 'DELETE'
+      const res = await apiCall(`/books/branches/${id}`, {
+        method: 'DELETE',
+        body: targetBranchId ? JSON.stringify({ targetBranchId }) : undefined
       });
       setBranchDeleteConfirm(null);
-      showFeedback('Branch deleted successfully', 'success');
+      setTargetMergeBranchId('');
+      showFeedback(res?.message || 'Branch deleted successfully', 'success');
       const updatedBranches = await apiCall('/books/branches');
       setBranches(updatedBranches);
+      const [bList, sList] = await Promise.all([
+        apiCall('/books').catch(() => null),
+        apiCall('/auth/users/students').catch(() => null)
+      ]);
+      if (bList) setBooks(bList);
+      if (sList) setStudents(sList);
     } catch (err) {
       showFeedback(err.message || 'Failed to delete branch', 'error');
     } finally {
@@ -4072,68 +4088,110 @@ const AdminDashboard = ({ onSelectBook }) => {
       )}
 
       {/* ── Branch Delete Confirmation Modal ──────────────────────────────── */}
-      {branchDeleteConfirm && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(5, 7, 12, 0.85)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: '20px'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%', maxWidth: '440px',
-            padding: '36px', textAlign: 'center',
-            border: '1px solid rgba(239,68,68,0.25)',
-            boxShadow: '0 0 40px rgba(239,68,68,0.12), var(--shadow-glass)'
+      {branchDeleteConfirm && (() => {
+        const confirmBranchBooksCount = books.filter(b => b.branch_id === branchDeleteConfirm.id || isSameBranch(b.branch_name, branchDeleteConfirm.name)).length;
+        const confirmBranchStudentsCount = students.filter(s => isSameBranch(s.branch_name, branchDeleteConfirm.name)).length;
+        const otherBranches = branches.filter(b => b.id !== branchDeleteConfirm.id);
+        const hasDependencies = confirmBranchBooksCount > 0 || confirmBranchStudentsCount > 0;
+
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(5, 7, 12, 0.85)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 2000, padding: '20px'
           }}>
-            <div style={{
-              width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 20px',
-              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--danger)'
+            <div className="glass-panel animate-fade-in" style={{
+              width: '100%', maxWidth: '460px',
+              padding: '32px', textAlign: 'center',
+              border: '1px solid rgba(239,68,68,0.25)',
+              boxShadow: '0 0 40px rgba(239,68,68,0.12), var(--shadow-glass)'
             }}>
-              <AlertTriangle size={28} />
-            </div>
+              <div style={{
+                width: '56px', height: '56px', borderRadius: '50%', margin: '0 auto 16px',
+                background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--danger)'
+              }}>
+                <AlertTriangle size={26} />
+              </div>
 
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '10px' }}>Delete Academic Branch?</h3>
-            <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-              You are about to delete the following academic branch:
-            </p>
-            <div style={{
-              padding: '12px 20px', borderRadius: '10px',
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-              marginBottom: '20px'
-            }}>
-              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                {branchDeleteConfirm.name}
-              </span>
-            </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.6 }}>
-              Existing books linked to this branch will have their branch reference set to unassigned. Students registered with this branch name will remain intact.
-            </p>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>Delete Academic Branch?</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                You are about to remove this academic department:
+              </p>
+              <div style={{
+                padding: '10px 16px', borderRadius: '10px',
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                marginBottom: '16px'
+              }}>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                  {branchDeleteConfirm.name}
+                </span>
+              </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button
-                onClick={() => setBranchDeleteConfirm(null)}
-                className="btn btn-secondary"
-                style={{ padding: '10px 24px', minWidth: '120px' }}
-                disabled={branchActionLoading}
-              >
-                <X size={16} /> Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteBranch(branchDeleteConfirm.id)}
-                className="btn btn-danger"
-                style={{ padding: '10px 24px', minWidth: '140px' }}
-                disabled={branchActionLoading}
-              >
-                <Trash2 size={16} />
-                {branchActionLoading ? 'Deleting...' : 'Yes, Delete Branch'}
-              </button>
+              {hasDependencies ? (
+                <div style={{
+                  padding: '12px 14px', borderRadius: '10px',
+                  background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)',
+                  marginBottom: '20px', textAlign: 'left', fontSize: '0.82rem', color: 'var(--text-primary)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#f59e0b', marginBottom: '6px' }}>
+                    <AlertTriangle size={15} /> Active Department Assets Found
+                  </div>
+                  <p style={{ margin: '0 0 10px 0', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    This branch currently holds <strong style={{ color: '#fff' }}>{confirmBranchBooksCount} catalog book(s)</strong> and <strong style={{ color: '#fff' }}>{confirmBranchStudentsCount} student account(s)</strong>.
+                  </p>
+
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Reassign Books &amp; Students To: <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <select
+                    className="glass-input glass-select"
+                    value={targetMergeBranchId}
+                    onChange={e => setTargetMergeBranchId(e.target.value)}
+                    style={{ width: '100%', fontSize: '0.82rem', padding: '8px 12px' }}
+                  >
+                    <option value="">-- Select Replacement Branch to Merge Into --</option>
+                    {otherBranches.map(ob => (
+                      <option key={ob.id} value={ob.id}>{ob.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+                  This branch currently has no active books or students. It will be removed cleanly from the institutional directory.
+                </p>
+              )}
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button
+                  onClick={() => {
+                    setBranchDeleteConfirm(null);
+                    setTargetMergeBranchId('');
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '10px 22px', minWidth: '110px' }}
+                  disabled={branchActionLoading}
+                >
+                  <X size={16} /> Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteBranch(branchDeleteConfirm.id, targetMergeBranchId || null)}
+                  className="btn btn-danger"
+                  style={{ padding: '10px 22px', minWidth: '150px' }}
+                  disabled={branchActionLoading || (hasDependencies && !targetMergeBranchId)}
+                  title={hasDependencies && !targetMergeBranchId ? 'Please select a replacement branch to merge records into first' : ''}
+                >
+                  <Trash2 size={16} />
+                  {branchActionLoading ? 'Processing...' : hasDependencies ? 'Reassign & Delete' : 'Yes, Delete'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Bulk Delete Student Confirmation Modal ─────────────────────────── */}
       {showBulkDeleteConfirm && (

@@ -25,6 +25,7 @@ import SeniorMajorsMinorsStudentView from '../components/SeniorMajorsMinorsStude
 import ProjectStudentView from '../components/ProjectStudentView';
 import { getCachedBooks, getCachedCategories, getCachedBranches } from '../db/cacheService';
 import useNativeBack from '../hooks/useNativeBack';
+import { getProtectedBookPdfUrl } from '../utils/pdfUrlResolver';
 
 
 // Ultra-fast in-memory token precomputation for instantaneous search (0ms allocations)
@@ -40,7 +41,16 @@ const indexBooks = (rawBooks) => {
       b.branch?.name,
       b.category_name,
       b.category?.name,
-      b.priority
+      b.priority,
+      b.main_subject,
+      b.sub_subject,
+      b.publisher_name,
+      b.publishing_year,
+      b.keywords,
+      b.accession_no,
+      b.isbn,
+      b.classification_no,
+      b.co_author
     ].filter(Boolean).join(' ').toLowerCase();
     return { ...b, _searchHaystack: tokens };
   });
@@ -466,14 +476,25 @@ const StudentDashboard = ({ onSelectBook }) => {
       const safeTitle = (book.title || 'document').toLowerCase().replace(/[^a-z0-9]/g, '_');
       const filename = `${safeTitle}.pdf`;
 
-      // Drive download (open in new tab)
+      // Drive download with virus scan confirmation bypass
+      const protectedCdnUrl = getProtectedBookPdfUrl(book);
+      if (protectedCdnUrl) {
+        window.open(protectedCdnUrl, '_blank', 'noopener');
+        showFeedback(`Starting high-speed CDN download for "${book.title}"...`, 'success');
+        return;
+      }
+
       if (book.drive_link || book.drive_file_id) {
-        const driveUrl = book.drive_link || `https://drive.google.com/file/d/${book.drive_file_id}/view`;
-        const downloadUrl = book.drive_link
-          ? driveUrl.replace('/view', '/view').concat('?usp=sharing')
-          : driveUrl;
+        let driveFileId = book.drive_file_id;
+        if (!driveFileId && book.drive_link) {
+          const m = book.drive_link.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || book.drive_link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          if (m) driveFileId = m[1];
+        }
+        const downloadUrl = driveFileId
+          ? `https://drive.usercontent.google.com/download?id=${driveFileId}&confirm=t`
+          : (book.drive_link || `https://drive.google.com/file/d/${book.drive_file_id}/view?usp=sharing`);
         window.open(downloadUrl, '_blank', 'noopener');
-        showFeedback(`Opening "${book.title}" in Google Drive...`, 'success');
+        showFeedback(`Starting high-speed download for "${book.title}"...`, 'success');
         return;
       }
 

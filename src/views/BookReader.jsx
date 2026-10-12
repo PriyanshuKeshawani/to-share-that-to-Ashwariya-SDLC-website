@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import ShareBookModal from '../components/ShareBookModal';
 import { getCachedReadingProgress, saveLocalReadingProgress, queueSyncAction } from '../db/cacheService';
+import { getProtectedBookPdfUrl } from '../utils/pdfUrlResolver';
 
 // Polyfills for modern TC39 proposals required by modern pdfjs-dist workers and range chunkers
 if (typeof Map !== 'undefined') {
@@ -468,13 +469,17 @@ const BookReader = ({ book, onClose }) => {
   }, [book, extractDriveFileId]);
 
   const pdfSource = useMemo(() => {
+    const cdnUrl = getProtectedBookPdfUrl(book);
+    if (cdnUrl) return cdnUrl;
     if (!book.pdf_url) return null;
     if (book.pdf_url.startsWith('/uploads/')) return `${BASE_URL}${book.pdf_url}`;
     if (book.pdf_url.startsWith('http') || book.pdf_url.startsWith('data:')) return book.pdf_url;
     return null;
-  }, [book.pdf_url]);
+  }, [book]);
 
   const openInNewTabUrl = useMemo(() => {
+    const protectedCdn = getProtectedBookPdfUrl(book);
+    if (protectedCdn) return protectedCdn;
     const sources = [book?.drive_link, book?.drive_file_id, book?.pdf_url];
     for (const src of sources) {
       if (!src) continue;
@@ -486,6 +491,33 @@ const BookReader = ({ book, onClose }) => {
     if (book?.drive_link && book.drive_link.startsWith('http')) return book.drive_link;
     return pdfSource;
   }, [book, extractDriveFileId, pdfSource]);
+
+  const driveFileId = useMemo(() => {
+    if (book?.drive_file_id) return book.drive_file_id;
+    if (book?.drive_link) {
+      const { id } = extractDriveFileId(book.drive_link);
+      return id;
+    }
+    return null;
+  }, [book, extractDriveFileId]);
+
+  const directBypassDownloadUrl = useMemo(() => {
+    const protectedCdn = getProtectedBookPdfUrl(book);
+    if (protectedCdn) return protectedCdn;
+    if (driveFileId) {
+      return `https://drive.usercontent.google.com/download?id=${driveFileId}&confirm=t`;
+    }
+    return openInNewTabUrl;
+  }, [book, driveFileId, openInNewTabUrl]);
+
+  const bookSizeMb = useMemo(() => {
+    if (book?.size_mb && Number(book.size_mb) > 0) return Number(book.size_mb);
+    const m = String(book?.description || '').match(/(\d+(\.\d+)?)\s*MB/i);
+    return m ? parseFloat(m[1]) : 0;
+  }, [book?.size_mb, book?.description]);
+
+  const isHeavyBook = bookSizeMb >= 100;
+  const [attemptHeavyPreview, setAttemptHeavyPreview] = useState(false);
 
   // Title tag
   useEffect(() => {
@@ -2156,7 +2188,7 @@ const BookReader = ({ book, onClose }) => {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                background: '#ffffff',
+                background: '#0d1527',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
               }}>
                 <div style={{
@@ -2166,41 +2198,175 @@ const BookReader = ({ book, onClose }) => {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  fontSize: '0.8rem'
+                  fontSize: '0.8rem',
+                  flexWrap: 'wrap',
+                  gap: '8px'
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                     <Sparkles size={14} color="var(--primary)" />
-                    {driveEmbed ? `Google Drive • ${book.title}` : `Browser Digital Viewer • ${book.title}`}
+                    <span style={{ maxWidth: isMobile ? '160px' : '360px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {driveEmbed ? `Google Drive • ${book.title}` : `Browser Digital Viewer • ${book.title}`}
+                    </span>
+                    {bookSizeMb > 0 && (
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        background: isHeavyBook ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.15)',
+                        color: isHeavyBook ? '#f87171' : '#60a5fa',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        border: isHeavyBook ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(59, 130, 246, 0.2)'
+                      }}>
+                        {bookSizeMb.toFixed(1)} MB
+                      </span>
+                    )}
                   </span>
-                  <a
-                    href={openInNewTabUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <a
+                      href={directBypassDownloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                        color: '#ffffff',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+                        transition: 'opacity 0.2s'
+                      }}
+                      title="Direct download bypassing Google virus confirmation screen"
+                    >
+                      <Download size={13} /> Direct Download
+                    </a>
+                    <a
+                      href={openInNewTabUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        color: 'var(--primary, #3b82f6)',
+                        textDecoration: 'none',
+                        fontSize: '0.76rem',
+                        fontWeight: 500,
+                        padding: '4px 8px'
+                      }}
+                    >
+                      <ExternalLink size={13} /> Open in Tab
+                    </a>
+                  </div>
+                </div>
+                {isHeavyBook && !attemptHeavyPreview ? (
+                  /* Sleek fallback for >= 100MB books to avoid Google's broken 'Too large to preview' black box */
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '32px 20px',
+                    textAlign: 'center',
+                    background: 'radial-gradient(circle at 50% 30%, rgba(37, 99, 235, 0.12) 0%, #070d1d 100%)',
+                    color: '#ffffff'
+                  }}>
+                    <div style={{
+                      width: '68px',
+                      height: '68px',
+                      borderRadius: '50%',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px',
-                      color: 'var(--primary, #3b82f6)',
-                      textDecoration: 'none',
-                      fontSize: '0.78rem',
-                      fontWeight: 500
-                    }}
-                  >
-                    <ExternalLink size={13} /> Open in New Tab
-                  </a>
-                </div>
-                <iframe
-                  src={
-                    driveEmbed ||
-                    (pdfSource && isMobile
-                      ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfSource)}&embedded=true`
-                      : `${pdfSource}#page=${currentPage}`)
-                  }
-                  width="100%"
-                  height="100%"
-                  style={{ border: 'none', flex: 1, background: '#ffffff' }}
-                  title={book.title}
-                />
+                      justifyContent: 'center',
+                      marginBottom: '16px'
+                    }}>
+                      <BookOpen size={34} color="#f87171" />
+                    </div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px', color: '#f8fafc' }}>
+                      High-Definition Volume ({bookSizeMb.toFixed(1)} MB)
+                    </h3>
+                    <p style={{ maxWidth: '520px', fontSize: '0.88rem', color: '#94a3b8', lineHeight: 1.6, marginBottom: '22px' }}>
+                      Google Drive web preview restricts in-browser streaming for files &ge; 100 MB. To read without interruption, download the complete unabridged book at full speed or open it directly in Google Drive.
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
+                      <a
+                        href={directBypassDownloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                          color: '#ffffff',
+                          padding: '11px 24px',
+                          borderRadius: '10px',
+                          fontWeight: 600,
+                          fontSize: '0.9rem',
+                          textDecoration: 'none',
+                          boxShadow: '0 4px 16px rgba(37,99,235,0.4)'
+                        }}
+                      >
+                        <Download size={16} /> Direct High-Speed Download ({bookSizeMb.toFixed(0)} MB)
+                      </a>
+                      <a
+                        href={openInNewTabUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#e2e8f0',
+                          padding: '11px 20px',
+                          borderRadius: '10px',
+                          fontWeight: 500,
+                          fontSize: '0.88rem',
+                          textDecoration: 'none',
+                          border: '1px solid rgba(255, 255, 255, 0.15)'
+                        }}
+                      >
+                        <ExternalLink size={15} /> Open in Google Drive
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAttemptHeavyPreview(true)}
+                      style={{
+                        marginTop: '22px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748b',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Attempt in-browser preview anyway
+                    </button>
+                  </div>
+                ) : (
+                  <iframe
+                    src={
+                      driveEmbed ||
+                      (pdfSource && isMobile
+                        ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfSource)}&embedded=true`
+                        : `${pdfSource}#page=${currentPage}`)
+                    }
+                    width="100%"
+                    height="100%"
+                    style={{ border: 'none', flex: 1, background: '#ffffff' }}
+                    title={book.title}
+                  />
+                )}
               </div>
             ) : (
               /* ══════════════════════════════════════════════════════════

@@ -46,3 +46,20 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.bak
+
+# Local assets & covers (hosted on Supabase Storage)
+public/covers/
+
+# Local data vaults & temp caches (never commit heavy binaries to Git)
+data/books_vault/
+data/assembled_books/
+data/hf_git_test/
+scratch/
+*.pdf
+*.doc
+__pycache__/
+*.pyc
+data/
+.arena/
+.agents/
+skills-lock.json
