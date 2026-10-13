@@ -818,17 +818,27 @@ const AdminDashboard = ({ onSelectBook }) => {
   const handleDeleteBook = async () => {
     if (!deleteBookConfirm) return;
     setDeleteBookLoading(true);
+    const deletingId = deleteBookConfirm.id;
     try {
-      const data = await apiCall(`/books/${deleteBookConfirm.id}`, {
+      const data = await apiCall(`/books/${deletingId}`, {
         method: 'DELETE'
       });
       showFeedback(data.message || 'Book deleted successfully');
-      // Refresh
-      const bList = await apiCall('/books');
-      setBooks(bList);
-      const dash = await apiCall('/analytics/dashboard');
-      setDashboardData(dash);
       setDeleteBookConfirm(null);
+      // Immediately remove from local list for instant responsive UI
+      setBooks(prev => prev.filter(b => b.id !== deletingId));
+
+      // Refresh in background
+      try {
+        const [bList, dash] = await Promise.all([
+          apiCall('/books'),
+          apiCall('/analytics/dashboard')
+        ]);
+        if (bList) setBooks(bList);
+        if (dash) setDashboardData(dash);
+      } catch (refreshErr) {
+        console.warn('Post-delete refresh notice:', refreshErr);
+      }
     } catch (err) {
       showFeedback(err.message || 'Failed to delete book', 'error');
     } finally {
@@ -915,25 +925,34 @@ const AdminDashboard = ({ onSelectBook }) => {
     setBookModalError('');
     if (book) {
       setEditingBook(book);
+      const safeBranchId = (book.branch_id != null && book.branch_id !== '')
+        ? String(book.branch_id)
+        : (branches.length > 0 ? String(branches[0].id) : '');
+      const safeCategoryId = (book.category_id != null && book.category_id !== '')
+        ? String(book.category_id)
+        : (categories.length > 0 ? String(categories[0].id) : '');
+
       setBookFormData({
-        title: book.title,
-        author: book.author,
-        category_id: book.category_id.toString(),
-        branch_id: book.branch_id.toString(),
-        priority: book.priority,
+        title: book.title || '',
+        author: book.author || '',
+        category_id: safeCategoryId,
+        branch_id: safeBranchId,
+        priority: book.priority === 'sub' ? 'sub' : 'main',
         pdf_url: book.pdf_url || '',
-        cover_url: book.cover_url || ''
+        cover_url: book.cover_url || '',
+        description: book.description || ''
       });
     } else {
       setEditingBook(null);
       setBookFormData({
         title: '',
         author: '',
-        category_id: categories.length > 0 ? categories[0].id.toString() : '',
-        branch_id: branches.length > 0 ? branches[0].id.toString() : '',
+        category_id: categories.length > 0 ? String(categories[0].id) : '',
+        branch_id: branches.length > 0 ? String(branches[0].id) : '',
         priority: 'main',
         pdf_url: '',
-        cover_url: ''
+        cover_url: '',
+        description: ''
       });
     }
     setShowBookModal(true);
@@ -994,15 +1013,22 @@ const AdminDashboard = ({ onSelectBook }) => {
       setThumbnailFile(null);
       setThumbnailPreview(null);
       setBookModalError('');
-      // Refresh
-      const bList = await apiCall('/books');
-      setBooks(bList);
-      const dash = await apiCall('/analytics/dashboard');
-      setDashboardData(dash);
+
+      // Refresh catalog and dashboard asynchronously
+      try {
+        const [bList, dash] = await Promise.all([
+          apiCall('/books'),
+          apiCall('/analytics/dashboard')
+        ]);
+        if (bList) setBooks(bList);
+        if (dash) setDashboardData(dash);
+      } catch (refreshErr) {
+        console.warn('Post-save refresh notice:', refreshErr);
+      }
     } catch (err) {
       setBookModalError(err.message || 'Failed to save book');
       showFeedback(err.message || 'Failed to save book', 'error');
-} finally {
+    } finally {
       setBookSaving(false);
     }
   };
@@ -3123,7 +3149,10 @@ const AdminDashboard = ({ onSelectBook }) => {
                                       <Activity size={14} />
                                     </button>
                                     <button
-                                      onClick={() => openBookModal(b)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openBookModal(b);
+                                      }}
                                       className="btn btn-secondary"
                                       style={{ padding: '6px 10px' }}
                                       title="Edit Book"
@@ -3131,7 +3160,10 @@ const AdminDashboard = ({ onSelectBook }) => {
                                       <Edit size={14} />
                                     </button>
                                     <button
-                                      onClick={() => setDeleteBookConfirm({ id: b.id, title: b.title })}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteBookConfirm({ id: b.id, title: b.title });
+                                      }}
                                       className="btn btn-secondary"
                                       style={{ padding: '6px 10px', borderColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}
                                       title="Delete Book"
@@ -3199,13 +3231,19 @@ const AdminDashboard = ({ onSelectBook }) => {
                               <Activity size={15} /> Analytics
                             </button>
                             <button
-                              onClick={() => openBookModal(b)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openBookModal(b);
+                              }}
                               className="btn btn-secondary"
                             >
                               <Edit size={15} /> Edit
                             </button>
                             <button
-                              onClick={() => setDeleteBookConfirm({ id: b.id, title: b.title })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteBookConfirm({ id: b.id, title: b.title });
+                              }}
                               className="btn btn-secondary"
                               style={{ borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
                             >

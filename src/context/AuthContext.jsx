@@ -1592,14 +1592,21 @@ export const AuthProvider = ({ children }) => {
     // 1. Bulk delete books (must be checked before generic /books endpoints)
     if (endpoint === '/books/bulk-delete' && method === 'POST') {
       const { bookIds } = body;
-      const numBookIds = (bookIds || []).map(id => parseInt(id, 10));
+      const numBookIds = (bookIds || []).map(id => parseInt(id, 10)).filter(id => Number.isInteger(id));
+
+      if (numBookIds.length === 0) {
+        return { message: 'No valid books selected for deletion' };
+      }
 
       // Try safe RPC on each book
       for (const bId of numBookIds) {
-        const { error: rpcErr } = await supabase.rpc('delete_book_safely', { book_id_to_delete: bId });
-        if (rpcErr && rpcErr.code !== '42883' && !rpcErr.message?.includes('does not exist')) {
-          // If RPC fails due to real error, log it
-          console.warn('RPC delete_book_safely notice for book', bId, rpcErr.message);
+        try {
+          const { error: rpcErr } = await supabase.rpc('delete_book_safely', { book_id_to_delete: bId });
+          if (rpcErr) {
+            console.warn('RPC delete_book_safely notice for book', bId, rpcErr.message);
+          }
+        } catch (ex) {
+          console.warn('RPC delete_book_safely exception for book', bId, ex);
         }
       }
 
@@ -1614,7 +1621,9 @@ export const AuthProvider = ({ children }) => {
 
       const { error } = await supabase.from('books').delete().in('id', numBookIds);
       if (error && error.code !== 'PGRST116') throw error;
-      return { message: 'Selected books deleted successfully' };
+
+      numBookIds.forEach(id => deleteSingleCachedBook(id));
+      return { message: `${numBookIds.length} books deleted successfully` };
     }
 
     // 2. Batch import books (for automated directory upload & bulk ingestion)
@@ -1719,32 +1728,50 @@ export const AuthProvider = ({ children }) => {
       const bookId = endpoint.split('/').pop();
       const numBookId = parseInt(bookId, 10);
 
+      if (Number.isNaN(numBookId)) {
+        throw new Error('Invalid book ID specified for deletion.');
+      }
+
       // Try safe RPC delete_book_safely
-      const { data: rpcData, error: rpcError } = await supabase.rpc('delete_book_safely', {
-        book_id_to_delete: numBookId
-      });
+      let rpcSuccess = false;
+      let rpcResult = null;
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('delete_book_safely', {
+          book_id_to_delete: numBookId
+        });
 
-      if (!rpcError) {
-        deleteSingleCachedBook(numBookId);
-        return { message: rpcData?.message || 'Book deleted successfully', data: rpcData };
+        if (!rpcError) {
+          rpcSuccess = true;
+          rpcResult = rpcData;
+        } else {
+          console.warn('[Delete Book] RPC delete_book_safely notice, switching to cascade deletion fallback:', rpcError.message || rpcError);
+        }
+      } catch (rpcEx) {
+        console.warn('[Delete Book] RPC exception, switching to cascade deletion fallback:', rpcEx);
       }
 
-      // Fallback if RPC not yet created in Supabase
-      if (rpcError.code === '42883' || rpcError.message?.includes('does not exist')) {
-        await Promise.allSettled([
-          supabase.from('user_book_progress').delete().eq('book_id', numBookId),
-          supabase.from('bookmarks').delete().eq('book_id', numBookId),
-          supabase.from('notes').delete().eq('book_id', numBookId),
-          supabase.from('permissions').delete().eq('book_id', numBookId),
-          supabase.from('activity_logs').update({ book_id: null }).eq('book_id', numBookId)
-        ]);
-        const { error } = await supabase.from('books').delete().eq('id', numBookId);
-        if (error) throw error;
+      if (rpcSuccess) {
         deleteSingleCachedBook(numBookId);
-        return { message: 'Book deleted successfully' };
+        return { message: rpcResult?.message || 'Book deleted successfully', data: rpcResult };
       }
 
-      throw rpcError;
+      // Fallback: direct cascade deletion of related child records then book
+      await Promise.allSettled([
+        supabase.from('user_book_progress').delete().eq('book_id', numBookId),
+        supabase.from('bookmarks').delete().eq('book_id', numBookId),
+        supabase.from('notes').delete().eq('book_id', numBookId),
+        supabase.from('permissions').delete().eq('book_id', numBookId),
+        supabase.from('activity_logs').update({ book_id: null }).eq('book_id', numBookId)
+      ]);
+
+      const { error: delError } = await supabase.from('books').delete().eq('id', numBookId);
+      if (delError && delError.code !== 'PGRST116') {
+        console.error('[Delete Book] Direct deletion error on books table:', delError);
+        throw new Error(delError.message || 'Failed to delete book from database.');
+      }
+
+      deleteSingleCachedBook(numBookId);
+      return { message: 'Book deleted successfully' };
     }
 
     // 5. Create or update single book (POST /books OR PUT /books/:id)
@@ -1877,10 +1904,13 @@ export const AuthProvider = ({ children }) => {
 
       if (isBookUpdate) {
         const bookId = endpoint.split('/').pop();
-        const { data, error } = await supabase.from('books').update(cleanPayload).eq('id', bookId).select().single();
+        const numBookId = parseInt(bookId, 10);
+        const queryId = Number.isInteger(numBookId) ? numBookId : bookId;
+        const { data, error } = await supabase.from('books').update(cleanPayload).eq('id', queryId).select();
         if (error) throw error;
-        updateSingleCachedBook(data);
-        return { message: 'Book updated successfully', data };
+        const updatedRecord = (data && data.length > 0) ? data[0] : { id: queryId, ...cleanPayload };
+        updateSingleCachedBook(updatedRecord);
+        return { message: 'Book updated successfully', data: updatedRecord };
       }
 
       const { data, error } = await supabase.from('books').insert([cleanPayload]).select().single();
