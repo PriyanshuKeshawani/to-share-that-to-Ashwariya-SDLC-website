@@ -772,7 +772,29 @@ const BookActivityModal = ({ book, onClose, onSelectStudent, onSelectBook }) => 
                               title={onSelectStudent ? "Click to inspect student profile and library dossier" : undefined}
                             >
                               <div className="bam-reader-main">
-                                <div className="bam-avatar">{initials}</div>
+                                <div className="bam-avatar" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                                  {studentInfo.avatar_url ? (
+                                    <>
+                                      <img
+                                        src={studentInfo.avatar_url}
+                                        alt={displayName}
+                                        referrerPolicy="no-referrer"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          if (e.currentTarget.nextElementSibling) {
+                                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                                          }
+                                        }}
+                                      />
+                                      <div style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                                        {initials}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    initials
+                                  )}
+                                </div>
                                 <div className="bam-reader-info">
                                   <div className="bam-reader-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span>{displayName}</span>

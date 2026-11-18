@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SISTec Digital Learning Club · Catalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F4EF;--surface:#fff;--hover:#ECEAE2;--border:#E3E1D8;--borderStrong:#CAC7BA;--text:#14181F;--muted:#5C6370;--hero:#0F2147;--onHero:#fff;--accent:#2557D6;--accentSoft:#E7EDFB;--btn:#2557D6;--btnHover:#1B46B3;--ring:rgba(37,87,214,.16);--ok:#0B6B4A;--okBg:#E1F3EA;--shadow:0 1px 2px rgba(20,24,31,.08);--cs:0 1px 2px rgba(20,24,31,.18),0 8px 18px rgba(20,24,31,.14);--ch:0 2px 4px rgba(20,24,31,.2),0 16px 30px rgba(20,24,31,.22);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0A0E16;--surface:#121926;--hover:#1A2334;--border:#222C3F;--borderStrong:#34425E;--text:#ECEFF5;--muted:#9AA4B7;--hero:#16264F;--accent:#86A8FF;--accentSoft:#18264A;--btn:#3566E0;--btnHover:#4A78EA;--ring:rgba(134,168,255,.22);--ok:#4ADE9E;--okBg:#0F2E25;--shadow:0 1px 2px rgba(0,0,0,.5);--cs:0 1px 2px rgba(0,0,0,.5),0 10px 22px rgba(0,0,0,.5);--ch:0 2px 4px rgba(0,0,0,.6),0 18px 34px rgba(0,0,0,.65)}}
+:root[data-theme=dark]{--bg:#0A0E16;--surface:#121926;--hover:#1A2334;--border:#222C3F;--borderStrong:#34425E;--text:#ECEFF5;--muted:#9AA4B7;--hero:#16264F;--accent:#86A8FF;--accentSoft:#18264A;--btn:#3566E0;--btnHover:#4A78EA;--ring:rgba(134,168,255,.22);--ok:#4ADE9E;--okBg:#0F2E25;--shadow:0 1px 2px rgba(0,0,0,.5);--cs:0 1px 2px rgba(0,0,0,.5),0 10px 22px rgba(0,0,0,.5);--ch:0 2px 4px rgba(0,0,0,.6),0 18px 34px rgba(0,0,0,.65)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:14px/1.45 'Inter',system-ui,sans-serif;transition:background .2s,color .2s}
+button,input,select{font-family:inherit}
+.serif{font-family:'Fraunces',Georgia,serif;letter-spacing:-.01em}
+.wrap{max-width:1376px;margin:0 auto;padding:0 32px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+.top{display:flex;align-items:center;gap:20px;height:68px}
+.logo{width:38px;height:38px;border-radius:10px;background:var(--hero);color:var(--onHero);display:flex;align-items:center;justify-content:center;flex:none}
+.search{flex:1 1 280px;max-width:560px;margin:0 auto 0 8px;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--bg);transition:border-color .15s,box-shadow .15s,background .15s}
+.search:focus-within{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 4px var(--ring)}
+.search input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font-size:14px;min-width:0}
+.search input::placeholder{color:var(--muted)}
+.kbd{font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:1px 7px;background:var(--surface)}
+.tabs{display:flex;align-items:flex-end;height:48px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
+.tab{position:relative;height:48px;padding:0 4px;margin-right:24px;border:0;background:transparent;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--text)}.tab.on{color:var(--text);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent);border-radius:2px}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;flex:none;transition:background .15s,color .15s}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.outline{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;margin-right:8px;border:1px solid var(--borderStrong);border-radius:999px;background:transparent;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.outline:hover{background:var(--hover)}
+.user{display:flex;align-items:center;gap:10px;margin-left:8px;padding-left:12px;border-left:1px solid var(--border)}
+.av{width:36px;height:36px;border-radius:999px;background:var(--accent);color:var(--bg);font-weight:600;display:flex;align-items:center;justify-content:center}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{display:flex;flex-direction:column;gap:32px;padding-top:28px;padding-bottom:64px}
+.hero{position:relative;background:var(--hero);color:var(--onHero);border-radius:24px;overflow:hidden}
+.hero-t{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:40px 40px 32px}
+.hero-l{max-width:600px;position:relative;z-index:1}
+.who{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px 0 10px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:500;color:rgba(255,255,255,.88)}
+.hero h1{margin:18px 0 0;font-size:52px;line-height:1.04;font-weight:500;letter-spacing:-.02em}
+.hero p{margin:14px 0 0;font-size:15.5px;line-height:1.6;color:rgba(255,255,255,.78);max-width:46ch}
+.hero p b{color:#fff;font-weight:600}
+.hbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.hb{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border:1px solid rgba(255,255,255,.35);border-radius:999px;background:transparent;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+.hb:hover{background:rgba(255,255,255,.12)}.hb.p{background:#fff;border-color:#fff;color:#0F2147}.hb.p:hover{background:#E9EEFB}
+.hb:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.shelf{flex:none;width:300px;height:210px;margin-right:8px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));background:rgba(0,0,0,.18)}
+.stats div{display:flex;align-items:center;gap:12px;padding:18px 28px}
+.stats i{flex:none;width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:#fff}
+.stats b{display:block;font-family:'Fraunces','Iowan Old Style',Georgia,serif;font-size:26px;line-height:1.1;font-weight:500;font-variant-numeric:tabular-nums}
+.stats span{font-size:12.5px;color:rgba(255,255,255,.7)}
+.res{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.rail{flex:0 0 248px;display:flex;flex-direction:column;gap:24px}
+.rail h4{margin:0;padding:0 10px 8px;font-size:12px;font-weight:600;color:var(--muted)}
+.opt{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:13.5px;text-align:left;cursor:pointer}
+.opt:hover{background:var(--hover);color:var(--text)}.opt.on{background:var(--accentSoft);color:var(--accent);font-weight:600}
+.box{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--borderStrong);flex:none;display:flex;align-items:center;justify-content:center}
+.opt.on .box{background:var(--accent);border-color:var(--accent)}.box svg{display:none}.opt.on .box svg{display:block}
+.cat{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.bar{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px}
+.bar h2{margin:0 12px 0 0;font-size:28px;font-weight:500;display:inline}
+.bar .r{display:flex;align-items:center;gap:12px}
+select{height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer}
+.sort{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.seg-g{display:inline-flex;gap:2px;padding:2px;border-radius:10px;background:var(--hover)}
+.seg{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.chips{display:flex;gap:8px;padding-bottom:2px;overflow-x:auto;scrollbar-width:none}
+.chip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
+.chip:hover{border-color:var(--borderStrong);color:var(--text)}
+.chip.on{background:var(--hero);border-color:var(--hero);color:#fff;font-weight:600}
+.chip i{font-style:normal;font-size:12px;opacity:.7;font-variant-numeric:tabular-nums}
+.filt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 12px;border:0;border-radius:999px;background:var(--accentSoft);color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer}
+.link{border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer;padding:6px}
+.link:hover{color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:36px 24px}
+.grid.list{grid-template-columns:minmax(0,1fr)}
+.bk{display:flex;flex-direction:column;gap:16px}.list .bk{flex-direction:row}
+.cover{position:relative;border-radius:4px 10px 10px 4px;overflow:hidden;box-shadow:var(--cs);transition:transform .25s ease,box-shadow .25s ease;flex:none;width:100%;aspect-ratio:2/3}
+.list .cover{width:120px}
+.bk:hover .cover{transform:translateY(-5px) rotate(-.6deg);box-shadow:var(--ch)}
+.locked .cover{filter:saturate(.5) brightness(.9)}
+.spine{position:absolute;left:0;top:0;bottom:0;width:9px;background:linear-gradient(90deg,rgba(0,0,0,.32),rgba(255,255,255,.1) 55%,rgba(0,0,0,0))}
+.ct{position:absolute;inset:0;padding:22px 18px 18px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;color:#fff}
+.ct b{font-size:19px;line-height:1.18;font-weight:600}.ct span{font-size:11.5px;color:rgba(255,255,255,.82)}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.badge{position:absolute;top:10px;left:16px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.95);font-size:11px;font-weight:600;color:#0B6B4A}
+.locked .badge{color:#A5271C}
+.acts{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;opacity:0;transform:translateX(6px);transition:opacity .2s,transform .2s}
+.bk:hover .acts,.bk:focus-within .acts{opacity:1;transform:none}
+@media (hover:none){.acts{opacity:1;transform:none}}
+.act{width:40px;height:40px;border:0;border-radius:999px;background:rgba(255,255,255,.94);color:#14181F;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.act:focus-visible{outline:2px solid #fff}
+.info{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;padding-top:4px}
+.info>div{flex:1}
+.info h3{margin:0;font-size:15px;line-height:1.35;font-weight:600}
+.au{margin-top:3px;font-size:13px;color:var(--muted)}
+.meta{margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:12px;color:var(--muted)}
+.meta b{color:var(--text)}
+.drive{font-weight:600;color:var(--ok);background:var(--okBg);border-radius:6px;padding:1px 8px}
+.cta,.ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;width:100%;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer}
+.cta{border:0;background:var(--btn);color:#fff}.cta:hover{background:var(--btnHover)}
+.ghost{border:1.5px solid var(--accent);background:transparent;color:var(--accent)}.ghost:hover{background:var(--accentSoft)}
+.ghost:disabled{opacity:.6;cursor:default;border-style:dashed;background:transparent}
+.empty{border:1px dashed var(--borderStrong);border-radius:16px;padding:56px 24px;text-align:center;color:var(--muted)}
+.empty div{font-size:22px;color:var(--text)}.empty p{margin:6px 0 0}
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:calc(100vw - 32px);display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;background:var(--hero);color:#fff;font-size:13.5px;font-weight:500;box-shadow:0 12px 32px rgba(0,0,0,.3);animation:tin .25s ease}
+@keyframes tin{from{opacity:0;transform:translate(-50%,8px)}}
+[hidden]{display:none!important}
+@media (max-width:860px){.rail{flex:1 1 100%}.hide-s{display:none!important}.wrap{padding:0 16px}.hero h1{font-size:36px}.hero-t{padding:28px 22px 24px}.stats div{padding:14px 20px}.shelf{display:none}.list .cover{width:96px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header>
+ <div class="wrap top">
+  <div style="display:flex;align-items:center;gap:12px;flex:none">
+   <div class="logo" role="img" aria-label="SISTec"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></div>
+   <div class="hide-s" style="line-height:1.15"><div class="serif" style="font-size:17px;font-weight:600">SISTec</div><div style="font-size:11.5px;color:var(--muted)">Digital Learning Club</div></div>
+  </div>
+  <label class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg><input id="q" type="search" placeholder="Search books by title, author, topic, branch..." aria-label="Search books"><span class="kbd hide-s" aria-hidden="true">/</span></label>
+  <div style="display:flex;align-items:center;gap:4px;flex:none">
+   <button class="outline hide-s" id="tr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Official Transcript</button>
+   <button class="ibtn" aria-label="Notifications, 0 unread" title="Notifications"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7zM10 20a2 2 0 0 0 4 0"/></svg></button>
+   <button class="ibtn" id="theme" aria-label="Toggle dark or light theme" title="Toggle theme"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path id="ti" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
+   <div class="user"><div class="av" aria-hidden="true">S</div><div class="hide-s" style="line-height:1.2"><div style="font-size:13px;font-weight:600">Siddhi Janorkar</div><div style="font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums">0187CY251065</div></div></div>
+  </div>
+ </div>
+ <nav class="wrap tabs" id="tabs" aria-label="Primary"></nav>
+</header>
+
+<main class="wrap">
+ <section class="hero">
+  <div class="hero-t">
+   <div class="hero-l">
+    <span class="who"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5zM6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"/></svg>Cyber Security, 2nd year, 3rd semester</span>
+    <h1 class="serif"><span id="greet">Welcome back</span>, Siddhi.</h1>
+    <p>Your home branch has <b>811 books</b> ready to read. Locked ones can be requested, and approvals show up under My Requests.</p>
+    <div class="hbs"><button class="hb p" data-go="1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3zM21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z"/></svg>Browse home branch</button><button class="hb" data-go="4">My requests</button></div>
+   </div>
+   <svg class="shelf" viewBox="0 0 300 210" aria-hidden="true">
+<g stroke="none">
+<rect x="14" y="70" width="34" height="130" rx="3" fill="#2B6C8F"/><rect x="14" y="92" width="34" height="6" fill="rgba(255,255,255,.35)"/><rect x="14" y="170" width="34" height="3" fill="rgba(255,255,255,.35)"/>
+<rect x="52" y="44" width="40" height="156" rx="3" fill="#A23A32"/><rect x="52" y="66" width="40" height="3" fill="rgba(255,255,255,.4)"/><rect x="62" y="96" width="20" height="26" rx="2" fill="rgba(255,255,255,.18)"/>
+<rect x="96" y="82" width="30" height="118" rx="3" fill="#6B3B6E"/><rect x="96" y="104" width="30" height="5" fill="rgba(255,255,255,.35)"/>
+<rect x="130" y="58" width="36" height="142" rx="3" fill="#2F8A8A"/><rect x="130" y="150" width="36" height="6" fill="rgba(255,255,255,.35)"/><rect x="130" y="160" width="36" height="3" fill="rgba(255,255,255,.35)"/>
+<rect x="170" y="96" width="28" height="104" rx="3" fill="#E8B64C"/><rect x="170" y="116" width="28" height="3" fill="rgba(15,33,71,.4)"/>
+<g transform="rotate(14 262 200)"><rect x="214" y="62" width="40" height="138" rx="3" fill="#3D4F8C"/><rect x="214" y="84" width="40" height="3" fill="rgba(255,255,255,.4)"/><rect x="224" y="112" width="20" height="26" rx="2" fill="rgba(255,255,255,.18)"/></g>
+</g>
+<rect x="0" y="200" width="300" height="6" rx="3" fill="rgba(255,255,255,.28)"/></svg>
+  </div>
+  <div class="stats"><div><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></i><em style="font-style:normal"><b>2,597</b><span>Library Catalog</span></em></div><div><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.5l3 3 5-6"/></svg></i><em style="font-style:normal"><b>0</b><span>Approved Access</span></em></div><div><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"/></svg></i><em style="font-style:normal"><b id="pend">0</b><span>Pending Requests</span></em></div><div><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></i><em style="font-style:normal"><b>0</b><span>Reading Activity</span></em></div><div><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></i><em style="font-style:normal"><b>3</b><span>Projects &amp; Guidance</span></em></div></div>
+ </section>
+
+ <div class="res">
+  <aside class="rail" id="rail" aria-label="Filters"></aside>
+  <section class="cat" aria-label="Book catalog">
+   <div class="bar">
+    <div><h2 class="serif">Catalog</h2><span id="count" style="color:var(--muted)"></span></div>
+    <div class="r">
+     <label class="sort">Sort<select id="sort" aria-label="Sort books"><option value="rel">Relevance</option><option value="title">Title A to Z</option><option value="author">Author A to Z</option></select></label>
+     <div class="seg-g" role="group" aria-label="Layout">
+      <button class="seg on" id="g" aria-label="Grid view" title="Grid view"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></button>
+      <button class="seg" id="l" aria-label="List view" title="List view"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+     </div>
+    </div>
+   </div>
+   <div class="chips" id="chips" role="group" aria-label="Quick filters"></div>
+   <div class="filt" id="filt" hidden></div>
+   <div class="empty" id="empty" hidden><div id="et"></div><p id="ep"></p></div>
+   <div class="grid" id="grid"></div>
+  </section>
+ </div>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const CHK='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const BOOKS=[
+ ['Developing Services for the Wireless Internet','Maurizio Morisio, Marco Torchiano','IT','Programming & Software',1,0,'#16294D,#0B1630','Developing Services for the Wireless Internet'],
+ ['The Modern Algebra of Information Retrieval','Sándor Dominich','CSE','',1,1,'#2B6C8F,#16405E','The Modern Algebra of Information Retrieval'],
+ ['Computer Applications in Pharmaceutical Research and Development','Sean Ekins, Binghe Wang','M.Pharm','Mathematics & Science',0,0,'#2F8A8A,#1B5560','Computer Applications in Pharmaceutical Research'],
+ ['The Tomes of Delphi: Algorithms and Data Structures','Julian Bucknall','CSE','Programming & Software',1,0,'#6B3B6E,#3A1F4B','The Tomes of Delphi'],
+ ['1000 Java Programming Questions & Core Architecture','Academic Faculty','CSE','Programming & Software',1,0,'#3D4F8C,#212C5C','1000 Java Programming Questions'],
+ ['Python Data Science Handbook: Essential Tools for Working with Data','Jake VanderPlas','CSE (AI & DS)','Programming & Software',1,0,'#A23A32,#5E1E1B','Python Data Science Handbook']
+].map(a=>({title:a[0],author:a[1],branch:a[2],cat:a[3],open:!!a[4],drive:!!a[5],g:a[6].split(','),ct:a[7]}));
+const TABS=['All Catalog','Home Branch','Other Branches','Projects Showcase','My Requests','Reading History'];
+const CHIPS=[['All Catalog','2,597',0],['Home Branch','811',1],['Other Branches','1,671',2],['Out of Syllabus','115',5],['My Requests','0',4],['Projects Showcase','',3]];
+const BR=[['all','All Branches'],['CSE','Computer Science & Engineering'],['CSE (AI & DS)','CSE (AI & Data Science)'],['IT','Information Technology'],['M.Pharm','M.Pharm (Pharmaceutical Chemistry)']];
+const AC=[['all','All books'],['unlocked','Unlocked'],['locked','Locked']];
+const CA=[['all','All subjects'],['Programming & Software','Programming & Software'],['Mathematics & Science','Mathematics & Science']];
+const LAB={CSE:'Computer Science & Engineering','CSE (AI & DS)':'CSE (AI & Data Science)',IT:'Information Technology','M.Pharm':'M.Pharm',unlocked:'Unlocked',locked:'Locked'};
+const S={tab:0,branch:'all',access:'all',cat:'all',q:'',sort:'rel',list:false,req:{}};
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let tt;function flash(m){const t=$('#toast');t.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.5l3 3 5-6"/></svg><span>'+esc(m)+'</span>';t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+function opts(id,title,defs,key){return '<div><h4>'+title+'</h4>'+defs.map(d=>'<button class="opt'+(S[key]===d[0]?' on':'')+'" data-k="'+key+'" data-v="'+esc(d[0])+'" aria-pressed="'+(S[key]===d[0])+'"><span class="box">'+CHK+'</span><span>'+esc(d[1])+'</span></button>').join('')+'</div>'}
+const EMPTY={3:['Projects Showcase is empty','Projects and guidance from your faculty will appear here.'],4:['No requests yet','Request access to a locked book and track it here.'],5:['Nothing out of syllabus yet','Books outside your syllabus will appear here.'],0:['No books match these filters','Try a different branch or subject, or clear your search.']};
+function view(){
+ let b=BOOKS.filter(k=>(S.branch==='all'||k.branch===S.branch)&&(S.access==='all'||(S.access==='unlocked')===k.open)&&(S.cat==='all'||k.cat===S.cat)&&(!S.q||(k.title+' '+k.author+' '+k.branch+' '+k.cat).toLowerCase().includes(S.q)));
+ if(S.tab===1)b=b.filter(k=>k.branch==='CSE');
+ if(S.tab===2)b=b.filter(k=>k.branch!=='CSE');
+ if(S.tab===4)b=b.filter(k=>S.req[k.title]);
+ if([3,5,6].includes(S.tab))b=[];
+ if(S.sort==='title')b.sort((x,y)=>x.title.localeCompare(y.title));
+ if(S.sort==='author')b.sort((x,y)=>x.author.localeCompare(y.author));
+ const chipTab=S.tab===6?-1:S.tab;
+ $('#tabs').innerHTML=TABS.map((t,i)=>'<button class="tab'+(i===S.tab?' on':'')+'" data-t="'+i+'"'+(i===S.tab?' aria-current="page"':'')+'>'+t+'</button>').join('');
+ $('#chips').innerHTML=CHIPS.map(c=>'<button class="chip'+(c[2]===chipTab?' on':'')+'" data-t="'+c[2]+'" aria-pressed="'+(c[2]===chipTab)+'"><span>'+c[0]+'</span>'+(c[1]?'<i>'+c[1]+'</i>':'')+'</button>').join('');
+ $('#rail').innerHTML=opts('b','Branch',BR,'branch')+opts('a','Access',AC,'access')+opts('c','Subject',CA,'cat');
+ const f=[];['branch','access','cat'].forEach(k=>{if(S[k]!=='all')f.push([k,LAB[S[k]]||S[k]])});
+ $('#filt').hidden=!f.length;
+ $('#filt').innerHTML='<span>Filtered by</span>'+f.map(x=>'<button class="pill" data-rm="'+x[0]+'" title="Remove this filter">'+esc(x[1])+'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>').join('')+'<button class="link" data-clear>Clear all</button>';
+ const filtered=f.length||S.q||S.tab!==0;
+ $('#count').textContent=filtered?b.length+(b.length===1?' matching book':' matching books'):'2,597 books';
+ const em=b.length===0;$('#empty').hidden=!em;
+ if(em){const e=EMPTY[S.tab]||EMPTY[0];$('#et').className='serif';$('#et').textContent=e[0];$('#ep').textContent=e[1]}
+ $('#grid').className='grid'+(S.list?' list':'');
+ $('#g').classList.toggle('on',!S.list);$('#l').classList.toggle('on',S.list);
+ const A=(l,p,fn)=>'<button class="act" aria-label="'+l+'" title="'+l+'" '+fn+'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+p+'"/></svg></button>';
+ $('#grid').innerHTML=b.map(k=>{const i=BOOKS.indexOf(k),pend=!k.open&&S.req[k.title];
+  return '<article class="bk'+(k.open?'':' locked')+'"><div class="cover" style="background:linear-gradient(160deg,'+k.g[0]+','+k.g[1]+')"><div class="spine"></div><div class="ct"><b class="serif clamp">'+esc(k.ct)+'</b><span>'+esc(k.author)+'</span></div>'
+  +'<div class="badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="'+(k.open?'M6 11h12v10H6zM9 11V7a3 3 0 0 1 5.6-1.5':'M6 11h12v10H6zM8.5 11V7a3.5 3.5 0 0 1 7 0v4')+'"/></svg>'+(k.open?'Unlocked':'Locked')+'</div>'
+  +'<div class="acts">'+(k.open?A('Download book','M12 4v11M7 11l5 5 5-5M5 20h14','data-dl="'+i+'"'):'')+A('Share book','M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4','data-sh="'+i+'"')+A('Book details','M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5v.01','data-in="'+i+'"')+'</div></div>'
+  +'<div class="info"><div><h3 class="clamp">'+esc(k.title)+'</h3><div class="au">'+esc(k.author)+'</div><div class="meta"><b>'+esc(k.branch)+'</b><span aria-hidden="true">·</span><span>Main Syllabus</span>'+(k.cat?'<span aria-hidden="true">·</span><span>'+esc(k.cat)+'</span>':'')+(k.drive?'<span class="drive">Drive</span>':'')+'</div></div>'
+  +(k.open?'<button class="cta" data-rd="'+i+'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3zM21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z"/></svg>Read</button>':pend?'<button class="ghost" disabled>Request pending</button>':'<button class="ghost" data-rq="'+i+'">Request Access</button>')+'</div></article>'}).join('');
+ $('#pend').textContent=Object.keys(S.req).length;
+}
+document.addEventListener('click',e=>{
+ const t=e.target.closest('button');if(!t)return;const d=t.dataset;
+ if(d.t!==undefined)S.tab=+d.t;
+ else if(d.go)S.tab=+d.go;
+ else if(d.k)S[d.k]=d.v;
+ else if(d.rm)S[d.rm]='all';
+ else if(d.clear!==undefined)S.branch=S.access=S.cat='all';
+ else if(d.rq){S.req[BOOKS[d.rq].title]=1;flash('Access request sent. Track it under My Requests.')}
+ else if(d.sh){flash('Link copied to clipboard');return}
+ else if(d.dl){flash('Download started: '+BOOKS[d.dl].title);return}
+ else if(d.rd){flash('Opening '+BOOKS[d.rd].title);return}
+ else if(d.in){flash(BOOKS[d.in].title+' · '+BOOKS[d.in].branch+' · Main Syllabus');return}
+ else if(t.id==='g')S.list=false;
+ else if(t.id==='l')S.list=true;
+ else if(t.id==='tr'){flash('Official Transcript is not available yet');return}
+ else return;
+ view();
+});
+$('#q').addEventListener('input',e=>{S.q=e.target.value.trim().toLowerCase();view()});
+$('#sort').addEventListener('change',e=>{S.sort=e.target.value;view()});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!/INPUT|SELECT/.test(document.activeElement.tagName)){e.preventDefault();$('#q').focus()}});
+const root=document.documentElement;
+let dark=matchMedia('(prefers-color-scheme: dark)').matches;
+function paint(){root.dataset.theme=dark?'dark':'light';$('#ti').setAttribute('d',dark?'M12 4V2M12 22v-2M4.9 4.9 3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z':'M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z')}
+$('#theme').onclick=()=>{dark=!dark;paint()};
+(function(){const h=new Date().getHours();$('#greet').textContent=h<5?'Still up':h<12?'Good morning':h<17?'Good afternoon':'Good evening'})();
+paint();view();
+</script>
+</body>
+</html>

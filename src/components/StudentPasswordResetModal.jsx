@@ -8,7 +8,7 @@ import {
 import { supabase } from '../supabaseClient';
 import PasswordInput from './PasswordInput';
 import PasswordStrengthIndicator from './PasswordStrengthIndicator';
-import { evaluatePasswordStrength, validateNewPassword } from '../utils/passwordPolicy';
+import { evaluatePasswordStrength } from '../utils/passwordPolicy';
 import { generateRequestReference } from '../utils/cryptoResetUtils';
 
 const BRANCH_OPTIONS = [
@@ -44,7 +44,7 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
   const [reqReason, setReqReason] = useState('Forgotten password');
   const [reqLoading, setReqLoading] = useState(false);
   const [reqError, setReqError] = useState('');
-  const [reqSuccessData, setReqSuccessData] = useState(null); // { reference, rollNumber }
+  const [reqSuccessData, setReqSuccessData] = useState(null); // { reference, rollNumber, isExisting, status }
 
   // Tab 2: Track Status State
   const [trackInput, setTrackInput] = useState('');
@@ -146,7 +146,10 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
         }]);
 
       if (insertErr) {
-        throw new Error(insertErr.message || 'Failed to submit reset request.');
+        const errorMsg = insertErr.code === 'PGRST205'
+          ? 'Database migration pending: password_reset_requests table not found in Supabase. Please run supabase_password_reset_migration.sql in Supabase SQL Editor.'
+          : (insertErr.message || insertErr.details || 'Failed to submit reset request.');
+        throw new Error(errorMsg);
       }
 
       // Activity log
@@ -269,39 +272,115 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: '9px 12px',
+    borderRadius: '8px',
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid var(--border-glass, rgba(255, 255, 255, 0.12))',
+    color: '#ffffff',
+    fontSize: '0.82rem',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.2s ease'
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginBottom: '5px'
+  };
+
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(5, 8, 16, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        zIndex: 99999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        animation: 'fadeIn 0.2s ease-out'
+      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="reset-modal-title"
     >
       <div 
-        className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="glass-panel"
+        onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'var(--bg-card, #121826)',
+          width: '100%',
+          maxWidth: '520px',
+          maxHeight: '90vh',
+          borderRadius: '16px',
           border: '1.5px solid var(--border-glass, rgba(255, 255, 255, 0.12))',
-          color: 'var(--text-primary, #ffffff)'
+          background: 'var(--bg-card, #121826)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+          color: 'var(--text-primary, #ffffff)',
+          animation: 'scaleIn 0.2s ease-out'
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-white/10 bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--border-glass, rgba(255, 255, 255, 0.1))',
+          background: 'rgba(255, 255, 255, 0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#60a5fa'
+            }}>
               <KeyRound size={20} />
             </div>
             <div>
-              <h2 id="reset-modal-title" className="text-base font-bold m-0 leading-tight">
+              <h2 id="reset-modal-title" style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#ffffff', lineHeight: 1.2 }}>
                 Student Password Recovery
               </h2>
-              <p className="text-xs text-white/50 m-0 mt-0.5">
+              <p style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.55)', margin: '3px 0 0 0' }}>
                 Admin-Verified In-Person Reset Workflow
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+            type="button"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.6)',
+              padding: '6px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#ffffff'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)'; }}
             aria-label="Close dialog"
           >
             <X size={18} />
@@ -309,114 +388,207 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-white/10 bg-black/20 px-4 pt-2 gap-2 text-xs font-semibold">
-          <button
-            onClick={() => setActiveTab('request')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
-              activeTab === 'request'
-                ? 'border-blue-500 text-blue-400 font-bold'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <Send size={13} /> 1. Request Reset
-          </button>
-          <button
-            onClick={() => setActiveTab('track')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
-              activeTab === 'track'
-                ? 'border-blue-500 text-blue-400 font-bold'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <Clock size={13} /> 2. Track Status
-          </button>
-          <button
-            onClick={() => setActiveTab('verify')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
-              activeTab === 'verify'
-                ? 'border-blue-500 text-blue-400 font-bold'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <Lock size={13} /> 3. Enter PIN & Reset
-          </button>
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border-glass, rgba(255, 255, 255, 0.1))',
+          background: 'rgba(0, 0, 0, 0.25)',
+          padding: '6px 16px 0 16px',
+          gap: '6px',
+          overflowX: 'auto'
+        }}>
+          {[
+            { id: 'request', label: '1. Request Reset', icon: Send },
+            { id: 'track', label: '2. Track Status', icon: Clock },
+            { id: 'verify', label: '3. Enter PIN & Reset', icon: Lock }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '9px 12px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: isActive ? '2px solid var(--primary, #3b82f6)' : '2px solid transparent',
+                  color: isActive ? '#60a5fa' : 'rgba(255, 255, 255, 0.55)',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Icon size={13} /> {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div style={{
+          padding: '20px',
+          overflowY: 'auto',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
           
           {/* ═════════ TAB 1: REQUEST RESET ═════════ */}
           {activeTab === 'request' && (
             <div>
               {reqSuccessData ? (
-                <div className="space-y-4 text-center py-2">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                <div style={{ textAlign: 'center', padding: '10px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    margin: '0 auto',
+                    borderRadius: '50%',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#34d399',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(16, 185, 129, 0.25)'
+                  }}>
                     <CheckCircle2 size={24} />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-emerald-400 m-0">
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#34d399', margin: 0 }}>
                       {reqSuccessData.isExisting ? 'Active Request Found' : 'Reset Request Submitted!'}
                     </h3>
-                    <p className="text-xs text-white/60 mt-1 max-w-sm mx-auto">
+                    <p style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.65)', marginTop: '4px' }}>
                       Your password reset reference has been registered with the Central Library Admin desk.
                     </p>
                   </div>
 
                   {/* Reference Display Card */}
-                  <div className="p-4 rounded-xl bg-white/[0.04] border border-white/10 text-left space-y-2">
-                    <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider block">
+                  <div style={{
+                    padding: '14px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    textAlign: 'left',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Tracking Reference Code
                     </span>
-                    <div className="flex items-center justify-between gap-2 bg-black/40 px-3 py-2 rounded-lg border border-white/10 font-mono text-sm font-bold text-blue-400">
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      color: '#60a5fa'
+                    }}>
                       <span>{reqSuccessData.reference}</span>
                       <button
                         onClick={() => copyToClipboard(reqSuccessData.reference)}
-                        className="text-white/60 hover:text-white p-1 rounded hover:bg-white/10 flex items-center gap-1 text-xs"
+                        type="button"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.75rem',
+                          padding: '4px 8px',
+                          borderRadius: '4px'
+                        }}
                       >
-                        {copiedRef ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                        {copiedRef ? 'Copied' : 'Copy'}
+                        {copiedRef ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+                        <span>{copiedRef ? 'Copied' : 'Copy'}</span>
                       </button>
                     </div>
-                    <div className="text-xs text-white/70 space-y-1 pt-1">
+                    <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.75)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div><strong>Roll Number:</strong> {reqSuccessData.rollNumber}</div>
-                      <div><strong>Status:</strong> <span className="capitalize text-amber-400 font-semibold">{reqSuccessData.status}</span></div>
+                      <div><strong>Status:</strong> <span style={{ textTransform: 'capitalize', color: '#fbbf24', fontWeight: 600 }}>{reqSuccessData.status}</span></div>
                     </div>
                   </div>
 
                   {/* Instructions */}
-                  <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-left text-xs text-blue-200 flex gap-2.5 items-start">
-                    <HelpCircle size={16} className="text-blue-400 shrink-0 mt-0.5" />
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    textAlign: 'left',
+                    fontSize: '0.78rem',
+                    color: '#bfdbfe',
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'flex-start',
+                    lineHeight: 1.5
+                  }}>
+                    <HelpCircle size={16} color="#60a5fa" style={{ flexShrink: 0, marginTop: '2px' }} />
                     <div>
-                      <strong className="block text-blue-300 mb-0.5">Physical Verification Required</strong>
+                      <strong style={{ display: 'block', color: '#93c5fd', marginBottom: '2px' }}>Physical Verification Required</strong>
                       Please visit the Central Library Administrator Desk with your <strong>College ID Card</strong>. Once the librarian verifies your identity, they will issue your single-use 6-digit Reset PIN.
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => {
-                        setVerifyRoll(reqSuccessData.rollNumber);
-                        setVerifyRef(reqSuccessData.reference);
-                        setActiveTab('verify');
-                      }}
-                      className="btn btn-primary w-full py-2.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-2"
-                    >
-                      Already Got PIN? Set New Password <ArrowRight size={14} />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      setVerifyRoll(reqSuccessData.rollNumber);
+                      setVerifyRef(reqSuccessData.reference);
+                      setActiveTab('verify');
+                    }}
+                    type="button"
+                    className="btn btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    Already Got PIN? Set New Password <ArrowRight size={14} />
+                  </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmitRequest} className="space-y-3.5 text-xs">
+                <form onSubmit={handleSubmitRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {reqError && (
-                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-start gap-2">
-                      <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                    <div style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      color: '#f87171',
+                      fontSize: '0.78rem',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      lineHeight: 1.5
+                    }}>
+                      <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>{reqError}</span>
                     </div>
                   )}
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      Enrollment / Roll Number <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      Enrollment / Roll Number <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <input
                       type="text"
@@ -424,13 +596,13 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                       onChange={(e) => setReqRollNumber(e.target.value.toUpperCase())}
                       placeholder="e.g. 0187CS211045"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 font-mono"
+                      style={{ ...inputStyle, fontFamily: 'monospace' }}
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      Full Name (As per College ID) <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      Full Name (As per College ID) <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <input
                       type="text"
@@ -438,45 +610,41 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                       onChange={(e) => setReqFullName(e.target.value)}
                       placeholder="e.g. Rohan Sharma"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500"
+                      style={inputStyle}
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
-                      <label className="block font-semibold mb-1 text-white/70">
-                        Department / Branch
-                      </label>
+                      <label style={labelStyle}>Department / Branch</label>
                       <select
                         value={reqBranch}
                         onChange={(e) => setReqBranch(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 text-xs"
+                        style={{ ...inputStyle, cursor: 'pointer' }}
                       >
                         {BRANCH_OPTIONS.map(b => (
-                          <option key={b} value={b} className="bg-slate-900 text-white">{b}</option>
+                          <option key={b} value={b} style={{ background: '#0f172a', color: '#ffffff' }}>{b}</option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block font-semibold mb-1 text-white/70">
-                        Semester
-                      </label>
+                      <label style={labelStyle}>Semester</label>
                       <select
                         value={reqSemester}
                         onChange={(e) => setReqSemester(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 text-xs"
+                        style={{ ...inputStyle, cursor: 'pointer' }}
                       >
                         {SEMESTER_OPTIONS.map(s => (
-                          <option key={s} value={s} className="bg-slate-900 text-white">{s}</option>
+                          <option key={s} value={s} style={{ background: '#0f172a', color: '#ffffff' }}>{s}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      Reason for Reset Request <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      Reason for Reset Request <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <input
                       type="text"
@@ -484,18 +652,30 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                       onChange={(e) => setReqReason(e.target.value)}
                       placeholder="e.g. Forgot password, lost device access"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500"
+                      style={inputStyle}
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={reqLoading}
-                    className="btn btn-primary w-full py-2.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 mt-2"
+                    className="btn btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      marginTop: '4px'
+                    }}
                   >
                     {reqLoading ? (
                       <>
-                        <Loader2 size={15} className="animate-spin" /> Submitting Request...
+                        <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> Submitting Request...
                       </>
                     ) : (
                       <>
@@ -510,34 +690,55 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
 
           {/* ═════════ TAB 2: TRACK STATUS ═════════ */}
           {activeTab === 'track' && (
-            <div className="space-y-4 text-xs">
-              <form onSubmit={handleTrackRequest} className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <form onSubmit={handleTrackRequest} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {trackError && (
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-start gap-2">
-                    <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                  <div style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#f87171',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    lineHeight: 1.5
+                  }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
                     <span>{trackError}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="block font-semibold mb-1 text-white/70">
+                  <label style={labelStyle}>
                     Request Reference or Roll Number
                   </label>
-                  <div className="flex gap-2">
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="text"
                       value={trackInput}
                       onChange={(e) => setTrackInput(e.target.value)}
                       placeholder="e.g. PR-2026-X8K9M2 or 0187CS211045"
                       required
-                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 font-mono text-xs"
+                      style={{ ...inputStyle, flex: 1, fontFamily: 'monospace' }}
                     />
                     <button
                       type="submit"
                       disabled={trackLoading}
-                      className="btn btn-primary px-4 py-2 rounded-lg font-semibold flex items-center gap-1.5 shrink-0"
+                      className="btn btn-primary"
+                      style={{
+                        padding: '0 16px',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        fontSize: '0.82rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexShrink: 0
+                      }}
                     >
-                      {trackLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      {trackLoading ? <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : <RefreshCw size={14} />}
                       Track
                     </button>
                   </div>
@@ -545,40 +746,86 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
               </form>
 
               {trackResult && (
-                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div style={{
+                  padding: '14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: '10px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+                  }}>
                     <div>
-                      <span className="font-mono text-xs font-bold text-blue-400 block">
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 700, color: '#60a5fa', display: 'block' }}>
                         {trackResult.request_reference}
                       </span>
-                      <span className="text-[11px] text-white/50">
+                      <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.5)' }}>
                         Submitted: {new Date(trackResult.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                      trackResult.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                      trackResult.status === 'pending' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                      trackResult.status === 'completed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                      'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}>
+                    <span style={{
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      background: trackResult.status === 'approved' ? 'rgba(16, 185, 129, 0.2)' :
+                                  trackResult.status === 'pending' ? 'rgba(245, 158, 11, 0.2)' :
+                                  trackResult.status === 'completed' ? 'rgba(59, 130, 246, 0.2)' :
+                                  'rgba(239, 68, 68, 0.2)',
+                      color: trackResult.status === 'approved' ? '#34d399' :
+                             trackResult.status === 'pending' ? '#fbbf24' :
+                             trackResult.status === 'completed' ? '#60a5fa' :
+                             '#f87171',
+                      border: `1px solid ${
+                        trackResult.status === 'approved' ? 'rgba(16, 185, 129, 0.35)' :
+                        trackResult.status === 'pending' ? 'rgba(245, 158, 11, 0.35)' :
+                        trackResult.status === 'completed' ? 'rgba(59, 130, 246, 0.35)' :
+                        'rgba(239, 68, 68, 0.35)'
+                      }`
+                    }}>
                       {trackResult.status}
                     </span>
                   </div>
 
-                  <div className="space-y-1 text-white/70">
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.75)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div><strong>Student:</strong> {trackResult.student_name} ({trackResult.roll_number})</div>
                     <div><strong>Branch:</strong> {trackResult.branch_name || 'N/A'}</div>
                   </div>
 
                   {trackResult.status === 'pending' && (
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200">
+                    <div style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      color: '#fef3c7',
+                      fontSize: '0.78rem',
+                      lineHeight: 1.5
+                    }}>
                       <strong>⏳ Pending Verification</strong>: Please visit the Central Library Admin Desk with your College ID card.
                     </div>
                   )}
 
                   {trackResult.status === 'approved' && (
-                    <div className="space-y-2">
-                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-200">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        color: '#d1fae5',
+                        fontSize: '0.78rem',
+                        lineHeight: 1.5
+                      }}>
                         <strong>✅ Request Approved!</strong> The administrator has generated your 6-digit Reset PIN.
                       </div>
                       <button
@@ -587,7 +834,19 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                           setVerifyRef(trackResult.request_reference);
                           setActiveTab('verify');
                         }}
-                        className="btn btn-primary w-full py-2 rounded-lg font-semibold flex items-center justify-center gap-1.5"
+                        type="button"
+                        className="btn btn-primary"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
                       >
                         Proceed to Enter PIN & Reset Password <ArrowRight size={14} />
                       </button>
@@ -595,13 +854,29 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                   )}
 
                   {trackResult.status === 'rejected' && (
-                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200">
+                    <div style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      color: '#fee2e2',
+                      fontSize: '0.78rem',
+                      lineHeight: 1.5
+                    }}>
                       <strong>❌ Request Rejected</strong>: {trackResult.rejection_reason || 'Student identity could not be verified.'}
                     </div>
                   )}
 
                   {trackResult.status === 'completed' && (
-                    <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200">
+                    <div style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      color: '#dbeafe',
+                      fontSize: '0.78rem',
+                      lineHeight: 1.5
+                    }}>
                       <strong>🎉 Reset Completed</strong>: This password reset was successfully finalized.
                     </div>
                   )}
@@ -612,34 +887,68 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
 
           {/* ═════════ TAB 3: COMPLETE RESET WITH PIN ═════════ */}
           {activeTab === 'verify' && (
-            <div className="space-y-3.5 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {verifySuccess ? (
-                <div className="p-5 text-center space-y-3">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                <div style={{ textAlign: 'center', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    margin: '0 auto',
+                    borderRadius: '50%',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#34d399',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(16, 185, 129, 0.25)'
+                  }}>
                     <CheckCircle2 size={24} />
                   </div>
-                  <h3 className="text-base font-bold text-emerald-400 m-0">Password Reset Complete!</h3>
-                  <p className="text-xs text-white/70">{verifySuccess}</p>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#34d399', margin: 0 }}>Password Reset Complete!</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.75)', margin: 0 }}>{verifySuccess}</p>
                   <button
                     onClick={onClose}
-                    className="btn btn-primary px-6 py-2 rounded-lg font-semibold inline-flex items-center gap-2 mt-2"
+                    type="button"
+                    className="btn btn-primary"
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      marginTop: '6px'
+                    }}
                   >
                     Back to Sign In <ArrowRight size={14} />
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleVerifyAndReset} className="space-y-3">
+                <form onSubmit={handleVerifyAndReset} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {verifyError && (
-                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-start gap-2">
-                      <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                    <div style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      color: '#f87171',
+                      fontSize: '0.78rem',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      lineHeight: 1.5
+                    }}>
+                      <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>{verifyError}</span>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
-                      <label className="block font-semibold mb-1 text-white/70">
-                        Enrollment / Roll Number <span className="text-red-400">*</span>
+                      <label style={labelStyle}>
+                        Enrollment / Roll Number <span style={{ color: '#f87171' }}>*</span>
                       </label>
                       <input
                         type="text"
@@ -647,13 +956,13 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                         onChange={(e) => setVerifyRoll(e.target.value.toUpperCase())}
                         placeholder="e.g. 0187CS211045"
                         required
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 font-mono"
+                        style={{ ...inputStyle, fontFamily: 'monospace' }}
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold mb-1 text-white/70">
-                        Request Reference <span className="text-red-400">*</span>
+                      <label style={labelStyle}>
+                        Request Reference <span style={{ color: '#f87171' }}>*</span>
                       </label>
                       <input
                         type="text"
@@ -661,14 +970,14 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                         onChange={(e) => setVerifyRef(e.target.value.toUpperCase())}
                         placeholder="e.g. PR-2026-X8K9M2"
                         required
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 font-mono"
+                        style={{ ...inputStyle, fontFamily: 'monospace' }}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      6-Digit Reset PIN (From Administrator) <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      6-Digit Reset PIN (From Administrator) <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <input
                       type="text"
@@ -677,16 +986,23 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                       onChange={(e) => setVerifyPin(e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="e.g. 849201"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500 font-mono text-center tracking-[0.3em] text-base font-bold"
+                      style={{
+                        ...inputStyle,
+                        fontFamily: 'monospace',
+                        textAlign: 'center',
+                        letterSpacing: '0.3em',
+                        fontSize: '1.05rem',
+                        fontWeight: 700
+                      }}
                     />
-                    <span className="text-[11px] text-white/40 block mt-1">
+                    <span style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.45)', display: 'block', marginTop: '4px' }}>
                       Enter the single-use 15-minute PIN provided by the library admin.
                     </span>
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      New Password (Min 12 Characters) <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      New Password (Min 12 Characters) <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <PasswordInput
                       id="reset-new-password"
@@ -701,8 +1017,8 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-white/70">
-                      Confirm New Password <span className="text-red-400">*</span>
+                    <label style={labelStyle}>
+                      Confirm New Password <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <PasswordInput
                       id="reset-confirm-password"
@@ -714,9 +1030,15 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                       disabled={verifyLoading}
                     />
                     {confirmPassword.length > 0 && (
-                      <div className={`mt-1 text-[11px] font-semibold flex items-center gap-1 ${
-                        passwordsMatch ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
+                      <div style={{
+                        marginTop: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        color: passwordsMatch ? '#34d399' : '#f87171'
+                      }}>
                         {passwordsMatch ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
                         {passwordsMatch ? 'Passwords match' : 'Passwords do not match yet'}
                       </div>
@@ -726,11 +1048,23 @@ export default function StudentPasswordResetModal({ isOpen, onClose, initialRoll
                   <button
                     type="submit"
                     disabled={verifyLoading || !pwdStrength.isValid || !passwordsMatch || verifyPin.length !== 6}
-                    className="btn btn-primary w-full py-2.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 mt-2"
+                    className="btn btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      marginTop: '4px'
+                    }}
                   >
                     {verifyLoading ? (
                       <>
-                        <Loader2 size={15} className="animate-spin" /> Verifying & Updating Password...
+                        <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> Verifying & Updating Password...
                       </>
                     ) : (
                       <>
